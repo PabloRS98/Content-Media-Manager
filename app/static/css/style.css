@@ -415,6 +415,7 @@ canvas { max-width: 100%; }
 
 .media-card { display: flex; flex-direction: column; gap: .45rem; padding: .8rem; }
 .media-card .cover { position: relative; border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 2/3; background: var(--bg-soft); border: 1px solid var(--border); }
+.media-card .cover.podcast { aspect-ratio: 1/1; }
 .media-card .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-card .cover .no-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .media-card .cover .status-badge { position: absolute; top: .45rem; left: .45rem; }
@@ -557,6 +558,7 @@ canvas { max-width: 100%; }
 /* Ficha de detalle */
 .detail-head { display: flex; gap: 1.3rem; align-items: flex-start; }
 .detail-cover { width: 160px; flex: 0 0 160px; aspect-ratio: 2/3; border-radius: var(--r-sm); overflow: hidden; background: var(--bg-soft); border: 1px solid var(--border); position: relative; }
+.detail-cover.podcast { aspect-ratio: 1/1; }
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .detail-cover .no-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .detail-info { flex: 1; min-width: 0; }

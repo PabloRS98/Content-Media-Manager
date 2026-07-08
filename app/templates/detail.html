@@ -9,7 +9,7 @@
 <a href="/catalogo" class="back-link">{{ icon("chevron-left", 15) }} Volver al catálogo</a>
 
 <section class="card detail-head">
-    <div class="detail-cover">
+    <div class="detail-cover{% if item.media_type.value == 'podcast' %} podcast{% endif %}">
         {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="">
         {% else %}<span class="no-cover">{{ media_icon(item.media_type.value, 40) }}</span>{% endif %}
     </div>
