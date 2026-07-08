@@ -1,5 +1,9 @@
 # Media Catalog
 
+[![CI](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml)
+[![Docker image](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A self-hosted, single-user catalog for books, movies, series, video games and
 podcasts — track what you're watching/reading/playing, what's next, and what's
 still on your wishlist. Runs as one small Docker container against a local
@@ -62,6 +66,14 @@ git clone https://github.com/PabloRS98/Content-Media-Manager.git
 cd Content-Media-Manager
 cp .env.example .env   # optional: add free API keys, see below
 docker compose up -d --build
+```
+
+Or, without cloning, using the prebuilt image published on every push to `main`:
+
+```bash
+docker run -d --name media-catalog -p 8002:8000 \
+  -v media_data:/data \
+  ghcr.io/pablors98/content-media-manager:latest
 ```
 
 Open `http://localhost:8002`. Data lives in the `media_data` Docker volume
