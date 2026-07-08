@@ -7,7 +7,7 @@ import time
 from sqlalchemy.orm import Session
 
 from ..models import MediaItem, MediaType
-from . import openlibrary, googlebooks, rawg, tmdb
+from . import openlibrary, googlebooks, wikipedia_covers, rawg, tmdb
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +39,22 @@ def _search_for(item: MediaItem) -> list[dict]:
         if item.creator:
             query_str += f" {item.creator}"
             
+        # Cascada: Google Books -> Wikipedia -> Open Library
         try:
             res = googlebooks.search_books(query_str, limit=5, year=item.year)
         except Exception:
-            logger.warning("Fallo al buscar en Google Books para '%s', cayendo en Open Library", query_str)
+            logger.warning("Fallo al buscar en Google Books para '%s'", query_str)
             res = []
+
+        if not res:
+            try:
+                res = wikipedia_covers.search_book_cover(
+                    title=cleaned_title if len(cleaned_title) > 2 else item.title,
+                    author=item.creator or "", year=item.year,
+                )
+            except Exception:
+                logger.warning("Fallo al buscar en Wikipedia para '%s'", query_str)
+
         if not res:
             res = openlibrary.search_books(query_str, limit=3, year=item.year)
         return res

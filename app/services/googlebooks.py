@@ -32,20 +32,19 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
     for attempt in range(3):
         try:
             resp = httpx.get(SEARCH_URL, params=params, headers=headers, timeout=10)
-            if resp.status_code in (429, 503):
-                sleep_time = 2.0 * (attempt + 1) if resp.status_code == 429 else 1.0 * (attempt + 1)
-                time.sleep(sleep_time)
+            if resp.status_code == 429:
+                logger.debug("Google Books 429 rate-limit, cayendo a fallback")
+                return []
+            if resp.status_code == 503:
+                time.sleep(1.0 * (attempt + 1))
                 continue
             resp.raise_for_status()
             break
         except httpx.HTTPStatusError as e:
-            if e.response.status_code in (429, 503) and attempt < 2:
-                sleep_time = 2.0 * (attempt + 1) if e.response.status_code == 429 else 1.0 * (attempt + 1)
-                time.sleep(sleep_time)
-                continue
-            raise e
-        except Exception as e:
-            if attempt < 2:
+            if e.response.status_code == 429:
+                logger.debug("Google Books 429 rate-limit, cayendo a fallback")
+                return []
+            if e.response.status_code == 503 and attempt < 2:
                 time.sleep(1.0 * (attempt + 1))
                 continue
             raise e
