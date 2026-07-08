@@ -5,7 +5,16 @@ podcasts — track what you're watching/reading/playing, what's next, and what's
 still on your wishlist. Runs as one small Docker container against a local
 SQLite file. No account, no cloud, no paid API required.
 
-<!-- screenshots go here — home, catalog grid, item detail, stats -->
+![Home](docs/screenshots/home.png)
+
+<details>
+<summary>More screenshots (catalog, item detail, stats)</summary>
+
+![Catalog](docs/screenshots/catalog.png)
+![Item detail](docs/screenshots/detail.png)
+![Stats](docs/screenshots/stats.png)
+
+</details>
 
 ## Features
 
