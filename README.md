@@ -58,8 +58,8 @@ the metadata APIs you choose to configure.
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-user>/media-catalog.git
-cd media-catalog
+git clone https://github.com/PabloRS98/Content-Media-Manager.git
+cd Content-Media-Manager
 cp .env.example .env   # optional: add free API keys, see below
 docker compose up -d --build
 ```
