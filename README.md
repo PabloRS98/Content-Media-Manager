@@ -8,11 +8,16 @@ SQLite file. No account, no cloud, no paid API required.
 ![Home](docs/screenshots/home.png)
 
 <details>
-<summary>More screenshots (catalog, item detail, stats)</summary>
+<summary>More screenshots (catalog, movies, series, games, podcasts, item detail, stats, import)</summary>
 
-![Catalog](docs/screenshots/catalog.png)
+![Books](docs/screenshots/catalog.png)
+![Movies](docs/screenshots/peliculas.png)
+![Series](docs/screenshots/series.png)
+![Games](docs/screenshots/juegos.png)
+![Podcasts](docs/screenshots/podcast.png)
 ![Item detail](docs/screenshots/detail.png)
 ![Stats](docs/screenshots/stats.png)
+![Import](docs/screenshots/importar.png)
 
 </details>
 
@@ -29,8 +34,8 @@ SQLite file. No account, no cloud, no paid API required.
 - **Sagas/franchises**: grouped automatically via TMDB collections, editable manually.
 - **Stats page** and a "suggest me something" random pick.
 - **Calendar view** for upcoming episodes and release dates.
-- **IMDb CSV import**: bulk-import your exported IMDb ratings/watchlist, with
-  batch cover-art enrichment afterward.
+- **CSV import**: IMDb (ratings/watchlist), Goodreads/StoryGraph (books), and
+  Backloggd or a generic CSV (games) — with batch cover-art enrichment afterward.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
 - **Automatic daily backups** of the SQLite database, with rotation.
 - **Optional HTTP Basic auth**, for when you expose it beyond your LAN (e.g. via Tailscale).
