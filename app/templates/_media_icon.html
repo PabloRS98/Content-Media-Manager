@@ -1,0 +1,10 @@
+{# Macro: icono según el tipo de medio #}
+{% from "_icons.html" import icon %}
+{% macro media_icon(media_type, size=16) %}
+{%- if media_type == "libro" %}{{ icon("book-open", size) }}
+{%- elif media_type == "pelicula" %}{{ icon("film", size) }}
+{%- elif media_type == "serie" %}{{ icon("tv", size) }}
+{%- elif media_type == "podcast" %}{{ icon("mic", size) }}
+{%- else %}{{ icon("gamepad-2", size) }}
+{%- endif %}
+{% endmacro %}

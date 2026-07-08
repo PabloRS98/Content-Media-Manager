@@ -1,0 +1,20 @@
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% if encajan %}
+<ul class="timefit-list">
+{% for item, est in encajan %}
+    <li>
+        <a href="/item/{{ item.id }}">{{ media_icon(item.media_type.value, 15) }} {{ item.title }}</a>
+        <span class="subtle">
+        {%- if item.media_type.value in ("serie", "podcast") %}
+            {%- set nx = item.episode_stats().next %}{% if nx %}próx. {{ nx.code }} · {% endif %}~{{ est }} min
+        {%- elif item.media_type.value == "videojuego" %}~{{ item.hltb_hours|round(1) }} h para acabar
+        {%- elif item.media_type.value == "libro" %}~{{ est }} min de lectura
+        {%- else %}{{ est }} min{% endif %}
+        </span>
+    </li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="hint">Nada pendiente cabe en {{ minutos }} min. Prueba con más tiempo, o añade la duración a tus ítems (peli/juego/libro) en su ficha.</p>
+{% endif %}

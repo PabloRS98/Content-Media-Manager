@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0d12">
+    <title>{% block title %}Catálogo de Medios{% endblock %}</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/htmx.min.js" defer></script>
+</head>
+<body>
+{% from "_icons.html" import icon %}
+{% set path = request.url.path %}
+<header class="topbar">
+    <a href="/" class="brand">{{ icon("library-big", 20) }} <span>Catálogo</span></a>
+    <nav class="nav-links">
+        <a href="/" class="{{ 'active' if path == '/' else '' }}">{{ icon("layout-dashboard") }}<span>Inicio</span></a>
+        {% set active_type = request.query_params.get("tipo") or (item.media_type.value if item is defined and item else None) %}
+        <a href="/catalogo?tipo=libro" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'libro' else '' }}">{{ icon("book-open") }}<span>Libros</span></a>
+        <a href="/catalogo?tipo=pelicula" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'pelicula' else '' }}">{{ icon("film") }}<span>Películas</span></a>
+        <a href="/catalogo?tipo=serie" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'serie' else '' }}">{{ icon("tv") }}<span>Series</span></a>
+        <a href="/catalogo?tipo=videojuego" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'videojuego' else '' }}">{{ icon("gamepad-2") }}<span>Juegos</span></a>
+        <a href="/catalogo?tipo=podcast" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'podcast' else '' }}">{{ icon("podcast") }}<span>Podcasts</span></a>
+        <a href="/listas" class="{{ 'active' if path.startswith('/listas') else '' }}">{{ icon("list") }}<span>Listas</span></a>
+        <a href="/estadisticas" class="{{ 'active' if path.startswith('/estadisticas') else '' }}">{{ icon("chart-column") }}<span>Stats</span></a>
+        <a href="/importar" class="{{ 'active' if path.startswith('/importar') else '' }}">{{ icon("upload") }}<span>Importar</span></a>
+    </nav>
+</header>
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="/static/js/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

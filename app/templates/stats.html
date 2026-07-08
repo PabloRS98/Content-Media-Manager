@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% from "_stars.html" import stars %}
+{% block title %}Estadísticas · Catálogo{% endblock %}
+{% block content %}
+
+<section class="grid-summary">
+    <div class="card stat">
+        <span class="stat-head">{{ icon("library-big", 16) }} En el catálogo</span>
+        <p class="big-number">{{ total }}</p>
+    </div>
+    <div class="card stat positive">
+        <span class="stat-head">{{ icon("circle-check", 16) }} Completados en {{ año }}</span>
+        <p class="big-number positive">{{ completados_este_año }}
+            {%- set delta = completados_este_año - completados_prev %}
+            <small>{{ "+" if delta >= 0 else "" }}{{ delta }} vs {{ año_prev }}</small>
+        </p>
+    </div>
+    <div class="card stat">
+        <span class="stat-head">{{ icon("clock", 16) }} Tiempo total</span>
+        <p class="big-number">{{ tiempo_horas }}<small> h</small></p>
+    </div>
+    <div class="card stat">
+        <span class="stat-head">{{ icon("play", 16) }} En progreso</span>
+        <p class="big-number">{{ en_progreso }}</p>
+    </div>
+    <div class="card stat">
+        <span class="stat-head">{{ icon("inbox", 16) }} Pendientes</span>
+        <p class="big-number">{{ pendientes }}</p>
+    </div>
+    <div class="card stat">
+        <span class="stat-head">{{ icon("sparkles", 16) }} Wishlist</span>
+        <p class="big-number">{{ wishlist }}</p>
+    </div>
+</section>
+
+{% if mejores %}
+<section class="card">
+    <h3>{{ icon("star") }} Tus mejores de {{ año }}</h3>
+    <ul class="best-list">
+        {% for m in mejores %}
+        <li>
+            <a href="/item/{{ m.id }}">{{ media_icon(m.media_type.value, 14) }} {{ m.title }}</a>
+            {{ stars(m.rating, 14) }}
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="grid-charts">
+    <div class="card">
+        <h3>{{ icon("chart-pie") }} Por tipo</h3>
+        <div class="chart-box"><canvas id="chart-tipos"></canvas></div>
+    </div>
+    <div class="card">
+        <h3>{{ icon("calendar") }} Completados por mes ({{ año }})</h3>
+        <div class="chart-box"><canvas id="chart-meses"></canvas></div>
+    </div>
+    <div class="card">
+        <h3>{{ icon("tags") }} Géneros más frecuentes</h3>
+        {% if top_generos %}
+        <div class="chart-box"><canvas id="chart-generos"></canvas></div>
+        {% else %}
+        <div class="empty">{{ icon("tags", 26) }} Sin géneros todavía. Se rellenan al añadir desde TMDB/RAWG o importar.</div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>{{ icon("calendar") }} Por década</h3>
+        {% if por_decada %}
+        <div class="chart-box"><canvas id="chart-decada"></canvas></div>
+        {% else %}
+        <div class="empty">{{ icon("calendar", 26) }} Sin años registrados todavía.</div>
+        {% endif %}
+    </div>
+    <div class="card">
+        <h3>{{ icon("star") }} Distribución de tus notas</h3>
+        <div class="chart-box"><canvas id="chart-notas"></canvas></div>
+    </div>
+</section>
+
+<section class="card">
+    <p class="hint" style="margin:0">
+        {{ icon("circle-check", 13) }} {{ completados }} completados en total ·
+        {{ icon("x", 13) }} {{ abandonados }} abandonados ·
+        el tiempo total suma la duración de pelis y episodios vistos, las horas de juego (HowLongToBeat)
+        y el tiempo estimado de lectura de los libros completados.
+    </p>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/chart.umd.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    Chart.defaults.color = "#a9b1c0";
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+    Chart.defaults.borderColor = "rgba(48, 58, 77, .35)";
+    Chart.defaults.maintainAspectRatio = false;
+    Chart.defaults.plugins.legend.labels.boxWidth = 12;
+    const PALETTE = ["#a06fe0", "#4f8ef7", "#3ecf8e", "#f5b95f", "#f26d6d", "#4fc7e0", "#8b93a7", "#c29cf2"];
+
+    new Chart(document.getElementById("chart-tipos"), {
+        type: "doughnut",
+        data: {
+            labels: ["Libros", "Películas", "Series", "Videojuegos", "Podcasts"],
+            datasets: [{
+                data: [{{ por_tipo["libro"] }}, {{ por_tipo["pelicula"] }}, {{ por_tipo["serie"] }}, {{ por_tipo["videojuego"] }}, {{ por_tipo["podcast"] }}],
+                backgroundColor: PALETTE, borderWidth: 0
+            }]
+        },
+        options: { cutout: "62%", plugins: { legend: { position: "right" } } }
+    });
+
+    new Chart(document.getElementById("chart-meses"), {
+        type: "bar",
+        data: {
+            labels: ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
+            datasets: [{ label: "Completados", data: {{ por_mes | tojson | safe }}, backgroundColor: "#a06fe0", borderRadius: 4 }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
+    });
+
+    {% if top_generos %}
+    new Chart(document.getElementById("chart-generos"), {
+        type: "bar",
+        data: {
+            labels: {{ top_generos | map(attribute=0) | list | tojson | safe }},
+            datasets: [{ data: {{ top_generos | map(attribute=1) | list | tojson | safe }}, backgroundColor: PALETTE, borderRadius: 4 }]
+        },
+        options: { indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { ticks: { precision: 0 } } } }
+    });
+    {% endif %}
+
+    {% if por_decada %}
+    new Chart(document.getElementById("chart-decada"), {
+        type: "bar",
+        data: {
+            labels: {{ por_decada | map(attribute=0) | map("string") | list | tojson | safe }}.map(d => d + "s"),
+            datasets: [{ data: {{ por_decada | map(attribute=1) | list | tojson | safe }}, backgroundColor: "#4f8ef7", borderRadius: 4 }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
+    });
+    {% endif %}
+
+    new Chart(document.getElementById("chart-notas"), {
+        type: "bar",
+        data: {
+            labels: ["1","2","3","4","5","6","7","8","9","10"],
+            datasets: [{ label: "Ítems", data: {{ ratings | tojson | safe }}, backgroundColor: "#f5b95f", borderRadius: 4 }]
+        },
+        options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
+    });
+});
+</script>
+{% endblock %}

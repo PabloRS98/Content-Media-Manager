@@ -1,0 +1,19 @@
+services:
+  media-catalog:
+    build: .
+    container_name: media-catalog
+    restart: unless-stopped
+    ports:
+      - "8002:8000"
+    env_file:
+      - .env
+    volumes:
+      - media_data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  media_data:

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% from "_card.html" import media_card %}
+{% block title %}Inicio · Catálogo de Medios{% endblock %}
+{% block content %}
+
+<section class="home-summary">
+    <a href="/catalogo" class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></a>
+    <a href="/catalogo?estado=en_progreso" class="hsum accent"><strong>{{ resumen.en_progreso }}</strong><span>en progreso</span></a>
+    <a href="/catalogo?estado=pendiente" class="hsum"><strong>{{ resumen.pendientes }}</strong><span>pendientes</span></a>
+    <a href="/catalogo?estado=completado" class="hsum positive"><strong>{{ resumen.completados }}</strong><span>completados</span></a>
+    <a href="/catalogo?estado=wishlist" class="hsum"><strong>{{ resumen.wishlist }}</strong><span>wishlist</span></a>
+</section>
+
+{% if not hay_algo %}
+<section class="card">
+    <div class="empty">
+        {{ icon("library-big", 30) }}
+        Tu catálogo está vacío. Ve a <a href="/catalogo">Catálogo</a> para buscar y añadir tus libros, pelis, series, juegos y podcasts.
+    </div>
+</section>
+{% endif %}
+
+{% if en_progreso %}
+<section class="card">
+    <h3>{{ icon("play") }} Continuar</h3>
+    <div class="rail">{% for item in en_progreso %}{{ media_card(item) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if proximos %}
+<section class="card">
+    <h3 class="rowline">{{ icon("list-todo") }} Próximos <a href="/catalogo?estado=pendiente" class="head-link">ver todos {{ icon("chevron-right", 13) }}</a></h3>
+    <div class="rail">{% for item in proximos %}{{ media_card(item) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if wishlist %}
+<section class="card">
+    <h3 class="rowline">{{ icon("sparkles") }} Wishlist <a href="/catalogo?estado=wishlist" class="head-link">ver todo {{ icon("chevron-right", 13) }}</a></h3>
+    <div class="rail">{% for item in wishlist %}{{ media_card(item) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if proximamente %}
+<section class="card">
+    <h3 class="rowline">{{ icon("calendar") }} Próximamente <a href="/calendario" class="head-link">calendario {{ icon("chevron-right", 13) }}</a></h3>
+    <ul class="upcoming-list">
+        {% for e in proximamente %}
+        <li>
+            <span class="up-date">{{ e.fecha.strftime("%d %b") }}</span>
+            <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 14) }} {{ e.item.title }}</a>
+            <span class="subtle">{% if e.tipo == "episodio" %}{{ e.episodio.code }}{% else %}estreno{% endif %}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+{% if recientes %}
+<section class="card">
+    <h3>{{ icon("circle-check") }} Completado hace poco</h3>
+    <div class="rail">{% for item in recientes %}{{ media_card(item) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+<section class="card">
+    <h3>{{ icon("clock") }} ¿Cuánto tiempo tienes?</h3>
+    <div class="toolbar" style="margin-bottom:.6rem">
+        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=30" hx-target="#timefit-box" hx-swap="innerHTML">30 min</button>
+        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=60" hx-target="#timefit-box" hx-swap="innerHTML">1 h</button>
+        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=120" hx-target="#timefit-box" hx-swap="innerHTML">2 h</button>
+        <input type="number" id="tf-min" min="5" max="1000" step="5" placeholder="min" style="max-width:90px"
+               hx-get="/tengo-tiempo" hx-trigger="keyup changed delay:500ms" hx-target="#timefit-box"
+               hx-swap="innerHTML" hx-include="this" name="minutos">
+    </div>
+    <div id="timefit-box"></div>
+</section>
+
+<section class="card">
+    <h3>{{ icon("dices") }} ¿No sabes qué ver/leer/jugar?</h3>
+    <div class="toolbar" style="margin-bottom:.6rem">
+        <button type="button" hx-get="/sugerencia" hx-target="#suggestion-box" hx-swap="innerHTML" hx-indicator="#suggest-spinner">
+            {{ icon("dices", 15) }} Sugiéreme algo pendiente
+        </button>
+        <span id="suggest-spinner" class="htmx-indicator spinner"></span>
+    </div>
+    <div id="suggestion-box"></div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+{# Macro: tarjeta de portada que enlaza a la ficha de detalle. Usada en inicio y catálogo. #}
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% from "_stars.html" import stars %}
+
+{% macro media_card(item) %}
+{%- set st = item.episode_stats() if item.is_episodic else None %}
+<a href="/item/{{ item.id }}" class="card media-card">
+    <div class="cover">
+        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">
+        {% else %}<span class="no-cover">{{ media_icon(item.media_type.value, 30) }}</span>{% endif %}
+        {% set label = 'Por ver' if item.status.value == 'pendiente' and item.media_type.value in ('pelicula', 'serie') else 
+                      ('Por leer' if item.status.value == 'pendiente' and item.media_type.value == 'libro' else
+                      ('Por jugar' if item.status.value == 'pendiente' and item.media_type.value == 'videojuego' else
+                      ('Por escuchar' if item.status.value == 'pendiente' and item.media_type.value == 'podcast' else
+                      ('Viendo' if item.status.value == 'en_progreso' and item.media_type.value in ('pelicula', 'serie') else
+                      ('Leyendo' if item.status.value == 'en_progreso' and item.media_type.value == 'libro' else
+                      ('Jugando' if item.status.value == 'en_progreso' and item.media_type.value == 'videojuego' else
+                      ('Escuchando' if item.status.value == 'en_progreso' and item.media_type.value == 'podcast' else
+                      ('Visto' if item.status.value == 'completado' and item.media_type.value in ('pelicula', 'serie') else
+                      ('Leído' if item.status.value == 'completado' and item.media_type.value == 'libro' else
+                      ('Terminado' if item.status.value == 'completado' and item.media_type.value == 'videojuego' else
+                      ('Escuchado' if item.status.value == 'completado' and item.media_type.value == 'podcast' else
+                      ('Abandonado' if item.status.value == 'abandonado' else item.status.value|replace("_", " ")|capitalize)))))))))))) %}
+        <span class="status-badge {{ item.status.value }}">{{ label }}</span>
+        {% if item.priority.value == "alta" and item.status.value in ("pendiente", "wishlist") %}
+        <span class="prio-badge" title="Prioridad alta">{{ icon("flame", 13) }}</span>{% endif %}
+    </div>
+    <div class="mc-body">
+        <span class="title">{{ item.title }}</span>
+        <span class="meta">{{ media_icon(item.media_type.value, 12) }} {{ item.year or "?" }}{% if item.creator %} · {{ item.creator|truncate(26) }}{% endif %}</span>
+        {% if st and st.total %}
+        <div class="progress" title="{{ st.watched }}/{{ st.total }} episodios">
+            <div style="width: {{ (100 * st.watched / st.total)|round|int }}%"></div>
+        </div>
+        <span class="subtle">{{ st.watched }}/{{ st.total }} ep{% if st.next %} · próx. {{ st.next.code }}{% endif %}</span>
+        {% elif item.progress_total %}
+        <div class="progress" title="{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or '' }}">
+            <div style="width: {{ (100 * (item.progress_current or 0) / item.progress_total)|round|int if item.progress_total else 0 }}%"></div>
+        </div>
+        <span class="subtle">{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or "" }}</span>
+        {% endif %}
+        {% if item.rating %}{{ stars(item.rating, 13) }}{% endif %}
+    </div>
+</a>
+{% endmacro %}

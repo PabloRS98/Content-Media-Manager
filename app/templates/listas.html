@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Listas · Catálogo{% endblock %}
+{% block content %}
+
+<section class="card">
+    <h3>{{ icon("list") }} Mis listas</h3>
+    <form method="post" action="/listas" class="toolbar">
+        <input type="text" name="name" placeholder="Nombre de la lista (p. ej. 'Para ver con pareja')..." class="grow" required>
+        <button type="submit">{{ icon("plus", 14) }} Crear</button>
+    </form>
+</section>
+
+{% if listas %}
+<div class="grid-summary">
+    {% for l in listas %}
+    <a href="/listas/{{ l.id }}" class="card list-tile">
+        <strong>{{ l.name }}</strong>
+        <span class="subtle">{{ l.items|length }} ítem{{ "s" if l.items|length != 1 else "" }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<section class="card"><div class="empty">{{ icon("list", 30) }} Aún no tienes listas. Crea una arriba y añade ítems desde su ficha.</div></section>
+{% endif %}
+
+{% endblock %}

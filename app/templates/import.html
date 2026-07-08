@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Importar · Catálogo{% endblock %}
+{% block content %}
+
+<section class="card">
+    <h3>{{ icon("upload") }} Importar tu lista de IMDB</h3>
+    <p class="hint">
+        IMDB no tiene una API oficial gratuita, pero puedes exportar tu propia lista como CSV:
+    </p>
+    <ol class="hint" style="margin:.4rem 0 .9rem; padding-left:1.2rem">
+        <li>Entra en tu cuenta de IMDB y abre <em>Your Ratings</em> (lo valorado) o tu <em>Watchlist</em> (pendientes).</li>
+        <li>Pulsa el botón <strong>Export</strong> de esa página: descarga un archivo .csv.</li>
+        <li>Súbelo aquí abajo.</li>
+    </ol>
+    <form method="post" action="/importar" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="archivo" accept=".csv" required style="max-width: 320px">
+        <button type="submit">{{ icon("upload", 15) }} Importar</button>
+    </form>
+    <p class="hint" style="margin-top:.8rem">
+        Los títulos valorados se crean como <strong>completado</strong> con tu nota y su fecha;
+        los de watchlist, como <strong>pendiente</strong>. Los géneros del CSV se guardan también.
+        Puedes repetir la importación: los ya importados (por ID de IMDB) no se duplican.
+    </p>
+</section>
+
+<section class="card">
+    <h3>{{ icon("book-open") }} Importar libros (Goodreads / StoryGraph)</h3>
+    <p class="hint">
+        Exporta tu biblioteca desde Goodreads (<em>Account → Export</em>) o StoryGraph
+        (<em>Manage account → Export</em>) y sube el CSV. Se respetan nota, estado, páginas y fecha de lectura.
+    </p>
+    <form method="post" action="/importar/libros" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="archivo" accept=".csv" required style="max-width: 320px">
+        <button type="submit">{{ icon("upload", 15) }} Importar libros</button>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("gamepad-2") }} Importar juegos (Backloggd / CSV)</h3>
+    <p class="hint">
+        Exporta tu backlog desde Backloggd o sube un CSV con columnas
+        <code>Title</code>, <code>Status</code>, <code>Rating</code>, <code>Hours</code>. Nota en escala 0-5.
+    </p>
+    <form method="post" action="/importar/juegos" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="archivo" accept=".csv" required style="max-width: 320px">
+        <button type="submit">{{ icon("upload", 15) }} Importar juegos</button>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("image-off") }} Completar portadas que falten</h3>
+    {% if sin_portada > 0 %}
+    <p class="hint">
+        Hay <strong>{{ sin_portada }}</strong> ítems sin portada (típico tras importar de IMDB).
+        Esto busca cada título+año en TMDB (pelis/series), Open Library (libros) y RAWG (juegos)
+        y rellena portada, géneros y sinopsis si faltan. Va por lotes de 30 para respetar las APIs gratuitas.
+    </p>
+    <div class="toolbar" style="margin-bottom:.6rem">
+        <button type="button"
+                hx-post="/importar/completar-portadas" hx-target="#enrich-result" hx-swap="innerHTML"
+                hx-indicator="#enrich-spinner">
+            {{ icon("sparkles", 15) }} Buscar portadas (lote de 30)
+        </button>
+        <span id="enrich-spinner" class="htmx-indicator spinner"></span>
+        <span class="subtle">puede tardar ~10 s por lote</span>
+    </div>
+    {% else %}
+    <p class="hint">{{ icon("circle-check", 14) }} Todos los ítems del catálogo tienen portada.</p>
+    {% endif %}
+    <div id="enrich-result"></div>
+</section>
+
+{% endblock %}

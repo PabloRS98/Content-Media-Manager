@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Compile check
+        run: python -m compileall app
+
+      - name: Build Docker image
+        run: docker build -t media-catalog:ci .
+
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 8000:8000 media-catalog:ci
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:8000/salud && break
+            sleep 1
+          done
+          curl -sf http://localhost:8000/salud
+          docker logs smoke
+          docker stop smoke

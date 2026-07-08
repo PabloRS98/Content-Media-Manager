@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_card.html" import media_card %}
+{% block title %}{{ lista.name }} · Listas{% endblock %}
+{% block content %}
+
+<a href="/listas" class="back-link">{{ icon("chevron-left", 15) }} Todas las listas</a>
+
+<section class="card">
+    <div class="rowline" style="margin-bottom:.6rem">
+        <h2 style="margin:0">{{ icon("list") }} {{ lista.name }} <span class="tag accent">{{ lista.items|length }}</span></h2>
+        <form method="post" action="/listas/{{ lista.id }}/eliminar" data-confirm="¿Eliminar la lista &quot;{{ lista.name }}&quot;? (los ítems no se borran)">
+            <button type="submit" class="danger small">{{ icon("trash-2", 13) }} Eliminar lista</button>
+        </form>
+    </div>
+
+    {% if lista.items %}
+    <div class="grid-cards">
+        {% for item in lista.items %}
+        <div class="list-entry">
+            {{ media_card(item) }}
+            <form method="post" action="/listas/{{ lista.id }}/quitar/{{ item.id }}">
+                <button type="submit" class="ghost small">{{ icon("x", 13) }} Quitar</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">{{ icon("inbox", 30) }} Lista vacía. Añádele ítems desde la ficha de cada uno.</div>
+    {% endif %}
+</section>
+
+{% endblock %}

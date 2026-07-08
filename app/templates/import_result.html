@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Importación completada · Catálogo{% endblock %}
+{% block content %}
+
+<section class="card">
+    <h3>{{ icon("circle-check") }} Importación completada</h3>
+    <div class="badges" style="margin-bottom:.8rem">
+        <span class="tag positive">{{ creados }} añadidos</span>
+        <span class="tag">{{ duplicados }} ya existían</span>
+        <span class="tag warning">{{ omitidos }} omitidos</span>
+    </div>
+    <p class="hint">Los "omitidos" suelen ser filas sin título reconocible o episodios sueltos (tvEpisode), que no se importan a propósito.</p>
+
+    {% if sin_portada > 0 %}
+    <p class="hint" style="margin-top:.8rem">
+        {{ icon("image-off", 14) }} Hay <strong>{{ sin_portada }}</strong> ítems sin portada.
+    </p>
+    <div class="toolbar">
+        <button type="button"
+                hx-post="/importar/completar-portadas" hx-target="#enrich-result" hx-swap="innerHTML"
+                hx-indicator="#enrich-spinner">
+            {{ icon("sparkles", 15) }} Buscar portadas ahora
+        </button>
+        <span id="enrich-spinner" class="htmx-indicator spinner"></span>
+    </div>
+    <div id="enrich-result" style="margin-top:.6rem"></div>
+    {% endif %}
+
+    <p style="margin-top:1rem"><a href="/">{{ icon("chevron-left", 13) }} Ver catálogo</a> · <a href="/importar">Importar otro archivo</a></p>
+</section>
+
+{% endblock %}

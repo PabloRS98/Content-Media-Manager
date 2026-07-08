@@ -1,0 +1,31 @@
+{% from "_icons.html" import icon %}
+<div class="grid-cards">
+{% for r in results %}
+    <form method="post" action="/agregar" class="card media-card">
+        <input type="hidden" name="media_type" value="{{ tipo }}">
+        <input type="hidden" name="external_id" value="{{ r.external_id or '' }}">
+        <input type="hidden" name="external_source" value="{{ source or '' }}">
+        <input type="hidden" name="cover_url" value="{{ r.cover_url or '' }}">
+        <input type="hidden" name="year" value="{{ r.year or '' }}">
+        <input type="hidden" name="creator" value="{{ r.creator or '' }}">
+        <input type="hidden" name="title" value="{{ r.title }}">
+        <input type="hidden" name="overview" value="{{ r.overview or '' }}">
+        <input type="hidden" name="genres" value="{{ r.genres or '' }}">
+        <input type="hidden" name="release_date" value="{{ r.release_date or '' }}">
+        <input type="hidden" name="page_count" value="{{ r.page_count or '' }}">
+        <div class="cover">
+            {% if r.cover_url %}<img src="{{ r.cover_url }}" alt="" loading="lazy">
+            {% else %}<span class="no-cover">{{ icon("image-off", 26) }}</span>{% endif %}
+        </div>
+        <span class="title">{{ r.title }}</span>
+        <span class="meta">{{ r.year or "" }} {{ ("· " ~ r.creator) if r.creator else "" }}</span>
+        {% if r.genres %}<span class="meta">{{ r.genres }}</span>{% endif %}
+        <div class="toolbar" style="margin-top:auto; gap:.4rem">
+            <button type="submit" name="status" value="pendiente" class="grow">{{ icon("plus", 14) }} Añadir</button>
+            <button type="submit" name="status" value="wishlist" class="ghost small" title="Añadir a wishlist">{{ icon("sparkles", 14) }}</button>
+        </div>
+    </form>
+{% else %}
+    <p class="hint">Sin resultados. Escribe al menos 2 caracteres{% if tipo in ("pelicula", "serie") %} (¿está configurada TMDB_API_KEY?){% elif tipo == "videojuego" %} (¿está configurada RAWG_API_KEY?){% endif %}.</p>
+{% endfor %}
+</div>

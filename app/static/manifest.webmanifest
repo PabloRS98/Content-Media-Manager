@@ -1,0 +1,9 @@
+{
+  "name": "Catálogo de Medios",
+  "short_name": "Catálogo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#a06fe0",
+  "icons": [{ "src": "/static/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }]
+}

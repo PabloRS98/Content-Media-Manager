@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% block title %}Calendario · Catálogo{% endblock %}
+{% block content %}
+
+<a href="/" class="back-link">{{ icon("chevron-left", 15) }} Inicio</a>
+
+<section class="card">
+    <h3>{{ icon("calendar") }} Próximos estrenos</h3>
+    {% if grupos %}
+    {% for g in grupos %}
+    <div class="cal-group">
+        <div class="cal-date">{{ g.fecha.strftime("%A %d %B %Y")|capitalize }}</div>
+        <ul class="upcoming-list">
+            {% for e in g.entradas %}
+            <li>
+                <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 14) }} {{ e.item.title }}</a>
+                <span class="subtle">
+                {%- if e.tipo == "episodio" %}{{ e.episodio.code }}{% if e.episodio.name %} · {{ e.episodio.name }}{% endif %}
+                {%- else %}estreno{% endif %}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty">{{ icon("calendar", 30) }} Nada en el horizonte. Los estrenos aparecen aquí cuando sigues series (con TMDB) o pones cosas con fecha en tu wishlist.</div>
+    {% endif %}
+</section>
+
+{% endblock %}

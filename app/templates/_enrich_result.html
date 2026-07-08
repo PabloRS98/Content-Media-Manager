@@ -1,0 +1,17 @@
+{% from "_icons.html" import icon %}
+<div class="toolbar" style="gap:.5rem">
+    {% if procesados == 0 %}
+    <span class="tag positive">{{ icon("circle-check", 13) }} No queda ningún ítem sin portada</span>
+    {% else %}
+    <span class="tag positive">{{ icon("circle-check", 13) }} {{ encontrados }} portadas encontradas</span>
+    <span class="tag">{{ procesados }} procesados</span>
+    {% if restantes > 0 %}
+    <span class="tag warning">{{ restantes }} aún sin portada</span>
+    <button type="button" class="small"
+            hx-post="/importar/completar-portadas" hx-target="#enrich-result" hx-swap="innerHTML"
+            hx-indicator="#enrich-spinner">
+        {{ icon("refresh-cw", 13) }} Procesar siguiente lote
+    </button>
+    {% endif %}
+    {% endif %}
+</div>
