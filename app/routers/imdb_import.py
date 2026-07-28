@@ -7,10 +7,11 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
+from ..config import settings
 from ..database import get_db
 from ..models import MediaItem, MediaStatus, MediaType
 from ..services.enrich import enrich_missing_covers
@@ -18,6 +19,31 @@ from ..services.imports import import_books_csv, import_games_csv
 from ..templating import templates
 
 router = APIRouter(tags=["importar-imdb"], dependencies=[Depends(verify_auth)])
+
+CHUNK_SIZE = 64 * 1024
+
+
+async def read_csv_upload(archivo: UploadFile) -> str:
+    """Lee un CSV subido en trozos, abortando si supera MAX_UPLOAD_MB.
+
+    `UploadFile.read()` sin argumentos carga el fichero entero en memoria (y el
+    `StringIO` posterior mantiene una segunda copia decodificada): arrastrar el
+    fichero equivocado bastaba para tumbar el contenedor por OOM."""
+    limite = settings.max_upload_mb * 1024 * 1024
+    trozos: list[bytes] = []
+    leidos = 0
+    while True:
+        trozo = await archivo.read(CHUNK_SIZE)
+        if not trozo:
+            break
+        leidos += len(trozo)
+        if leidos > limite:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="El fichero supera el límite de %d MB" % settings.max_upload_mb,
+            )
+        trozos.append(trozo)
+    return b"".join(trozos).decode("utf-8-sig", errors="ignore")
 
 # IMDB usa sus propios "Title Type"; los mapeamos a nuestras 4 categorías.
 # Mapeados en minúsculas para búsquedas seguras tolerantes a mayúsculas/minúsculas.
@@ -54,12 +80,15 @@ TITLE_TYPE_MAP = {
 
 
 def _get(row: dict, *names: str) -> str:
-    """Obtiene un valor de una fila (row) del CSV buscando entre varios nombres alternativos
-    de forma case-insensitive."""
+    """Primer valor NO VACÍO entre las columnas candidatas (case-insensitive).
+
+    Comprobar solo `is not None` hacía que una columna presente pero vacía ganase
+    a una alternativa poblada: en un CSV de IMDb bilingüe (con 'Title' y 'Título')
+    esas filas se descartaban como omitidas."""
     lowered = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
     for n in names:
         v = lowered.get(n.strip().lower())
-        if v is not None:
+        if v:
             return v
     return ""
 
@@ -98,7 +127,7 @@ async def import_imdb_csv(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    contenido = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    contenido = await read_csv_upload(archivo)
     reader = csv.DictReader(io.StringIO(contenido))
     fieldnames = reader.fieldnames or []
 
@@ -109,12 +138,17 @@ async def import_imdb_csv(
     creados = 0
     omitidos = 0
     duplicados = 0
+    # La sesión usa autoflush=False y solo se hace commit al final, así que las
+    # filas añadidas en iteraciones previas todavía NO son visibles para la
+    # consulta de abajo: sin este set, un CSV con la misma película repetida (o
+    # presente a la vez en Ratings y Watchlist) creaba entradas duplicadas.
+    vistos_en_fichero: set[str] = set()
 
     for row in reader:
         # Busca el tipo de título de forma case-insensitive y tolerante a idiomas
         title_type = _get(row, "Title Type", "Tipo de título", "Tipo de titulo", "Type").strip().lower()
         media_type = TITLE_TYPE_MAP.get(title_type)
-        
+
         title = _get(row, "Title", "Título", "Titulo").strip()
 
         if media_type is None or not title:
@@ -125,17 +159,21 @@ async def import_imdb_csv(
         external_id = f"imdb:{imdb_id}" if imdb_id else None
 
         if external_id:
+            if external_id in vistos_en_fichero:
+                duplicados += 1
+                continue
             ya_existe = db.query(MediaItem).filter(MediaItem.external_id == external_id).first()
             if ya_existe:
                 duplicados += 1
                 continue
+            vistos_en_fichero.add(external_id)
 
         year = _parse_optional_int(_get(row, "Year", "Año", "Ano"))
         directors = _get(row, "Directors", "Directores", "Director").strip()
         imdb_rating = _get(row, "IMDb Rating", "Calificación de IMDb", "Calificacion de IMDb", "IMDB Rating").strip()
         genres = _get(row, "Genres", "Géneros", "Generos").strip()
         num_votes = _get(row, "Num Votes", "Número de votos", "Numero de votos").strip()
-        
+
         # Obtener valoración del usuario si existe la columna
         your_rating_str = _get(row, "Your Rating", "Tu calificación", "Tu calificacion", "Rating")
         your_rating = _parse_optional_int(your_rating_str) if tiene_rating else None
@@ -180,7 +218,7 @@ async def import_imdb_csv(
 @router.post("/importar/libros")
 async def import_books(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
     """Importa libros desde un CSV de Goodreads o StoryGraph."""
-    text = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    text = await read_csv_upload(archivo)
     res = import_books_csv(db, text)
     sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
@@ -189,7 +227,7 @@ async def import_books(request: Request, archivo: UploadFile = File(...), db: Se
 @router.post("/importar/juegos")
 async def import_games(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
     """Importa juegos desde un CSV de Backloggd o genérico."""
-    text = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    text = await read_csv_upload(archivo)
     res = import_games_csv(db, text)
     sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})

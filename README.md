@@ -42,7 +42,8 @@ SQLite file. No account, no cloud, no paid API required.
   Backloggd or a generic CSV (games) — with batch cover-art enrichment afterward.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
 - **Automatic daily backups** of the SQLite database, with rotation.
-- **Optional HTTP Basic auth**, for when you expose it beyond your LAN (e.g. via Tailscale).
+- **Optional HTTP Basic auth**, for when you expose it beyond your LAN (e.g. via Tailscale),
+  with CSRF protection on every write and an unprivileged container user.
 
 ## Why
 
@@ -102,12 +103,38 @@ all — they're on by default.
 ## Development
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
 The app expects a writable `/data` directory (or set `DB_PATH` to a local
 path when running outside Docker).
+
+Tests and linting:
+
+```bash
+pytest          # full suite, each test gets its own throwaway SQLite file
+ruff check app tests
+```
+
+The suite hits no network and needs no API keys — external calls are stubbed.
+
+## Upgrading
+
+**From a version before the security fixes:** the container now runs as an
+unprivileged user (uid 10001) instead of root. If your `/data` volume was
+created by an older image, its files still belong to root and the new container
+cannot write to them. Fix it once:
+
+```bash
+docker compose down
+docker run --rm -v media_data:/data alpine chown -R 10001:10001 /data
+docker compose up -d --build
+```
+
+Fresh installs need nothing. Also note that cross-site POST requests are now
+rejected: if you drive the app from a script rather than a browser, send the
+requests to the app's own origin (or with no `Origin`/`Sec-Fetch-Site` header).
 
 ## Contributing
 

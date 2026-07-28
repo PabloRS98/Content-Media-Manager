@@ -10,6 +10,61 @@ código, señaladas como tales.
 
 ---
 
+## Estado: todos los hallazgos corregidos
+
+Los 22 hallazgos están arreglados, y los 12 verificados vuelven a comprobarse con los
+mismos scripts que los detectaron. El texto de cada hallazgo se conserva tal cual como
+registro de qué fallaba y por qué; lo que sigue es el resumen de la corrección.
+
+| # | Hallazgo | Corrección |
+|---|---|---|
+| A1 | XSS almacenado en `/estadisticas` | Se elimina el override de `tojson`; el `default=str` se conserva vía `policies["json.dumps_kwargs"]`, que Jinja pasa a su serializador seguro |
+| A2 | Open redirect vía `Referer` | `security.safe_redirect_path()`: solo rutas internas, y una URL absoluta solo si su host coincide con el de la petición |
+| A3 | API keys en los logs | `services/http_errors.describe()`: se loguea esquema+host+path, nunca la query string. Cubre también el bot token de Telegram, que va en el path |
+| M1 | Sin protección CSRF | `security.CSRFMiddleware`: los métodos de escritura exigen `Sec-Fetch-Site` propio (con `Origin` como respaldo) |
+| M2 | Duplicados en un mismo CSV de IMDb | Set de `external_id` ya vistos durante el bucle + índice en `external_id` |
+| M3 | `restantes` mal calculado | Se resta `found`, no el tamaño del lote |
+| M4 | 500 si Google Books cae | `search_books` envuelve todo y devuelve `[]`, como el resto de fuentes |
+| M5 | `completed_at` sin rellenar al dar de alta | `/agregar` aplica la misma regla que `/actualizar` |
+| M6 | N+1 en `/estadisticas` | `joinedload(Episode.item)` + agregación con `func.sum`: de 44 consultas a 14, y ya no crece con el catálogo |
+| M7 | SSRF vía `external_id` de podcast | `services/netguard.ensure_public_url()`: valida esquema y descarta hosts que resuelven a rangos internos |
+| M8 | Subida sin límite de tamaño | Lectura por trozos con tope `MAX_UPLOAD_MB` (20 por defecto) y 413 al superarlo |
+| M9 | Enriquecimiento bloqueante | Presupuesto de 25 s por petición; lo que falte queda para el siguiente lote |
+| B1 | Comodines de `LIKE` sin escapar | `_like_literal()` + `escape="\\"` |
+| B2 | `_get()` se quedaba con la columna vacía | Ahora exige valor no vacío, igual que la copia de `services/imports.py` |
+| B3 | `BACKUP_KEEP=0` no rotaba | `keep = max(1, backup_keep)` |
+| B4 | Contraseña no ASCII | Comparación sobre bytes + aviso al arrancar (incluida la contraseña de ejemplo sin cambiar) |
+| B5 | `rating`/`year` sin validar | `_clamped()` descarta lo que esté fuera de rango |
+| B6 | Contador "sin portada" global | Respeta el tipo filtrado |
+| B7 | Rutas relativas | `app/paths.py` las resuelve desde la ubicación del módulo |
+| B8 | Scheduler duplicado con varios workers | Flag `ENABLE_SCHEDULER` + comentario junto al `CMD` |
+| B9 | Contenedor como root | Usuario `appuser` (uid 10001) + `HEALTHCHECK` sobre `/salud` |
+| B10 | `docker compose up` sin `.env` | `env_file` con `required: false` |
+
+**Dos cosas aparecieron al arreglar, no en la lectura inicial:**
+
+- El bot token de Telegram viaja en el *path* de la URL (`/bot<token>/sendMessage`), no en
+  la query, así que `logger.exception` también lo filtraba. A3 solo cubría las tres APIs
+  con key en query; el saneado ahora redacta ese segmento del path.
+- La primera versión de `describe()` accedía a `exc.request`, que en httpx lanza
+  `RuntimeError` si la excepción se construyó sin petición asignada. Al llamarse desde
+  dentro de un `except`, eso convertía un fallo de red en un 500 — exactamente el bug M4
+  que se estaba arreglando, reintroducido por el arreglo. Lo detectó el script de
+  verificación original, no la suite de tests (que siempre construía las excepciones con
+  `request=`). Hay test de regresión.
+
+**Suite de tests:** 132 tests (`pytest`), sin red ni claves de API. `ruff` limpio. El CI
+pasa de compilar a ejecutar lint + tests, con el build de Docker en un job aparte.
+
+**Verificación pendiente:** el build de la imagen Docker no se ha podido ejecutar en este
+entorno (no hay demonio disponible); lo comprueba el job `docker` del CI.
+
+**Cambio con impacto en instalaciones existentes:** el contenedor ya no corre como root, así
+que un volumen `/data` creado por una imagen anterior tiene los ficheros a nombre de root y
+el proceso no podrá escribir. El README documenta el `chown` de una sola vez.
+
+---
+
 ## Resumen ejecutivo
 
 El proyecto está bien construido para lo que pretende ser: una app self-hosted,
@@ -438,11 +493,17 @@ lo anterior:
 
 ---
 
-## Plan de acción sugerido
+## Qué queda pendiente
 
-**Antes de exponer la app fuera de la LAN:** A1, A2, A3, M1.
+Nada de lo anterior, pero sí tres cosas que la auditoría deja apuntadas y que no son
+defectos:
 
-**Siguiente iteración (bugs que afectan a datos que el usuario ve):** M2, M3, M5, M4, B2.
-
-**Deuda técnica, por orden:** los tests (sección anterior), M6, M9, y el resto de baja
-severidad según convenga.
+1. **El enriquecimiento de portadas sigue siendo síncrono.** El presupuesto de 25 s acota
+   el peor caso (era de minutos), pero el diseño correcto es un job en segundo plano con
+   la UI haciendo polling del progreso. Es un cambio de UX, no un arreglo.
+2. **`external_id` no tiene índice único.** El dedupe se hace en el importador porque una
+   base ya desplegada puede arrastrar duplicados de importaciones anteriores y la creación
+   del índice fallaría al arrancar. Si algún día se limpian los duplicados existentes,
+   merece la pena subirlo a `UNIQUE`.
+3. **Dependencias.** `requirements.txt` está pineado, que es lo correcto, pero nada avisa
+   de CVEs nuevos. Dependabot o `pip-audit` en el CI cierran ese hueco.

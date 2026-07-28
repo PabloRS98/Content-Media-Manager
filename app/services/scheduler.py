@@ -123,13 +123,26 @@ def backup_database(dest_path: str | None = None) -> str:
             f for f in os.listdir(backups_dir)
             if f.startswith("media-") and f.endswith(".db")
         )
-        for old in existing[:-settings.backup_keep]:
+        # Siempre se conserva al menos la copia recién creada: con keep=0,
+        # `existing[:-0]` es la lista vacía y no rotaría nada (justo lo contrario
+        # de lo que pide la configuración).
+        keep = max(1, settings.backup_keep)
+        for old in existing[:-keep]:
             os.remove(os.path.join(backups_dir, old))
     logger.info("Backup de la BD guardado en %s", dest_path)
     return dest_path
 
 
-def start_scheduler() -> BackgroundScheduler:
+def start_scheduler() -> BackgroundScheduler | None:
+    """Arranca los jobs periódicos, salvo que ENABLE_SCHEDULER esté desactivado.
+
+    El lifespan se ejecuta una vez POR WORKER de uvicorn: con `--workers N` habría
+    N backups escribiendo el mismo fichero y N avisos de Telegram por episodio.
+    Con un solo worker (el CMD por defecto) no hay problema."""
+    if not settings.enable_scheduler:
+        logger.info("Scheduler desactivado (ENABLE_SCHEDULER=false)")
+        return None
+
     scheduler = BackgroundScheduler(timezone=settings.timezone)
     # next_run_time debe llevar tz: el reloj del contenedor va en UTC y un datetime
     # naive se interpreta en la zona del scheduler (quedaría "en el pasado").

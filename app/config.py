@@ -15,8 +15,16 @@ class Settings(BaseSettings):
     # Base de datos SQLite
     db_path: str = "/data/media.db"
 
-    # Nº de backups diarios de la BD que se conservan en /data/backups
+    # Nº de backups diarios de la BD que se conservan en /data/backups (mínimo 1)
     backup_keep: int = 14
+
+    # Tamaño máximo (MB) de un CSV subido al importador
+    max_upload_mb: int = 20
+
+    # Jobs en segundo plano (avisos + backup diario). Ponlo a false en todos los
+    # procesos menos uno si algún día arrancas uvicorn con varios workers: cada
+    # worker ejecuta el lifespan y duplicaría los jobs.
+    enable_scheduler: bool = True
 
     # Claves gratuitas para autocompletar metadatos (dejar vacio desactiva esa busqueda)
     tmdb_api_key: str = ""

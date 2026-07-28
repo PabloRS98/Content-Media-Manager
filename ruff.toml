@@ -1,0 +1,13 @@
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",   # la longitud la controla el formateador, no el linter
+    "B008",   # Depends()/File() en argumentos por defecto es el idioma de FastAPI
+    "UP031",  # el proyecto usa %-format de forma consistente (y es lo correcto en logging)
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["E402"]  # los tests importan tras ajustar sys.path a propósito

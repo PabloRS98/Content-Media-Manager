@@ -6,8 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .database import init_db, SessionLocal
+from .auth import warn_if_weak_config
+from .database import SessionLocal, init_db
+from .paths import STATIC_DIR
 from .routers import catalog, home, imdb_import, lists
+from .security import CSRFMiddleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,6 +51,7 @@ def backfill_v2_columns() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    warn_if_weak_config()
     try:
         backfill_v2_columns()
     except Exception:
@@ -55,17 +59,20 @@ async def lifespan(app: FastAPI):
     from .services.scheduler import start_scheduler
     app.state.scheduler = start_scheduler()
     yield
-    app.state.scheduler.shutdown(wait=False)
+    if app.state.scheduler is not None:
+        app.state.scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
+
+app.add_middleware(CSRFMiddleware)
 
 app.include_router(home.router)
 app.include_router(catalog.router)
 app.include_router(lists.router)
 app.include_router(imdb_import.router)
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 @app.get("/salud")

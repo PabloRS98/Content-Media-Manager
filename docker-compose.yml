@@ -5,8 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "8002:8000"
+    # `required: false` porque el README presenta crear .env como paso opcional:
+    # sin esto, `docker compose up` aborta si el fichero no existe.
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
       - media_data:/data
     logging:

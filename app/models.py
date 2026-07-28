@@ -1,11 +1,23 @@
 """Modelos de datos: items del catálogo (libros, películas, series, videojuegos,
 podcasts), episodios (series/podcasts), etiquetas, listas y sagas."""
 import enum
-from datetime import datetime, date, timezone
+from datetime import UTC, date, datetime
 
 from sqlalchemy import (
-    String, Integer, Float, Boolean, DateTime, Date, Text, Table, Column,
-    ForeignKey, UniqueConstraint, Enum as SAEnum,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,7 +26,7 @@ from .database import Base
 
 def utcnow() -> datetime:
     """UTC naive (compatible con las filas ya guardadas); evita datetime.utcnow(), deprecado en 3.12."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _by_value(enum_cls):

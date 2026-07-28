@@ -7,6 +7,7 @@ import logging
 import httpx
 
 from ..config import settings
+from .http_errors import describe
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,6 @@ def send_message(text: str) -> bool:
         )
         resp.raise_for_status()
         return True
-    except Exception:
-        logger.exception("Fallo al enviar aviso de Telegram")
+    except Exception as exc:
+        logger.warning("Fallo al enviar aviso de Telegram: %s", describe(exc))
         return False

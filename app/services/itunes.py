@@ -6,10 +6,16 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
+from .http_errors import describe
+from .netguard import UnsafeURLError, ensure_public_url
+
 logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://itunes.apple.com/search"
 ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
+# Los feeds de podcast son XML de terceros: se limita lo que se descarga para no
+# comerse la memoria con un feed enorme o malicioso.
+MAX_FEED_BYTES = 10 * 1024 * 1024
 
 
 def search_podcasts(query: str, limit: int = 8) -> list[dict]:
@@ -38,8 +44,8 @@ def search_podcasts(query: str, limit: int = 8) -> list[dict]:
                 "genres": r.get("primaryGenreName") or None,
             })
         return results
-    except Exception:
-        logger.exception("Fallo al buscar podcasts para '%s'", query)
+    except Exception as exc:
+        logger.warning("Fallo al buscar podcasts: %s", describe(exc))
         return []
 
 
@@ -61,10 +67,21 @@ def _duration_minutes(text: str | None) -> int | None:
 
 
 def fetch_podcast_episodes(feed_url: str, limit: int = 50) -> list[dict]:
-    """Episodios (más recientes primero en el RSS; se devuelven cronológicos)."""
+    """Episodios (más recientes primero en el RSS; se devuelven cronológicos).
+
+    `feed_url` viene del formulario de alta, así que se valida antes de pedirla
+    para no convertir el servidor en un proxy hacia su propia red interna."""
+    try:
+        ensure_public_url(feed_url)
+    except UnsafeURLError as exc:
+        logger.warning("Feed de podcast rechazado: %s", exc)
+        return []
     try:
         resp = httpx.get(feed_url, timeout=15, follow_redirects=True)
         resp.raise_for_status()
+        if len(resp.content) > MAX_FEED_BYTES:
+            logger.warning("Feed de podcast demasiado grande (%d bytes), ignorado", len(resp.content))
+            return []
         root = ET.fromstring(resp.content)
         items = root.findall(".//channel/item")[:limit]
         episodes = []
@@ -84,6 +101,6 @@ def fetch_podcast_episodes(feed_url: str, limit: int = 50) -> list[dict]:
                 "runtime_minutes": _duration_minutes(dur),
             })
         return episodes
-    except Exception:
-        logger.exception("Fallo al leer el feed de podcast %s", feed_url)
+    except Exception as exc:
+        logger.warning("Fallo al leer el feed de podcast: %s", describe(exc))
         return []

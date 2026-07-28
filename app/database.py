@@ -2,7 +2,7 @@
 import os
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
 
@@ -50,6 +50,24 @@ def ensure_columns(table: str, columns: dict[str, str]) -> list[str]:
     return added
 
 
+def ensure_indexes() -> None:
+    """Índices que aceleran búsquedas frecuentes, creados si aún no existen.
+
+    No se usa UNIQUE en external_id a propósito: las bases ya desplegadas pueden
+    arrastrar duplicados de importaciones anteriores y la creación del índice
+    fallaría al arrancar. El dedupe se hace en el importador."""
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_media_items_external_id ON media_items (external_id)"
+        )
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_media_items_status ON media_items (status)"
+        )
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_media_items_media_type ON media_items (media_type)"
+        )
+
+
 def init_db():
     from . import models  # noqa: F401  asegura que los modelos queden registrados
 
@@ -72,3 +90,4 @@ def init_db():
     ensure_columns("episodes", {
         "notified": "BOOLEAN DEFAULT 0",
     })
+    ensure_indexes()

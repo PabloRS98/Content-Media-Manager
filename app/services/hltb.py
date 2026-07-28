@@ -7,6 +7,8 @@ import logging
 
 import httpx
 
+from .http_errors import describe
+
 logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://howlongtobeat.com/api/search"
@@ -56,6 +58,7 @@ def search_hours(title: str, year: int | None = None) -> float | None:
                     break
         seconds = best.get("comp_main") or best.get("comp_plus") or best.get("comp_100") or 0
         return round(seconds / 3600.0, 1) if seconds else None
-    except Exception:
-        logger.exception("Fallo al consultar HowLongToBeat para '%s'", title)
+    except Exception as exc:
+        # HLTB no tiene API oficial: que falle es esperable, no es un error de la app
+        logger.info("HowLongToBeat no disponible para '%s': %s", title, describe(exc))
         return None

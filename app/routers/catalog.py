@@ -1,22 +1,25 @@
 """Catálogo de medios: búsqueda con autocompletado, alta, edición completa,
 ficha de detalle con episodios, orden + paginación y estadísticas."""
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from math import ceil
 
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import extract, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
 from ..database import get_db
 from ..flash import redirect_flash
-from ..models import Episode, Lista, MediaItem, MediaType, MediaStatus, Priority, Tag
-from ..services import openlibrary, googlebooks, tmdb, rawg, itunes, metadata
+from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority, Tag
+from ..security import safe_redirect_path
+from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
 
 router = APIRouter(tags=["catalogo"], dependencies=[Depends(verify_auth)])
 
 PER_PAGE = 24
+RATING_MIN, RATING_MAX = 1, 10
+YEAR_MIN, YEAR_MAX = 1000, 2200
 
 ORDERINGS = {
     "recientes": ("Actividad reciente", lambda q: q.order_by(MediaItem.updated_at.desc())),
@@ -28,7 +31,7 @@ ORDERINGS = {
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _parse_optional(value: str, caster):
@@ -47,6 +50,20 @@ def _enum_or_none(enum_cls, value):
         return enum_cls(value) if value else None
     except ValueError:
         return None
+
+
+def _clamped(value, minimo, maximo):
+    """Descarta valores fuera de rango en vez de guardarlos en silencio."""
+    if value is None:
+        return None
+    return value if minimo <= value <= maximo else None
+
+
+def _like_literal(texto: str) -> str:
+    """Escapa los comodines de LIKE para que '%' y '_' se busquen como texto."""
+    for caracter in ("\\", "%", "_"):
+        texto = texto.replace(caracter, "\\" + caracter)
+    return texto
 
 
 @router.get("/catalogo")
@@ -74,7 +91,7 @@ def list_catalog(
 
     # 1. Filtro de Género
     if genero:
-        query = query.filter(MediaItem.genres.like(f"%{genero}%"))
+        query = query.filter(MediaItem.genres.like(f"%{_like_literal(genero)}%", escape="\\"))
 
     # 2. Filtro de Tiempo/Duración
     if tiempo and mt:
@@ -95,8 +112,6 @@ def list_catalog(
             elif tiempo == "largo":
                 query = query.filter(MediaItem.runtime_minutes > 150)
         elif mt == MediaType.SERIE:
-            from sqlalchemy import func
-            from ..models import Episode
             subq = db.query(Episode.item_id, func.count(Episode.id).label("ep_count")).group_by(Episode.item_id).subquery()
             if tiempo == "corto":
                 query = query.outerjoin(subq, MediaItem.id == subq.c.item_id).filter(func.coalesce(subq.c.ep_count, 0) < 10)
@@ -131,7 +146,12 @@ def list_catalog(
     pagina = min(max(1, pagina), total_paginas)
     items = query.offset((pagina - 1) * PER_PAGE).limit(PER_PAGE).all()
 
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+    # Contador acorde con la pestaña que se está viendo: en "Libros" no tiene
+    # sentido incluir películas sin portada.
+    sin_portada_q = db.query(MediaItem).filter(MediaItem.cover_url.is_(None))
+    if mt:
+        sin_portada_q = sin_portada_q.filter(MediaItem.media_type == mt)
+    sin_portada = sin_portada_q.count()
 
     # 3. Obtener géneros únicos para poblar el filtro
     generos_disponibles = set()
@@ -146,7 +166,7 @@ def list_catalog(
                     g_clean = g.strip().capitalize()
                     if g_clean:
                         generos_disponibles.add(g_clean)
-    generos_lista = sorted(list(generos_disponibles))
+    generos_lista = sorted(generos_disponibles)
 
     # 4. Obtener opciones de duración/tiempo correspondientes
     tiempos_disponibles = []
@@ -252,9 +272,13 @@ def catalog_fill_covers(request: Request, db: Session = Depends(get_db)):
         msg += f" Aún quedan {restantes} ítems sin portada."
     else:
         msg += " ¡Todos los elementos de tu catálogo tienen portada!"
-        
-    referer = request.headers.get("referer") or "/catalogo"
-    return redirect_flash(referer, msg)
+
+    # La cabecera Referer la controla el cliente: usarla tal cual como destino
+    # del 303 sería una redirección abierta.
+    destino = safe_redirect_path(
+        request.headers.get("referer"), "/catalogo", host=request.headers.get("host")
+    )
+    return redirect_flash(destino, msg)
 
 
 @router.get("/buscar")
@@ -281,11 +305,11 @@ def search_external(tipo: str, request: Request, q: str = "", db: Session = Depe
         elif tipo == MediaType.PODCAST.value:
             results = itunes.search_podcasts(q)
             source = "itunes"
-            
+
     if not source:
         source = {"libro": "googlebooks", "pelicula": "tmdb", "serie": "tmdb",
                   "videojuego": "rawg", "podcast": "itunes"}.get(tipo)
-                  
+
     return templates.TemplateResponse(request, "search_results.html",
                                       {"results": results, "tipo": tipo, "source": source})
 
@@ -324,12 +348,15 @@ def add_item(
         external_id=external_id or None,
         external_source=external_source or None,
         cover_url=cover_url or None,
-        year=_parse_optional(year, int),
+        year=_clamped(_parse_optional(year, int), YEAR_MIN, YEAR_MAX),
         creator=creator or None,
         overview=overview,
         genres=genres.strip() or None,
         page_count=_parse_optional(page_count, int),
         release_date=_parse_optional(release_date, lambda v: date.fromisoformat(v[:10])),
+        # Sin esto, un ítem dado de alta ya como completado queda fuera de toda
+        # la página de estadísticas, que se apoya en completed_at.
+        completed_at=date.today() if status == MediaStatus.COMPLETADO else None,
     )
     db.add(item)
     db.commit()
@@ -381,7 +408,7 @@ def item_detail(item_id: int, request: Request, db: Session = Depends(get_db)):
         )
 
     all_lists = db.query(Lista).order_by(Lista.name).all()
-    item_lists = [l for l in all_lists if item in l.items]
+    item_lists = [lista for lista in all_lists if item in lista.items]
 
     return templates.TemplateResponse(request, "detail.html", {
         "item": item,
@@ -422,7 +449,7 @@ def update_item(
         return redirect_flash("/catalogo", "El ítem ya no existe", "error")
 
     item.title = title.strip() or item.title
-    item.year = _parse_optional(year, int)
+    item.year = _clamped(_parse_optional(year, int), YEAR_MIN, YEAR_MAX)
     item.creator = creator.strip() or None
     item.cover_url = cover_url.strip() or None
     item.genres = genres.strip() or None
@@ -434,7 +461,7 @@ def update_item(
     if item.status != MediaStatus.COMPLETADO and status == MediaStatus.COMPLETADO and item.completed_at is None:
         item.completed_at = date.today()  # primera vez que se marca completado
     item.status = status
-    item.rating = _parse_optional(rating, int)
+    item.rating = _clamped(_parse_optional(rating, int), RATING_MIN, RATING_MAX)
     item.notes = notes
     item.progress_current = _parse_optional(progress_current, float)
     item.progress_total = _parse_optional(progress_total, float)
@@ -531,15 +558,31 @@ def stats(request: Request, db: Session = Depends(get_db)):
         if 1 <= rating <= 10:
             ratings[rating - 1] = count
 
-    # Tiempo total consumido (minutos): pelis + juegos + libros completados + episodios vistos
-    tiempo_min = 0.0
-    for m in db.query(MediaItem).filter(MediaItem.media_type == MediaType.PELICULA, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += m.runtime_minutes or 0
-    for g in db.query(MediaItem).filter(MediaItem.media_type == MediaType.VIDEOJUEGO, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += (g.hltb_hours or 0) * 60
-    for b in db.query(MediaItem).filter(MediaItem.media_type == MediaType.LIBRO, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += (b.page_count or 0) * 1.5
-    for ep in db.query(Episode).join(MediaItem).filter(Episode.watched.is_(True)):
+    # Tiempo total consumido (minutos): pelis + juegos + libros completados + episodios
+    # vistos. Las tres primeras sumas las hace la BD; para los episodios hace falta el
+    # ítem (fallback de duración), así que se carga con joinedload en vez de dejar que
+    # cada `ep.item` dispare su propio SELECT.
+    def _suma(columna, media_type, factor=1.0):
+        total = (
+            db.query(func.coalesce(func.sum(columna), 0))
+            .filter(MediaItem.media_type == media_type, MediaItem.status == MediaStatus.COMPLETADO)
+            .scalar()
+        )
+        return (total or 0) * factor
+
+    tiempo_min = (
+        _suma(MediaItem.runtime_minutes, MediaType.PELICULA)
+        + _suma(MediaItem.hltb_hours, MediaType.VIDEOJUEGO, 60)
+        + _suma(MediaItem.page_count, MediaType.LIBRO, 1.5)
+    )
+    vistos = (
+        db.query(Episode)
+        .join(MediaItem)
+        .options(joinedload(Episode.item))
+        .filter(Episode.watched.is_(True))
+        .all()
+    )
+    for ep in vistos:
         tiempo_min += ep.runtime_minutes or ep.item.runtime_minutes or 45
     tiempo_horas = round(tiempo_min / 60)
 
