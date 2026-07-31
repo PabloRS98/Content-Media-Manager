@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .database import init_db, SessionLocal
+from .database import SessionLocal, init_db
 from .routers import catalog, home, imdb_import, lists
 
 logging.basicConfig(level=logging.INFO)

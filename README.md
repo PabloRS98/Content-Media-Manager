@@ -102,12 +102,29 @@ all — they're on by default.
 ## Development
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
 The app expects a writable `/data` directory (or set `DB_PATH` to a local
 path when running outside Docker).
+
+### Tests
+
+```bash
+pytest
+ruff check .
+```
+
+Tests run against the real app via `TestClient`, each one on a throwaway SQLite
+database. They never touch the network: a fixture blocks the HTTP transport, so
+a test that starts calling TMDB fails instead of turning flaky.
+
+`tests/test_fallos_conocidos.py` holds bugs that are diagnosed but not yet
+fixed. Each one asserts the *correct* behaviour and is marked
+`xfail(strict=True)`: they fail on purpose today, and the moment a bug is fixed
+the test passes and `strict` breaks the build until the marker is removed — so
+the list can't silently go stale. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
 
 ## Contributing
 

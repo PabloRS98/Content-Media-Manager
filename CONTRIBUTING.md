@@ -5,12 +5,14 @@ Thanks for considering a contribution.
 ## Setup
 
 ```bash
-git clone https://github.com/<your-user>/media-catalog.git
-cd media-catalog
-pip install -r requirements.txt
+git clone https://github.com/<your-user>/Content-Media-Manager.git
+cd Content-Media-Manager
+pip install -r requirements-dev.txt
 cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
+
+Run the test suite with `pytest` and the linter with `ruff check .`.
 
 ## Guidelines
 
@@ -30,5 +32,8 @@ uvicorn app.main:app --reload --port 8000
 
 - Keep PRs focused on one change.
 - Describe what changed and why in the PR description.
-- Test manually against a local run before submitting (see Setup above);
-  there is no CI test suite yet — a PR adding one is very welcome.
+- `pytest` and `ruff check .` must pass; CI runs both on every PR and blocks
+  the Docker image publish if they fail.
+- Add a test with your change. If you are fixing something listed in
+  `tests/test_fallos_conocidos.py`, the test is already written: remove its
+  `xfail` marker instead of writing a new one.

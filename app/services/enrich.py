@@ -7,7 +7,7 @@ import time
 from sqlalchemy.orm import Session
 
 from ..models import MediaItem, MediaType
-from . import openlibrary, googlebooks, wikipedia_covers, rawg, tmdb
+from . import googlebooks, openlibrary, rawg, tmdb, wikipedia_covers
 
 logger = logging.getLogger(__name__)
 

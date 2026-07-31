@@ -1,0 +1,43 @@
+[project]
+name = "media-catalog"
+version = "3.0.0"
+description = "Catálogo self-hosted de libros, películas, series, videojuegos y podcasts"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `--strict-markers` evita que una marca mal escrita se ignore en silencio.
+addopts = "-q --strict-markers"
+markers = [
+    "fallo_conocido: fallo ya diagnosticado y aún sin arreglar (ver docs/AUDITORIA.md)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes: variables e imports sin usar, nombres indefinidos
+    "I",    # isort: orden de imports
+    "B",    # bugbear: fallos sutiles reales
+    "UP",   # pyupgrade
+    "C4",   # comprehensions
+]
+ignore = [
+    "E501",   # el largo de línea ya lo cubre line-length; no queremos ruido en las plantillas
+    "B008",   # Depends()/Form() en argumentos por defecto es el patrón de FastAPI
+    "UP031",  # el proyecto usa formato con % de forma consistente; migrarlo es un
+              # cambio de estilo transversal, no algo que deba bloquear el CI
+]
+
+[tool.ruff.lint.isort]
+# Sin esto, un import con alias (`Enum as SAEnum`) se saca a un bloque
+# `from sqlalchemy import (...)` aparte, que parece un despiste al leerlo.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Los tests fijan variables de entorno antes de importar `app`: los imports no
+# pueden ir todos arriba.
+"tests/conftest.py" = ["E402"]
