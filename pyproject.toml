@@ -6,6 +6,10 @@ requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Necesario para que `pytest` a secas encuentre el paquete `app`: el ejecutable
+# no añade el directorio actual a sys.path (`python -m pytest` sí, y por eso
+# esto no se nota en local).
+pythonpath = ["."]
 # `--strict-markers` evita que una marca mal escrita se ignore en silencio.
 addopts = "-q --strict-markers"
 markers = [
