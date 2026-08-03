@@ -1,14 +1,27 @@
+# Despliegue autónomo: esta app se levanta sola, sin depender de ninguna otra.
+# Antes formaba parte de la suite "home-apps-suite" y arrancaba junto a
+# finance-tracker; ahora cada aplicación tiene su propio ciclo de vida.
+name: media-catalog
+
 services:
   media-catalog:
     build: .
     container_name: media-catalog
     restart: unless-stopped
     ports:
-      - "8002:8000"
+      - "0.0.0.0:${MEDIA_PORT:-8002}:8000"
     env_file:
       - .env
     volumes:
       - media_data:/data
+    healthcheck:
+      # La suite definía el healthcheck por fuera; al independizarse hay que
+      # declararlo aquí o el contenedor pasaría a no tener ninguno.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/salud', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     logging:
       driver: json-file
       options:
@@ -17,3 +30,7 @@ services:
 
 volumes:
   media_data:
+    # Nombre fijado a propósito: sin esto Compose lo prefija con el nombre del
+    # proyecto, y renombrar la carpeta apuntaría a un volumen vacío, con la
+    # base de datos aparentemente "desaparecida".
+    name: media-catalog_data

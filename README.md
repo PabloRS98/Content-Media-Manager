@@ -72,13 +72,14 @@ Or, without cloning, using the prebuilt image published on every push to `main`:
 
 ```bash
 docker run -d --name media-catalog -p 8002:8000 \
-  -v media_data:/data \
+  -v media-catalog_data:/data \
   ghcr.io/pablors98/content-media-manager:latest
 ```
 
-Open `http://localhost:8002`. Data lives in the `media_data` Docker volume
-(one SQLite file); back it up by copying that file, or rely on the built-in
-daily backup job.
+Open `http://localhost:8002`. The port is configurable with `MEDIA_PORT`.
+
+Data lives in the `media-catalog_data` Docker volume (one SQLite file); back it
+up by copying that file, or rely on the built-in daily backup job.
 
 ## Configuration
 
