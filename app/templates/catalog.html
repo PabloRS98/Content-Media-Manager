@@ -14,10 +14,17 @@
             <option value="{{ t.value }}" {% if tipo_filtro == t.value %}selected{% endif %}>{{ t.value|capitalize }}</option>
             {% endfor %}
         </select>
-        <input type="text" name="q" placeholder="Buscar {{ label_tipo }} para autocompletar..." autocomplete="off" class="grow"
+        <input type="hidden" id="idioma-input" name="idioma" value="es">
+        <input type="text" id="q-input" name="q" placeholder="Buscar {{ label_tipo }} para autocompletar..." autocomplete="off" class="grow"
                hx-get="/buscar" hx-trigger="keyup changed delay:400ms"
-               hx-target="#search-results" hx-include="#tipo-select"
+               hx-target="#search-results" hx-include="#tipo-select, #idioma-input"
                hx-indicator="#search-spinner">
+        {% if tipo_filtro == 'libro' %}
+        <div class="view-toggle" id="idioma-toggle" role="group" aria-label="Idioma de búsqueda">
+            <button type="button" class="ghost small" data-idioma="es" title="Buscar portada y título en español">ES</button>
+            <button type="button" class="ghost small" data-idioma="en" title="Search cover and title in English">EN</button>
+        </div>
+        {% endif %}
         <span id="search-spinner" class="htmx-indicator spinner"></span>
     </div>
     <div id="search-results"></div>
@@ -118,6 +125,31 @@
             apply(b.dataset.view);
         });
     });
+
+    // Idioma de búsqueda de libros: recuerda la preferencia (como la vista de
+    // arriba) y, si ya hay algo escrito, repite la búsqueda en el idioma nuevo.
+    var idiomaToggle = document.getElementById("idioma-toggle");
+    var idiomaInput = document.getElementById("idioma-input");
+    var qInput = document.getElementById("q-input");
+    if (idiomaToggle && idiomaInput) {
+        var idiomaBtns = idiomaToggle.querySelectorAll("[data-idioma]");
+        function aplicaIdioma(idioma) {
+            idiomaInput.value = idioma;
+            idiomaBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.idioma === idioma); });
+        }
+        aplicaIdioma(localStorage.getItem("bookSearchLang") || "es");
+        idiomaBtns.forEach(function (b) {
+            b.addEventListener("click", function () {
+                localStorage.setItem("bookSearchLang", b.dataset.idioma);
+                aplicaIdioma(b.dataset.idioma);
+                if (qInput && qInput.value.trim().length >= 2) {
+                    htmx.ajax("GET", "/buscar?tipo=libro&idioma=" + b.dataset.idioma +
+                        "&q=" + encodeURIComponent(qInput.value),
+                        { target: "#search-results", swap: "innerHTML" });
+                }
+            });
+        });
+    }
 })();
 </script>
 {% endblock %}

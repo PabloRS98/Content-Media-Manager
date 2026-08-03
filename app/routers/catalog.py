@@ -259,16 +259,17 @@ def catalog_fill_covers(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/buscar")
-def search_external(tipo: str, request: Request, q: str = "", db: Session = Depends(get_db)):
+def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es", db: Session = Depends(get_db)):
+    idioma = idioma if idioma in ("es", "en") else "es"
     results = []
     source = None
     if q and len(q.strip()) >= 2:
         if tipo == MediaType.LIBRO.value:
-            results = googlebooks.search_books(q)
+            results = googlebooks.search_books(q, idioma=idioma)
             if results:
                 source = "googlebooks"
             else:
-                results = openlibrary.search_books(q)
+                results = openlibrary.search_books(q, idioma=idioma)
                 source = "openlibrary"
         elif tipo == MediaType.PELICULA.value:
             results = tmdb.search_movies(q)
@@ -288,7 +289,7 @@ def search_external(tipo: str, request: Request, q: str = "", db: Session = Depe
                   "videojuego": "rawg", "podcast": "itunes"}.get(tipo)
                   
     return templates.TemplateResponse(request, "search_results.html",
-                                      {"results": results, "tipo": tipo, "source": source})
+                                      {"results": results, "tipo": tipo, "source": source, "idioma": idioma})
 
 
 @router.get("/sugerencia")
