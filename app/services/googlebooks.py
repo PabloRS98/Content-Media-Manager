@@ -30,8 +30,8 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
 
     import time
     resp = None
-    for attempt in range(3):
-        try:
+    try:
+        for attempt in range(3):
             resp = httpx.get(SEARCH_URL, params=params, headers=headers, timeout=10)
             if resp.status_code == 429:
                 logger.debug("Google Books 429 rate-limit, cayendo a fallback")
@@ -41,14 +41,15 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
                 continue
             resp.raise_for_status()
             break
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 429:
-                logger.debug("Google Books 429 rate-limit, cayendo a fallback")
-                return []
-            if e.response.status_code == 503 and attempt < 2:
-                time.sleep(1.0 * (attempt + 1))
-                continue
-            raise e
+    except httpx.HTTPError:
+        # httpx.HTTPError es la base común de los errores de transporte
+        # (ConnectError, ConnectTimeout, ReadTimeout...) y de HTTPStatusError.
+        # Antes solo se capturaba HTTPStatusError (y encima se relanzaba para
+        # códigos que no fueran 429/503): una caída de red devolvía un 500 al
+        # usuario, a diferencia de tmdb.py/rawg.py/openlibrary.py, que sí
+        # envuelven todo el cuerpo en un try/except.
+        logger.exception("Fallo al buscar libros en Google Books para '%s'", query)
+        return []
 
     if not resp:
         return []

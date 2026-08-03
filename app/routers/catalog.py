@@ -3,12 +3,12 @@ ficha de detalle con episodios, orden + paginación y estadísticas."""
 from datetime import UTC, date, datetime
 from math import ceil
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from sqlalchemy import extract, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
-from ..database import get_db
+from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority, Tag
 from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
@@ -243,17 +243,20 @@ def list_catalog(
 
 
 @router.post("/catalogo/completar-portadas")
-def catalog_fill_covers(request: Request, db: Session = Depends(get_db)):
-    from ..services.enrich import enrich_missing_covers
-    result = enrich_missing_covers(db)
-    encontrados = result.get("encontrados", 0)
-    restantes = result.get("restantes", 0)
-    msg = f"Lote de portadas completado: {encontrados} encontradas."
-    if restantes > 0:
-        msg += f" Aún quedan {restantes} ítems sin portada."
+def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    # BATCH_SIZE=30 ítems x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de
+    # 2 minutos con las APIs lentas: hecho dentro de la propia petición HTTP,
+    # cualquier proxy inverso delante corta por timeout antes de que termine.
+    # Se lanza en segundo plano y se avisa de que ha empezado; el contador
+    # "sin portada" de la página ya se recalcula solo en la siguiente carga.
+    from ..services.enrich import enrich_missing_covers_en_segundo_plano, estado_actual
+
+    if estado_actual()["corriendo"]:
+        msg = "Ya hay una búsqueda de portadas en marcha; espera a que termine."
     else:
-        msg += " ¡Todos los elementos de tu catálogo tienen portada!"
-        
+        background_tasks.add_task(enrich_missing_covers_en_segundo_plano, SessionLocal)
+        msg = "Buscando portadas en segundo plano. Vuelve en un minuto y recarga para ver el resultado."
+
     referer = request.headers.get("referer") or "/catalogo"
     return redirect_flash(referer, msg)
 
@@ -532,15 +535,29 @@ def stats(request: Request, db: Session = Depends(get_db)):
         if 1 <= rating <= 10:
             ratings[rating - 1] = count
 
-    # Tiempo total consumido (minutos): pelis + juegos + libros completados + episodios vistos
-    tiempo_min = 0.0
-    for m in db.query(MediaItem).filter(MediaItem.media_type == MediaType.PELICULA, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += m.runtime_minutes or 0
-    for g in db.query(MediaItem).filter(MediaItem.media_type == MediaType.VIDEOJUEGO, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += (g.hltb_hours or 0) * 60
-    for b in db.query(MediaItem).filter(MediaItem.media_type == MediaType.LIBRO, MediaItem.status == MediaStatus.COMPLETADO):
-        tiempo_min += (b.page_count or 0) * 1.5
-    for ep in db.query(Episode).join(MediaItem).filter(Episode.watched.is_(True)):
+    # Tiempo total consumido (minutos): pelis + juegos + libros completados + episodios vistos.
+    # Las tres primeras sumas las hace SQLite (func.sum) en vez de traer todos
+    # los MediaItem completos solo para sumar un campo. La de episodios sí
+    # necesita los objetos (usa ep.item.runtime_minutes de fallback), pero con
+    # joinedload en la misma consulta en vez de un SELECT por episodio (N+1):
+    # con 30 series x 10 episodios vistos eran ~44 sentencias SQL; con esto, ~14.
+    minutos_pelis = db.query(func.sum(MediaItem.runtime_minutes)).filter(
+        MediaItem.media_type == MediaType.PELICULA, MediaItem.status == MediaStatus.COMPLETADO
+    ).scalar() or 0
+    horas_juegos = db.query(func.sum(MediaItem.hltb_hours)).filter(
+        MediaItem.media_type == MediaType.VIDEOJUEGO, MediaItem.status == MediaStatus.COMPLETADO
+    ).scalar() or 0
+    paginas_libros = db.query(func.sum(MediaItem.page_count)).filter(
+        MediaItem.media_type == MediaType.LIBRO, MediaItem.status == MediaStatus.COMPLETADO
+    ).scalar() or 0
+
+    tiempo_min = minutos_pelis + horas_juegos * 60 + paginas_libros * 1.5
+    episodios_vistos = (
+        db.query(Episode).join(MediaItem)
+        .options(joinedload(Episode.item))
+        .filter(Episode.watched.is_(True))
+    )
+    for ep in episodios_vistos:
         tiempo_min += ep.runtime_minutes or ep.item.runtime_minutes or 45
     tiempo_horas = round(tiempo_min / 60)
 

@@ -131,3 +131,38 @@ def enrich_missing_covers(db: Session) -> dict:
         "encontrados": found,
         "restantes": max(0, total_missing - len(batch)),
     }
+
+
+# ---------- Versión para BackgroundTasks (ver M9 en docs/AUDITORIA.md) ----------
+
+_estado_lote: dict = {"corriendo": False, "resultado": None}
+
+
+def estado_actual() -> dict:
+    """Copia del estado del último lote, para que la UI sepa si ya puede
+    volver a pulsar el botón sin lanzar dos lotes en paralelo."""
+    return dict(_estado_lote)
+
+
+def enrich_missing_covers_en_segundo_plano(session_factory) -> None:
+    """Como enrich_missing_covers, pero para BackgroundTasks: crea su propia
+    sesión de BD (la de la petición original ya se habrá cerrado cuando esto
+    se ejecute) y deja constancia en _estado_lote de que sigue corriendo.
+
+    Antes, `/catalogo/completar-portadas` corría el lote entero (BATCH_SIZE=30
+    x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de 2 minutos con las
+    APIs lentas) dentro de la propia petición HTTP: cualquier proxy inverso
+    delante corta por timeout antes de que termine."""
+    if _estado_lote["corriendo"]:
+        return
+    _estado_lote["corriendo"] = True
+    _estado_lote["resultado"] = None
+
+    db = session_factory()
+    try:
+        _estado_lote["resultado"] = enrich_missing_covers(db)
+    except Exception:
+        logger.exception("Fallo en el enriquecimiento de portadas en segundo plano")
+    finally:
+        db.close()
+        _estado_lote["corriendo"] = False

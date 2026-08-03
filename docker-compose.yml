@@ -11,7 +11,12 @@ services:
     ports:
       - "0.0.0.0:${MEDIA_PORT:-8002}:8000"
     env_file:
-      - .env
+      # required: false porque el README presenta "cp .env.example .env" como
+      # paso OPCIONAL (todas las claves tienen default). Sin esto, "docker
+      # compose up" sin haber creado antes el .env abortaba con
+      # "env file .env not found".
+      - path: .env
+        required: false
     volumes:
       - media_data:/data
     healthcheck:

@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     # Zona horaria (para el job de estrenos)
     timezone: str = "UTC"
 
+    # El scheduler (avisos + backup diario) arranca una vez por proceso. Con un
+    # único worker de uvicorn (el CMD de este Dockerfile) no hay problema, pero
+    # si alguna vez se añade "--workers N" habría N jobs de backup pisándose el
+    # mismo fichero y N avisos de Telegram duplicados. Poner esto a false en
+    # todos los workers salvo uno si se escala.
+    enable_scheduler: bool = True
+
     # Avisos por Telegram (opcional): crea un bot con @BotFather. Vacio = sin avisos.
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

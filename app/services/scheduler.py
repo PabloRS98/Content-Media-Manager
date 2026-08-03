@@ -123,7 +123,11 @@ def backup_database(dest_path: str | None = None) -> str:
             f for f in os.listdir(backups_dir)
             if f.startswith("media-") and f.endswith(".db")
         )
-        for old in existing[:-settings.backup_keep]:
+        # existing[:-0] es existing[:0] (lista vacía), no "todos": con
+        # BACKUP_KEEP=0 no se borraba ningún backup, justo lo contrario de
+        # la intención. Con 0 se conserva al menos el que se acaba de crear.
+        a_borrar = existing[:-settings.backup_keep] if settings.backup_keep > 0 else existing[:-1]
+        for old in a_borrar:
             os.remove(os.path.join(backups_dir, old))
     logger.info("Backup de la BD guardado en %s", dest_path)
     return dest_path

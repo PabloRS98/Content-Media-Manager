@@ -1,0 +1,6 @@
+# Estos ficheros se ejecutan dentro de un contenedor Linux. Si Git los
+# convierte a CRLF al hacer checkout en Windows (autocrlf=true es el default
+# habitual), el shebang de docker-entrypoint.sh queda como "#!/bin/sh\r" y
+# el contenedor no arranca -- un fallo silencioso y confuso de depurar.
+*.sh text eol=lf
+Dockerfile text eol=lf
