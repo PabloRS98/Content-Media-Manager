@@ -11,17 +11,34 @@
     </form>
 </section>
 
+{% if dinamicas %}
+<section class="card">
+    <h3>{{ icon("refresh-cw") }} Vistas automáticas</h3>
+    <div class="grid-summary">
+        {% for l in dinamicas %}
+        <a href="/listas/{{ l.id }}" class="card list-tile">
+            <strong>{{ l.name }}</strong>
+            <span class="subtle">{{ l.item_count }} ítem{{ "s" if l.item_count != 1 else "" }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 {% if listas %}
-<div class="grid-summary">
-    {% for l in listas %}
-    <a href="/listas/{{ l.id }}" class="card list-tile">
-        <strong>{{ l.name }}</strong>
-        <span class="subtle">{{ l.items|length }} ítem{{ "s" if l.items|length != 1 else "" }}</span>
-    </a>
-    {% endfor %}
-</div>
+<section class="card">
+    <h3>{{ icon("list") }} Tus listas</h3>
+    <div class="grid-summary">
+        {% for l in listas %}
+        <a href="/listas/{{ l.id }}" class="card list-tile">
+            <strong>{{ l.name }}</strong>
+            <span class="subtle">{{ l.items|length }} ítem{{ "s" if l.items|length != 1 else "" }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</section>
 {% else %}
-<section class="card"><div class="empty">{{ icon("list", 30) }} Aún no tienes listas. Crea una arriba y añade ítems desde su ficha.</div></section>
+<section class="card"><div class="empty">{{ icon("list", 30) }} Aún no tienes listas propias. Crea una arriba y añade ítems desde su ficha.</div></section>
 {% endif %}
 
 {% endblock %}

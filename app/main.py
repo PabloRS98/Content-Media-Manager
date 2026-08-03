@@ -55,6 +55,14 @@ async def lifespan(app: FastAPI):
         backfill_v2_columns()
     except Exception:
         logger.exception("Fallo en el backfill de columnas v2")
+    try:
+        db = SessionLocal()
+        try:
+            lists.seed_smart_lists(db)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("Fallo al sembrar las listas automáticas")
 
     app.state.scheduler = None
     if settings.enable_scheduler:
