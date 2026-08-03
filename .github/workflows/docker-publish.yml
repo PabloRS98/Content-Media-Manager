@@ -10,8 +10,30 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # Puerta de entrada: sin esto se publicaba la imagen `latest` en cada push a
+  # main pasara lo que pasara, incluso con el CI en rojo.
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tests
+        run: pytest
+
   build-and-push:
     runs-on: ubuntu-latest
+    needs: tests
     permissions:
       contents: read
       packages: write

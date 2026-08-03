@@ -1,6 +1,6 @@
 """Catálogo de medios: búsqueda con autocompletado, alta, edición completa,
 ficha de detalle con episodios, orden + paginación y estadísticas."""
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from math import ceil
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from ..auth import verify_auth
 from ..database import get_db
 from ..flash import redirect_flash
-from ..models import Episode, Lista, MediaItem, MediaType, MediaStatus, Priority, Tag
-from ..services import openlibrary, googlebooks, tmdb, rawg, itunes, metadata
+from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority, Tag
+from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
 
 router = APIRouter(tags=["catalogo"], dependencies=[Depends(verify_auth)])
@@ -28,7 +28,7 @@ ORDERINGS = {
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _parse_optional(value: str, caster):
@@ -96,6 +96,7 @@ def list_catalog(
                 query = query.filter(MediaItem.runtime_minutes > 150)
         elif mt == MediaType.SERIE:
             from sqlalchemy import func
+
             from ..models import Episode
             subq = db.query(Episode.item_id, func.count(Episode.id).label("ep_count")).group_by(Episode.item_id).subquery()
             if tiempo == "corto":
@@ -146,7 +147,7 @@ def list_catalog(
                     g_clean = g.strip().capitalize()
                     if g_clean:
                         generos_disponibles.add(g_clean)
-    generos_lista = sorted(list(generos_disponibles))
+    generos_lista = sorted(generos_disponibles)
 
     # 4. Obtener opciones de duración/tiempo correspondientes
     tiempos_disponibles = []
@@ -381,7 +382,7 @@ def item_detail(item_id: int, request: Request, db: Session = Depends(get_db)):
         )
 
     all_lists = db.query(Lista).order_by(Lista.name).all()
-    item_lists = [l for l in all_lists if item in l.items]
+    item_lists = [lista for lista in all_lists if item in lista.items]
 
     return templates.TemplateResponse(request, "detail.html", {
         "item": item,

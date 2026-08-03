@@ -1,0 +1,5 @@
+# Dependencias solo para desarrollo y CI (no van en la imagen de Docker).
+-r requirements.txt
+
+pytest==8.3.3
+ruff==0.7.4
