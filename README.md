@@ -3,6 +3,7 @@
 [![CI](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml)
 [![Docker image](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/PabloRS98/Content-Media-Manager)](https://github.com/PabloRS98/Content-Media-Manager/releases/latest)
 
 A self-hosted, single-user catalog for books, movies, series, video games and
 podcasts — track what you're watching/reading/playing, what's next, and what's
@@ -34,7 +35,10 @@ SQLite file. No account, no cloud, no paid API required.
 - **Episode tracking** for series and podcasts (season/episode, watched state,
   automatic "next up").
 - **Progress tracking** for anything else (page N/300, 45%, etc).
-- **Ratings, notes, tags, and custom lists** ("watch with my partner", "top 2026"...).
+- **Ratings, notes, tags, and custom lists** ("watch with my partner", "top 2026"...),
+  plus four built-in automatic lists (in progress / pending / completed /
+  wishlist) that update themselves as an item's status changes.
+- **Light and dark themes**, dark by default, toggled from the top bar.
 - **Sagas/franchises**: grouped automatically via TMDB collections, editable manually.
 - **Stats page** and a "suggest me something" random pick.
 - **Calendar view** for upcoming episodes and release dates.
@@ -126,6 +130,10 @@ fixed. Each one asserts the *correct* behaviour and is marked
 `xfail(strict=True)`: they fail on purpose today, and the moment a bug is fixed
 the test passes and `strict` breaks the build until the marker is removed — so
 the list can't silently go stale. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) and the [releases page](https://github.com/PabloRS98/Content-Media-Manager/releases).
 
 ## Contributing
 

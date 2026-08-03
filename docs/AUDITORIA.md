@@ -8,6 +8,13 @@ Cada hallazgo marcado como **verificado** se reprodujo ejecutando la aplicación
 `TestClient` sobre una base de datos temporal; el resto son observaciones de lectura de
 código, señaladas como tales.
 
+> **Estado: todos los hallazgos (22/22) están corregidos**, mergeados antes de la
+> versión [1.0.0](../CHANGELOG.md#100--2026-08-03). Este documento se conserva tal
+> cual quedó tras la auditoría original -- como registro de qué se encontró y por
+> qué -- y no se ha reescrito hallazgo por hallazgo. Para el detalle de qué PR
+> arregló cada cosa, ver el [CHANGELOG](../CHANGELOG.md) y el historial de pull
+> requests cerradas del repositorio.
+
 ---
 
 ## Resumen ejecutivo
@@ -386,6 +393,10 @@ presenta `cp .env.example .env` como paso **opcional**. Sin ese fichero, Compose
 ---
 
 ## Tests y CI
+
+> Esta sección describe el estado **en el momento de la auditoría**. Desde entonces
+> se añadió una suite real (190 tests a fecha de 1.0.0) que corre en CI junto con
+> `ruff`; ver [CHANGELOG](../CHANGELOG.md).
 
 **No existe ni un solo test** en el repositorio: cero ficheros `test_*.py`, sin `conftest.py`,
 sin `pytest` en `requirements.txt`. El workflow `ci.yml` hace tres cosas:
