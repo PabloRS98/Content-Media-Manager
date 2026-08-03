@@ -7,6 +7,11 @@ escapa nada, y stats.html mete datos controlados por el usuario (géneros de
 `MediaItem.genres`, editable y rellenado desde CSVs de importación) dentro de
 un `<script>` vía `| tojson | safe` -- exactamente el vector que el tojson de
 Jinja existe para cerrar."""
+from pathlib import Path
+
 from fastapi.templating import Jinja2Templates
 
-templates = Jinja2Templates(directory="app/templates")
+# Ruta absoluta (relativa a este fichero), no "app/templates": una ruta
+# relativa al cwd solo funciona si el proceso arranca desde la raíz del repo.
+# En Docker el WORKDIR /app lo salva, pero rompe cualquier otro modo de arranque.
+templates = Jinja2Templates(directory=Path(__file__).parent / "templates")

@@ -7,7 +7,7 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
@@ -18,6 +18,27 @@ from ..services.imports import import_books_csv, import_games_csv
 from ..templating import templates
 
 router = APIRouter(tags=["importar-imdb"], dependencies=[Depends(verify_auth)])
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
+async def _leer_csv_limitado(archivo: UploadFile) -> str:
+    """Lee el fichero por trozos con un tope de tamaño, en vez de cargarlo
+    entero de una sola vez con `archivo.read()`. Sin límite, un fichero de 1 GB
+    (p.ej. arrastrar el equivocado por accidente) consume 2-3 GB de RSS -- el
+    tamaño original más la copia decodificada en memoria -- y tumba el proceso
+    entero en vez de fallar de forma controlada."""
+    trozos = []
+    total = 0
+    while True:
+        trozo = await archivo.read(1024 * 1024)
+        if not trozo:
+            break
+        total += len(trozo)
+        if total > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="El fichero supera el límite de 20 MB")
+        trozos.append(trozo)
+    return b"".join(trozos).decode("utf-8-sig", errors="ignore")
 
 # IMDB usa sus propios "Title Type"; los mapeamos a nuestras 4 categorías.
 # Mapeados en minúsculas para búsquedas seguras tolerantes a mayúsculas/minúsculas.
@@ -101,7 +122,7 @@ async def import_imdb_csv(
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
-    contenido = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    contenido = await _leer_csv_limitado(archivo)
     reader = csv.DictReader(io.StringIO(contenido))
     fieldnames = reader.fieldnames or []
 
@@ -193,7 +214,7 @@ async def import_imdb_csv(
 @router.post("/importar/libros")
 async def import_books(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
     """Importa libros desde un CSV de Goodreads o StoryGraph."""
-    text = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    text = await _leer_csv_limitado(archivo)
     res = import_books_csv(db, text)
     sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
@@ -202,7 +223,7 @@ async def import_books(request: Request, archivo: UploadFile = File(...), db: Se
 @router.post("/importar/juegos")
 async def import_games(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
     """Importa juegos desde un CSV de Backloggd o genérico."""
-    text = (await archivo.read()).decode("utf-8-sig", errors="ignore")
+    text = await _leer_csv_limitado(archivo)
     res = import_games_csv(db, text)
     sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})

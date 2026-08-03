@@ -2,10 +2,12 @@
 import logging
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from .config import settings
 from .csrf import CSRFProtectionMiddleware
 from .database import SessionLocal, init_db
 from .routers import catalog, home, imdb_import, lists
@@ -53,10 +55,14 @@ async def lifespan(app: FastAPI):
         backfill_v2_columns()
     except Exception:
         logger.exception("Fallo en el backfill de columnas v2")
-    from .services.scheduler import start_scheduler
-    app.state.scheduler = start_scheduler()
+
+    app.state.scheduler = None
+    if settings.enable_scheduler:
+        from .services.scheduler import start_scheduler
+        app.state.scheduler = start_scheduler()
     yield
-    app.state.scheduler.shutdown(wait=False)
+    if app.state.scheduler:
+        app.state.scheduler.shutdown(wait=False)
 
 
 app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
@@ -68,7 +74,7 @@ app.include_router(catalog.router)
 app.include_router(lists.router)
 app.include_router(imdb_import.router)
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 @app.get("/salud")

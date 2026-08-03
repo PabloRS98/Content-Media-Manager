@@ -99,7 +99,6 @@ def test_el_lector_de_columnas_de_imdb_se_salta_las_vacias():
     assert _get({"Title": "", "Título": "Duna"}, "Title", "Título") == "Duna"
 
 
-@pytest.mark.xfail(strict=True, reason="B4: compare_digest sobre str exige ASCII")
 def test_se_puede_usar_una_contrasena_con_tildes(client, monkeypatch):
     """El .env.example está en español, así que es una trampa fácil de pisar."""
     from app import auth
@@ -182,7 +181,6 @@ def test_los_especiales_no_aparecen_en_proximamente(client, crear_serie, db):
     assert "S00E80" not in html
 
 
-@pytest.mark.xfail(strict=True, reason="M4: solo se capturan los HTTPStatusError, no los de transporte")
 def test_una_caida_de_google_books_no_devuelve_un_500(client, monkeypatch):
     """TMDB, RAWG y Open Library envuelven todo y devuelven lista vacía; Google
     Books es la excepción, y además corta la cascada hacia Open Library."""
@@ -198,7 +196,6 @@ def test_una_caida_de_google_books_no_devuelve_un_500(client, monkeypatch):
     assert client.get("/buscar?tipo=libro&q=dune").status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason="B3: existing[:-0] es la lista vacía")
 def test_backup_keep_a_cero_borra_los_backups_antiguos(tmp_path, monkeypatch):
     """Con backup_keep=0 la intención es no conservar nada, pero el slice
     negativo con 0 devuelve lista vacía y no se borra ninguno."""
