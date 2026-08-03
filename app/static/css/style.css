@@ -1,33 +1,37 @@
 /* ============================================================
-   Home Apps Suite — sistema visual compartido (tema oscuro)
-   Archivo idéntico en las 3 apps salvo el bloque de acento.
-   Sin frameworks: tokens CSS + componentes propios.
+   Media Catalog — "Archivo vintage"
+   Identidad propia de esta app (ya no comparte tokens con
+   finance-tracker/projects-dashboard): papel envejecido, tinta
+   sepia, latón y óxido de hierro como acentos. Serif editorial
+   para títulos de obra, sans para el resto de la interfaz.
    ============================================================ */
 
-/* ---------- Acento de esta app ---------- */
+/* ---------- Acento ---------- */
 :root {
-    --accent: #a06fe0;
-    --accent-soft: #c29cf2;
+    --accent: #8a6423;
+    --accent-soft: #6b4d1a;
 }
 
 /* ---------- Tokens ---------- */
 :root {
-    --bg: #0b0d12;
-    --bg-soft: #10131a;
-    --card: #141823;
-    --card-2: #1a1f2d;
-    --border: #232a38;
-    --border-2: #303a4d;
-    --text: #e9ecf2;
-    --text-2: #a9b1c0;
-    --text-3: #707a8c;
-    --positive: #3ecf8e;
-    --negative: #f26d6d;
-    --warning: #f5b95f;
-    --r: 12px;
-    --r-sm: 8px;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px -14px rgba(0, 0, 0, .55);
+    --bg: #ece2ca;
+    --bg-soft: #e2d3ac;
+    --card: #f7f1e1;
+    --card-2: #ede0c0;
+    --border: #cbb98a;
+    --border-2: #b5a06a;
+    --text: #2e2013;
+    --text-2: #6b5a3e;
+    --text-3: #9c8c6a;
+    --positive: #4a6b3a;
+    --negative: #9c3b2e;
+    --warning: #a3701f;
+    --stamp: #6b2a24;
+    --r: 10px;
+    --r-sm: 6px;
+    --shadow: 0 1px 2px rgba(58, 42, 20, .12), 0 8px 20px -12px rgba(58, 42, 20, .35);
     --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
 }
 
 @font-face {
@@ -46,7 +50,7 @@ html { scrollbar-color: var(--border-2) transparent; }
 body {
     margin: 0;
     background: var(--bg);
-    background-image: radial-gradient(1100px 400px at 50% -160px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+    background-image: radial-gradient(1200px 500px at 50% -220px, color-mix(in srgb, var(--text) 5%, transparent), transparent 70%);
     background-repeat: no-repeat;
     color: var(--text);
     font-family: var(--font);
@@ -56,6 +60,9 @@ body {
 }
 
 h1, h2, h3, h4 { line-height: 1.25; margin: 0 0 .5rem; letter-spacing: -0.01em; }
+/* h1/h2 son título de página (nombre de la obra, nombre de la lista): serif
+   editorial. h3 es cabecera de sección y se trata aparte, en versalitas. */
+h1, h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.5rem; letter-spacing: 0; }
 
 a { color: var(--accent-soft); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -77,10 +84,10 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
     align-items: center;
     gap: 1.25rem;
     padding: .65rem 1.5rem;
-    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    background: color-mix(in srgb, var(--card) 88%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent);
 }
 
 .brand {
@@ -88,8 +95,9 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
     align-items: center;
     gap: .55rem;
     color: var(--text);
-    font-weight: 650;
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.15rem;
     margin-right: auto;
 }
 .brand:hover { text-decoration: none; }
@@ -123,23 +131,42 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
 }
 
 /* ---------- Tarjetas ---------- */
+/* Doble filete (::before) evocando una ficha de catálogo física, no una
+   card de dashboard. */
 .card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--r);
     padding: 1.15rem 1.3rem;
     box-shadow: var(--shadow);
+    position: relative;
+}
+.card::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--r) - 4px);
+    opacity: .5;
+    pointer-events: none;
 }
 
-.card > h3, .card-title {
+/* Cabeceras de sección en versalitas ("eyebrow"), no titulares grandes:
+   "Continuar", "Mi catálogo", "Por tipo"... son etiquetas de archivo. */
+.card h3, .card-title {
     display: flex;
     align-items: center;
     gap: .5rem;
-    font-size: .95rem;
-    font-weight: 600;
+    font-family: var(--font);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-2);
     margin: 0 0 .9rem;
+    position: relative;
 }
-.card > h3 .icon, .card-title .icon { color: var(--accent); }
+.card h3 .icon, .card-title .icon { color: var(--accent); }
 
 .grid-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 1rem; }
 .grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1.25rem; }
@@ -212,7 +239,7 @@ button, .btn {
     gap: .45rem;
     background: var(--accent);
     border: 1px solid transparent;
-    color: #fff;
+    color: #fbf6ea;
     padding: .5rem .95rem;
     border-radius: var(--r-sm);
     cursor: pointer;
@@ -419,19 +446,22 @@ canvas { max-width: 100%; }
 .media-card .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-card .cover .no-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .media-card .cover .status-badge { position: absolute; top: .45rem; left: .45rem; }
-.media-card .title { font-weight: 600; font-size: .9rem; line-height: 1.3; }
+.media-card .title { font-family: var(--font-display); font-weight: 400; font-size: 1rem; line-height: 1.3; }
 .media-card .meta { color: var(--text-3); font-size: .77rem; }
 
+/* Insignias tipo sello/estampilla de archivo. El fondo se mezcla contra
+   var(--card) (opaco), no contra "transparent": flotan sobre portadas de
+   cualquier color y tienen que seguir leyéndose igual. */
 .status-badge {
     display: inline-flex; align-items: center; gap: .25rem;
     padding: .14rem .5rem; border-radius: 999px; font-size: .68rem; font-weight: 620;
     text-transform: uppercase; letter-spacing: .04em;
-    background: var(--card-2); color: var(--text-2); border: 1px solid var(--border-2);
+    background: var(--card); color: var(--text-2); border: 1px solid var(--border-2);
 }
-.status-badge.pendiente { background: rgba(120, 130, 150, .18); color: #b6bfd0; }
-.status-badge.en_progreso { background: color-mix(in srgb, var(--accent) 20%, rgba(10,12,18,.75)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-.status-badge.completado { background: color-mix(in srgb, var(--positive) 18%, rgba(10,12,18,.75)); color: var(--positive); border-color: color-mix(in srgb, var(--positive) 40%, transparent); }
-.status-badge.abandonado { background: color-mix(in srgb, var(--negative) 16%, rgba(10,12,18,.75)); color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, transparent); }
+.status-badge.pendiente { background: var(--card); color: var(--text-2); }
+.status-badge.en_progreso { background: color-mix(in srgb, var(--accent) 22%, var(--card)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.status-badge.completado { background: color-mix(in srgb, var(--stamp) 18%, var(--card)); color: var(--stamp); border-color: color-mix(in srgb, var(--stamp) 40%, transparent); }
+.status-badge.abandonado { background: color-mix(in srgb, var(--negative) 16%, var(--card)); color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, transparent); }
 
 .rating-chip { display: inline-flex; align-items: center; gap: .25rem; color: var(--warning); font-size: .8rem; font-weight: 600; }
 
@@ -533,14 +563,23 @@ canvas { max-width: 100%; }
 .mc-body { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
 
 /* Prioridad + wishlist */
-.prio-badge { position: absolute; top: .45rem; right: .45rem; display: inline-flex; padding: .16rem; border-radius: 6px; background: color-mix(in srgb, var(--warning) 22%, rgba(10, 12, 18, .8)); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
-.status-badge.wishlist { background: color-mix(in srgb, var(--accent) 20%, rgba(10, 12, 18, .75)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.prio-badge { position: absolute; top: .45rem; right: .45rem; display: inline-flex; padding: .16rem; border-radius: 6px; background: color-mix(in srgb, var(--warning) 22%, var(--card)); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
+/* Wishlist con borde discontinuo: aún no lo tienes, es aspiracional */
+.status-badge.wishlist { background: var(--card); color: var(--accent-soft); border: 1px dashed var(--accent-soft); }
 
-/* Estrellas de valoración */
-.stars { display: inline-flex; align-items: center; gap: 1px; }
-.stars .star.on { color: var(--warning); }
-.stars .star.off { color: var(--border-2); }
-.stars-num { margin-left: .3rem; font-size: .8rem; font-weight: 600; color: var(--warning); font-variant-numeric: tabular-nums; }
+/* Sello circular de valoración (sustituye a las estrellas) */
+.rating-seal {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--seal-size, 34px); height: var(--seal-size, 34px);
+    border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--stamp);
+    background: color-mix(in srgb, var(--stamp) 8%, var(--card));
+    color: var(--stamp);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: calc(var(--seal-size, 34px) * .42);
+    font-variant-numeric: tabular-nums;
+}
 
 /* Toggle de vista grid/lista */
 .view-toggle { display: inline-flex; gap: .3rem; }
