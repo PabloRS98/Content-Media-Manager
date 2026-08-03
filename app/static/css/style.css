@@ -20,6 +20,7 @@
     --card-2: #ede0c0;
     --border: #cbb98a;
     --border-2: #b5a06a;
+    --border-strong: #cbb98a;
     --text: #2e2013;
     --text-2: #6b5a3e;
     --text-3: #9c8c6a;
@@ -50,6 +51,7 @@
     --card-2: #23150b;
     --border: #27180c;
     --border-2: #312010;
+    --border-strong: #4a3018;
     --text: #f3e6c8;
     --text-2: #d8c39c;
     --text-3: #b39a6e;
@@ -515,6 +517,11 @@ canvas { max-width: 100%; }
 /* ---------- Catálogo de medios (media-catalog) ---------- */
 .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 1rem; margin-top: .9rem; }
 
+/* --border-strong (no --border): con el borde plano del tema oscuro cada
+   ítem se fundía con el panel de detrás -- aquí sí conviene un contorno más
+   claro para separar un libro/peli del siguiente, aunque el panel general
+   se quede plano. */
+.media-card, .media-card::before { border-color: var(--border-strong); }
 .media-card { display: flex; flex-direction: column; gap: .45rem; padding: .8rem; }
 .media-card .cover { position: relative; border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 2/3; background: var(--bg-soft); border: 1px solid var(--border); }
 .media-card .cover.podcast { aspect-ratio: 1/1; }
