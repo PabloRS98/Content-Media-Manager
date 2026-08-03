@@ -35,18 +35,18 @@
 }
 
 /* Oscuro por defecto (ver script bloqueante en base.html): marrón cuero
-   #4D301B, dorado y granate como acentos de lujo, tinta crema para texto.
+   #2E1B0C, dorado y granate como acentos de lujo, tinta crema para texto.
    Mismos nombres de token que el claro: todo el resto del CSS se recolorea
    solo. Contraste verificado (WCAG) para cada token contra --bg y --card. */
 :root[data-theme="dark"] {
     --accent: #d9a83e;
     --accent-soft: #e8c46e;
-    --bg: #4d301b;
-    --bg-soft: #3e2714;
-    --card: #5c3d22;
-    --card-2: #6b4a2c;
-    --border: #6b4e30;
-    --border-2: #8a6640;
+    --bg: #2e1b0c;
+    --bg-soft: #24150a;
+    --card: #3a2412;
+    --card-2: #46301a;
+    --border: #4a3018;
+    --border-2: #5c3f20;
     --text: #f3e6c8;
     --text-2: #d8c39c;
     --text-3: #b39a6e;
@@ -54,7 +54,7 @@
     --negative: #e6926e;
     --warning: #e0ae5e;
     --stamp: #e0919e;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -14px rgba(0, 0, 0, .65);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 10px 28px -14px rgba(0, 0, 0, .7);
 }
 
 @font-face {
