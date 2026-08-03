@@ -30,7 +30,7 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.database import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Episode, MediaItem, MediaStatus, MediaType  # noqa: E402
+from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType  # noqa: E402
 
 
 class RedProhibida(RuntimeError):
@@ -101,6 +101,15 @@ def crear_item(db):
         db.refresh(item)
         return item
     return _crear
+
+
+@pytest.fixture
+def listas_dinamicas(db):
+    """Siembra las 4 vistas automáticas por estado, como hace el lifespan
+    real en producción, y las devuelve indexadas por `filtro_estado`."""
+    from app.routers.lists import seed_smart_lists
+    seed_smart_lists(db)
+    return {x.filtro_estado: x for x in db.query(Lista).filter(Lista.filtro_estado.isnot(None))}
 
 
 @pytest.fixture

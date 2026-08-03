@@ -5,12 +5,14 @@
 {% block title %}Inicio · Catálogo de Medios{% endblock %}
 {% block content %}
 
+{# Cada acceso lleva a su vista automática real en la pestaña Listas (se
+   actualiza sola según el estado de cada ítem), no a un filtro suelto. #}
 <section class="home-summary">
     <div class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></div>
-    <a href="/catalogo?estado=en_progreso" class="hsum accent"><strong>{{ resumen.en_progreso }}</strong><span>en progreso</span></a>
-    <a href="/catalogo?estado=pendiente" class="hsum"><strong>{{ resumen.pendientes }}</strong><span>pendientes</span></a>
-    <a href="/catalogo?estado=completado" class="hsum positive"><strong>{{ resumen.completados }}</strong><span>completados</span></a>
-    <a href="/catalogo?estado=wishlist" class="hsum"><strong>{{ resumen.wishlist }}</strong><span>wishlist</span></a>
+    <a href="/listas/{{ listas_dinamicas.en_progreso }}" class="hsum accent"><strong>{{ resumen.en_progreso }}</strong><span>en progreso</span></a>
+    <a href="/listas/{{ listas_dinamicas.pendiente }}" class="hsum"><strong>{{ resumen.pendientes }}</strong><span>pendientes</span></a>
+    <a href="/listas/{{ listas_dinamicas.completado }}" class="hsum positive"><strong>{{ resumen.completados }}</strong><span>completados</span></a>
+    <a href="/listas/{{ listas_dinamicas.wishlist }}" class="hsum"><strong>{{ resumen.wishlist }}</strong><span>wishlist</span></a>
 </section>
 
 {% if not hay_algo %}

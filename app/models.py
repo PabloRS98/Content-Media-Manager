@@ -81,13 +81,19 @@ class Tag(Base):
 
 
 class Lista(Base):
-    """Lista/colección manual del usuario ('para ver con pareja', 'top 2026'...)."""
+    """Lista/colección del usuario ('para ver con pareja', 'top 2026'...).
+
+    Si `filtro_estado` tiene valor, es una vista automática (p. ej.
+    "Completados"): su contenido se calcula en vivo por `MediaItem.status`
+    en vez de por la relación `items`, y no admite añadir/quitar a mano ni
+    borrarla -- ver `seed_smart_lists()` en routers/lists.py."""
 
     __tablename__ = "listas"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    filtro_estado: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     items: Mapped[list["MediaItem"]] = relationship(secondary=list_items, order_by="MediaItem.title")
 

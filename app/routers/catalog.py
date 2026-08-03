@@ -422,7 +422,7 @@ def item_detail(item_id: int, request: Request, db: Session = Depends(get_db)):
             .all()
         )
 
-    all_lists = db.query(Lista).order_by(Lista.name).all()
+    all_lists = db.query(Lista).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
     item_lists = [lista for lista in all_lists if item in lista.items]
 
     return templates.TemplateResponse(request, "detail.html", {

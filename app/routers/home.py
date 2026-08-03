@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
 from ..database import get_db
-from ..models import EPISODIC_TYPES, Episode, MediaItem, MediaStatus, MediaType, Priority
+from ..models import EPISODIC_TYPES, Episode, Lista, MediaItem, MediaStatus, MediaType, Priority
 from ..services import metadata
 from ..templating import templates
 
@@ -104,6 +104,13 @@ def home(request: Request, db: Session = Depends(get_db)):
 
     proximamente = _upcoming(db, limit=6)
 
+    # Destino real (pestaña Listas) de los 4 accesos rápidos de abajo: ver
+    # seed_smart_lists() en routers/lists.py.
+    listas_dinamicas = {
+        x.filtro_estado: x.id
+        for x in db.query(Lista).filter(Lista.filtro_estado.isnot(None)).all()
+    }
+
     return templates.TemplateResponse(request, "home.html", {
         "en_progreso": en_progreso,
         "proximos": proximos,
@@ -111,6 +118,7 @@ def home(request: Request, db: Session = Depends(get_db)):
         "recientes": recientes,
         "proximamente": proximamente,
         "resumen": resumen,
+        "listas_dinamicas": listas_dinamicas,
         "media_types": list(MediaType),
         "hay_algo": bool(en_progreso or proximos or wishlist or recientes),
     })

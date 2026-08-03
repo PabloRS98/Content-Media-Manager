@@ -72,3 +72,6 @@ def init_db():
     ensure_columns("episodes", {
         "notified": "BOOLEAN DEFAULT 0",
     })
+    ensure_columns("listas", {
+        "filtro_estado": "VARCHAR(20)",
+    })
