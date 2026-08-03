@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
 
 
-def search_books(query: str, limit: int = 8, year: int | None = None, idioma: str | None = None) -> list[dict]:
+def search_books(query: str, limit: int = 8, idioma: str | None = None) -> list[dict]:
     """Busca libros en Google Books y devuelve un formato común para el catálogo.
     Si google_books_api_key está configurada en Settings, la usa para evitar cuotas limitadas.
 
@@ -23,10 +23,16 @@ def search_books(query: str, limit: int = 8, year: int | None = None, idioma: st
     volumen, sobre un conjunto de candidatos más amplio que `limit`.
 
     Sin `idioma` (uso interno del enriquecimiento automático, que no conoce el
-    idioma del ítem) no se filtra nada: se conserva el comportamiento de antes."""
+    idioma del ítem) no se filtra nada: se conserva el comportamiento de antes.
+
+    No hay parámetro `year`: se probó mandarlo como filtro `publishedDate:AAAA`
+    y descarta resultados buenos que sí existen (para "Seda" de Baricco, con
+    publishedDate:1997 Google devuelve 0 resultados; sin el filtro, el volumen
+    correcto aparece el 3º). Cada resultado sí trae su año (`"year"` en el
+    dict devuelto); quien llama puede usarlo como preferencia entre los
+    candidatos ya encontrados, no como filtro duro — así lo hace
+    `enrich._pick_match`."""
     q = query
-    if year:
-        q += f" publishedDate:{year}"
 
     # Con idioma pedimos más candidatos de los que se van a mostrar, porque el
     # filtrado por idioma ocurre después de traerlos (40 es el máximo de Google).

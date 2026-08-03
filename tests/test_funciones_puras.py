@@ -137,6 +137,36 @@ class TestSeleccionDeCoincidencia:
         ])
         assert elegido["language"] == "es"
 
+    def test_con_año_conocido_desempata_entre_compatibles(self):
+        """Reproduce el caso real de 'Seda' de Alessandro Baricco: varios
+        resultados contienen 'seda' como subcadena (una guía de lectura, un
+        libro sin relación...), pero solo uno tiene el año real de la edición."""
+        item = MediaItem(media_type=MediaType.LIBRO, title="Seda", year=1997)
+        elegido = _pick_match(item, [
+            self._resultado("Seda de Alessandro Baricco (Guía de lectura)", language="es", year=2016),
+            self._resultado("Entre jaguares de lana y dragones de seda", language="es", year=2023),
+            self._resultado("Seda", language="es", year=1997),
+        ])
+        assert elegido["year"] == 1997
+
+    def test_sin_ningun_compatible_en_el_año_cae_al_primero(self):
+        """El año desempata, pero no es un filtro duro: si ninguno coincide,
+        sigue devolviendo el primer compatible en vez de nada."""
+        item = MediaItem(media_type=MediaType.LIBRO, title="Duna", year=1965)
+        elegido = _pick_match(item, [
+            self._resultado("Duna", language="es", year=2001),
+            self._resultado("Duna", language="es", year=2010),
+        ])
+        assert elegido["year"] == 2001
+
+    def test_sin_año_en_el_item_no_desempata(self):
+        item = MediaItem(media_type=MediaType.LIBRO, title="Duna", year=None)
+        elegido = _pick_match(item, [
+            self._resultado("Duna", language="es", year=2001),
+            self._resultado("Duna", language="es", year=2010),
+        ])
+        assert elegido["year"] == 2001
+
 
 class TestLecturaDeColumnasIMDb:
     def test_encuentra_la_columna_ignorando_mayusculas(self):

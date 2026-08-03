@@ -41,7 +41,7 @@ def _search_for(item: MediaItem) -> list[dict]:
             
         # Cascada: Google Books -> Wikipedia -> Open Library
         try:
-            res = googlebooks.search_books(query_str, limit=5, year=item.year)
+            res = googlebooks.search_books(query_str, limit=5)
         except Exception:
             logger.warning("Fallo al buscar en Google Books para '%s'", query_str)
             res = []
@@ -72,7 +72,15 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
     específico ("Harry Potter and the Order of the Phoenix"), y como el ítem se
     renombra al título del candidato, varios libros distintos de una saga acaban
     colapsados en la misma fila con el nombre genérico de la serie. Ya pasó de
-    verdad: ver docs/AUDITORIA.md, hallazgo N1."""
+    verdad: ver docs/AUDITORIA.md, hallazgo N1.
+
+    Un título corto y a la vez palabra común ("Seda") cabe como subcadena en
+    cualquier otra obra que la mencione de pasada: para "Seda" de Baricco,
+    "Seda de Alessandro Baricco (Guía de lectura)" y "Entre jaguares de lana y
+    dragones de seda" pasan igual el filtro de texto. Cuando el ítem tiene año,
+    se usa como desempate entre los candidatos ya compatibles por título/idioma
+    (no como filtro: sigue aceptando el primero compatible si ninguno coincide
+    en año, en vez de devolver nada)."""
     def clean(s: str) -> str:
         import re
         s_clean = re.sub(r'\(.*?\)', '', s or '')
@@ -89,21 +97,26 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
 
     c1 = clean(item.title)
 
+    def _mejor_por_año(candidatos: list[dict]) -> dict | None:
+        if not candidatos:
+            return None
+        if item.year:
+            por_año = [r for r in candidatos if r.get("year") == item.year]
+            if por_año:
+                return por_año[0]
+        return candidatos[0]
+
     # 1. Si es un libro, priorizar fuertemente cualquier resultado en español que sea compatible
     if item.media_type == MediaType.LIBRO:
         spanish_results = [r for r in with_cover if r.get("language") == "es"]
-        for r in spanish_results:
-            c2 = clean(r.get("title"))
-            if c1 and c2 and c1 in c2:
-                return r
+        compatibles_es = [r for r in spanish_results if c1 and c1 in clean(r.get("title"))]
+        elegido = _mejor_por_año(compatibles_es)
+        if elegido:
+            return elegido
 
     # 2. Si no hay en español o no es un libro, buscar cualquier resultado compatible (mismo idioma o inglés)
-    for r in with_cover:
-        c2 = clean(r.get("title"))
-        if c1 and c2 and c1 in c2:
-            return r
-
-    return None  # No retornar nada si ninguno es compatible
+    compatibles = [r for r in with_cover if c1 and c1 in clean(r.get("title"))]
+    return _mejor_por_año(compatibles)
 
 
 def enrich_missing_covers(db: Session) -> dict:
