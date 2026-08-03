@@ -332,6 +332,7 @@ def add_item(
         genres=genres.strip() or None,
         page_count=_parse_optional(page_count, int),
         release_date=_parse_optional(release_date, lambda v: date.fromisoformat(v[:10])),
+        completed_at=date.today() if status == MediaStatus.COMPLETADO else None,
     )
     db.add(item)
     db.commit()
