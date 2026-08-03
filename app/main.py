@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
+from .csrf import CSRFProtectionMiddleware
 from .database import SessionLocal, init_db
 from .routers import catalog, home, imdb_import, lists
 
@@ -65,6 +66,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
+
+app.add_middleware(CSRFProtectionMiddleware)
 
 app.include_router(home.router)
 app.include_router(catalog.router)

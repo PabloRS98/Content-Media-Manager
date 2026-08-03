@@ -17,7 +17,6 @@ from app.models import MediaItem, MediaStatus, MediaType
 pytestmark = pytest.mark.fallo_conocido
 
 
-@pytest.mark.xfail(strict=True, reason="A1: templating.py pisa el filtro tojson de Jinja")
 def test_los_generos_no_pueden_cerrar_la_etiqueta_script(client, crear_item):
     """El género es texto libre y acaba dentro de un <script> en /estadisticas.
     Jinja trae un `tojson` que escapa `<` y `>` justo para esto, pero
@@ -29,7 +28,6 @@ def test_los_generos_no_pueden_cerrar_la_etiqueta_script(client, crear_item):
     assert payload not in client.get("/estadisticas").text
 
 
-@pytest.mark.xfail(strict=True, reason="A2: se redirige al Referer sin validarlo")
 def test_completar_portadas_no_redirige_fuera_del_sitio(client):
     """La cabecera Referer la controla el cliente; usarla como destino de un
     303 es una redirección abierta."""
@@ -40,7 +38,6 @@ def test_completar_portadas_no_redirige_fuera_del_sitio(client):
     assert not r.headers.get("location", "").startswith("http")
 
 
-@pytest.mark.xfail(strict=True, reason="M2: el dedupe consulta la BD y autoflush está desactivado")
 def test_el_importador_de_imdb_no_duplica_dentro_del_mismo_csv(client, db):
     """Los exports de IMDb repiten títulos entre 'Ratings' y 'Watchlist'."""
     csv = (
@@ -53,7 +50,6 @@ def test_el_importador_de_imdb_no_duplica_dentro_del_mismo_csv(client, db):
     assert db.query(MediaItem).filter(MediaItem.title == "Peli repetida").count() == 1
 
 
-@pytest.mark.xfail(strict=True, reason="M3: resta el tamaño del lote, no las portadas encontradas")
 def test_el_contador_de_portadas_pendientes_dice_la_verdad(db, monkeypatch):
     """Si no se encontró ninguna portada, siguen faltando todas."""
     from app.services import enrich
@@ -70,7 +66,6 @@ def test_el_contador_de_portadas_pendientes_dice_la_verdad(db, monkeypatch):
     assert resultado["restantes"] == pendientes_reales
 
 
-@pytest.mark.xfail(strict=True, reason="M5: add_item no fija completed_at")
 def test_dar_de_alta_algo_ya_completado_registra_la_fecha(client, db):
     """Las estadísticas se apoyan en completed_at; sin ella el ítem es invisible
     en 'completados este año', en el gráfico por meses y en la actividad reciente."""
@@ -82,16 +77,20 @@ def test_dar_de_alta_algo_ya_completado_registra_la_fecha(client, db):
     assert item.completed_at is not None
 
 
-@pytest.mark.xfail(strict=True, reason="B1: no se escapan los comodines de LIKE")
 def test_el_filtro_de_genero_trata_el_porcentaje_como_texto(client, crear_item):
-    """`%` es un comodín de LIKE: sin escapar, filtrar por '%' devuelve todo."""
+    """`%` es un comodín de LIKE: sin escapar, filtrar por '%' devuelve todo.
+
+    Se comprueba el contador de resultados, no si "Novela negra" aparece en
+    el HTML: ese texto sale también en el <select> de géneros disponibles
+    (que lista todos los géneros del tipo, sin aplicar este filtro), así que
+    buscarlo en la página entera daría igual con el bug arreglado o sin
+    arreglar."""
     crear_item(title="Novela negra", genres="Novela negra")
 
     html = client.get("/catalogo?tipo=libro&genero=%25").text
-    assert "Novela negra" not in html
+    assert '<span class="tag accent">0</span>' in html
 
 
-@pytest.mark.xfail(strict=True, reason="B2: _get() se queda con la primera columna presente aunque esté vacía")
 def test_el_lector_de_columnas_de_imdb_se_salta_las_vacias():
     """Un CSV bilingüe trae 'Title' y 'Título'. La versión de
     `services/imports.py` sí lo hace bien: son dos copias divergentes."""
@@ -113,7 +112,6 @@ def test_se_puede_usar_una_contrasena_con_tildes(client, monkeypatch):
     assert r.status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason="B5: no se valida el rango de la nota")
 def test_no_se_admite_una_nota_fuera_de_1_10(client, crear_item, db):
     """El min/max del HTML es solo del lado del cliente. Una nota de 99 se
     guarda y luego desaparece del histograma sin avisar."""
@@ -127,7 +125,6 @@ def test_no_se_admite_una_nota_fuera_de_1_10(client, crear_item, db):
     assert item.rating != 99
 
 
-@pytest.mark.xfail(strict=True, reason="B6: el contador ignora el filtro de tipo activo")
 def test_el_contador_de_portadas_respeta_el_tipo_que_estas_viendo(client, crear_item):
     """Estando en Películas no tiene sentido ver un número que cuenta libros."""
     crear_item(title="Libro sin portada", media_type=MediaType.LIBRO, cover_url=None)
@@ -138,7 +135,6 @@ def test_el_contador_de_portadas_respeta_el_tipo_que_estas_viendo(client, crear_
     assert "Buscar portadas" not in html
 
 
-@pytest.mark.xfail(strict=True, reason="N1: el enriquecedor renombra el ítem con el título de la API")
 def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
     """`_pick_match` acepta por subcadena, así que 'Harry Potter y el cáliz de
     fuego' casa con un volumen genérico 'Harry Potter' y el ítem acaba
@@ -161,7 +157,6 @@ def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
     assert libro.title == "Harry Potter y el cáliz de fuego"
 
 
-@pytest.mark.xfail(strict=True, reason="N3: falta la etiqueta de wishlist en status_labels")
 def test_el_desplegable_de_estado_no_muestra_none(client):
     """`statuses` incluye WISHLIST pero ninguno de los cinco diccionarios de
     etiquetas la define, así que Jinja imprime literalmente 'None'."""
@@ -169,7 +164,6 @@ def test_el_desplegable_de_estado_no_muestra_none(client):
     assert ">None<" not in html
 
 
-@pytest.mark.xfail(strict=True, reason="N4: los especiales (temporada 0) no se filtran")
 def test_los_especiales_no_aparecen_en_proximamente(client, crear_serie, db):
     """TMDB usa la temporada 0 para especiales y resúmenes, que se estrenan el
     mismo día que el episodio real y lo duplican en la lista."""

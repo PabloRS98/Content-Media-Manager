@@ -5,6 +5,7 @@ import logging
 import httpx
 
 from ..config import settings
+from ._logging_utils import log_fallo_api
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,8 @@ def _genre_map(kind: str) -> dict[int, str]:
         mapping = {g["id"]: g["name"] for g in resp.json().get("genres", [])}
         _genre_cache[kind] = mapping
         return mapping
-    except Exception:
-        logger.exception("Fallo al obtener géneros TMDB (%s)", kind)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al obtener géneros TMDB (%s)", kind, exc=e)
         return {}
 
 
@@ -63,8 +64,8 @@ def _search(endpoint: str, media_label: str, query: str, limit: int, year: int |
                 "release_date": date_str or None,
             })
         return results
-    except Exception:
-        logger.exception("Fallo al buscar %s para '%s'", media_label, query)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al buscar %s para '%s'", media_label, query, exc=e)
         return []
 
 
@@ -128,8 +129,8 @@ def find_by_imdb_id(imdb_id: str, media_type: str) -> dict | None:
                     "release_date": date_str or None,
                 }
         return None
-    except Exception:
-        logger.exception("Fallo al buscar por IMDb ID '%s' en TMDB", imdb_id)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al buscar por IMDb ID '%s' en TMDB", imdb_id, exc=e)
         return None
 
 
@@ -171,8 +172,8 @@ def get_movie_details(tmdb_id: str) -> dict | None:
             "saga": (coll.get("name") or "").replace(" Collection", "").replace(" (Colección)", "").strip() or None,
             "release_date": d.get("release_date") or None,
         }
-    except Exception:
-        logger.exception("Fallo al obtener detalles de película TMDB %s", tmdb_id)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al obtener detalles de película TMDB %s", tmdb_id, exc=e)
         return None
 
 
@@ -205,8 +206,8 @@ def get_tv_details(tmdb_id: str) -> dict | None:
             # season_number 0 = specials: se incluyen para no perder episodios sueltos
             "seasons": [s.get("season_number") for s in d.get("seasons", []) if s.get("season_number") is not None],
         }
-    except Exception:
-        logger.exception("Fallo al obtener detalles de serie TMDB %s", tmdb_id)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al obtener detalles de serie TMDB %s", tmdb_id, exc=e)
         return None
 
 
@@ -235,7 +236,7 @@ def fetch_tv_episodes(tmdb_id: str, seasons: list[int]) -> list[dict]:
                     "air_date": e.get("air_date") or None,
                     "runtime_minutes": e.get("runtime") or None,
                 })
-        except Exception:
-            logger.exception("Fallo al obtener episodios TMDB %s temporada %s", tmdb_id, sn)
+        except Exception as e:
+            log_fallo_api(logger, "Fallo al obtener episodios TMDB %s temporada %s", tmdb_id, sn, exc=e)
             continue
     return out

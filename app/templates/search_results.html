@@ -26,6 +26,6 @@
         </div>
     </form>
 {% else %}
-    <p class="hint">Sin resultados. Escribe al menos 2 caracteres{% if tipo in ("pelicula", "serie") %} (¿está configurada TMDB_API_KEY?){% elif tipo == "videojuego" %} (¿está configurada RAWG_API_KEY?){% endif %}.</p>
+    <p class="hint">Sin resultados{% if tipo == "libro" %} en {{ "español" if idioma == "es" else "inglés" }}. Prueba a cambiar el idioma de búsqueda{% else %}. Escribe al menos 2 caracteres{% if tipo in ("pelicula", "serie") %} (¿está configurada TMDB_API_KEY?){% elif tipo == "videojuego" %} (¿está configurada RAWG_API_KEY?){% endif %}{% endif %}.</p>
 {% endfor %}
 </div>

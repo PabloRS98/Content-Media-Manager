@@ -156,7 +156,10 @@ class MediaItem(Base):
         watched = sum(1 for e in eps if e.watched)
         next_ep = None
         for e in eps:  # ya vienen ordenados por temporada/episodio
-            if not e.watched:
+            # La temporada 0 (especiales/recaps de TMDB) no debe colarse como
+            # "próximo": al ordenar por (temporada, episodio) va primero, y
+            # contamina el aviso de "próximo episodio" en toda la app.
+            if e.season_number != 0 and not e.watched:
                 next_ep = e
                 break
         return {"total": total, "watched": watched, "next": next_ep}

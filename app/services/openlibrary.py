@@ -9,7 +9,12 @@ SEARCH_URL = "https://openlibrary.org/search.json"
 COVER_URL = "https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
 
 
-def search_books(query: str, limit: int = 8, year: int | None = None) -> list[dict]:
+# Open Library filtra por idioma con códigos ISO 639-2, no el "es"/"en" que
+# usa el resto de la app.
+_ISO_639_2 = {"es": "spa", "en": "eng"}
+
+
+def search_books(query: str, limit: int = 8, year: int | None = None, idioma: str | None = None) -> list[dict]:
     params = {
         "q": query, "limit": limit,
         # Pedir explícitamente el nº de páginas mediano para el tiempo de lectura
@@ -17,6 +22,8 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
     }
     if year:
         params["q"] = f"{query} first_publish_year:{year}"
+    if idioma in _ISO_639_2:
+        params["language"] = _ISO_639_2[idioma]
     try:
         resp = httpx.get(SEARCH_URL, params=params, timeout=10)
         if resp.status_code == 422:

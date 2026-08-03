@@ -7,7 +7,7 @@ import time
 from sqlalchemy.orm import Session
 
 from ..models import MediaItem, MediaType
-from . import googlebooks, openlibrary, rawg, tmdb, wikipedia_covers
+from . import googlebooks, metadata, openlibrary, rawg, tmdb, wikipedia_covers
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,15 @@ def _search_for(item: MediaItem) -> list[dict]:
 
 
 def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
-    """Selecciona la mejor coincidencia del listado basándose en la compatibilidad de títulos y el idioma."""
+    """Selecciona la mejor coincidencia del listado basándose en la compatibilidad de títulos y el idioma.
+
+    Solo se acepta `c1 in c2` (el título guardado cabe dentro del título candidato),
+    nunca al revés. La dirección `c2 in c1` parece simétrica pero no lo es: deja que
+    un candidato genérico y corto ("Harry Potter") case contra un ítem largo y
+    específico ("Harry Potter and the Order of the Phoenix"), y como el ítem se
+    renombra al título del candidato, varios libros distintos de una saga acaban
+    colapsados en la misma fila con el nombre genérico de la serie. Ya pasó de
+    verdad: ver docs/AUDITORIA.md, hallazgo N1."""
     def clean(s: str) -> str:
         import re
         s_clean = re.sub(r'\(.*?\)', '', s or '')
@@ -86,13 +94,13 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
         spanish_results = [r for r in with_cover if r.get("language") == "es"]
         for r in spanish_results:
             c2 = clean(r.get("title"))
-            if c1 and c2 and (c1 in c2 or c2 in c1):
+            if c1 and c2 and c1 in c2:
                 return r
 
     # 2. Si no hay en español o no es un libro, buscar cualquier resultado compatible (mismo idioma o inglés)
     for r in with_cover:
         c2 = clean(r.get("title"))
-        if c1 and c2 and (c1 in c2 or c2 in c1):
+        if c1 and c2 and c1 in c2:
             return r
 
     return None  # No retornar nada si ninguno es compatible
@@ -122,6 +130,15 @@ def enrich_missing_covers(db: Session) -> dict:
                 item.overview = match["overview"]
             if not item.year and match.get("year"):
                 item.year = match["year"]
+            if item.media_type in (MediaType.PELICULA, MediaType.SERIE) and match.get("external_id"):
+                # La portada vino de TMDB: aprovechamos el mismo id para traer
+                # también duración, reparto y (en series) episodios. Sin esto,
+                # un ítem importado de IMDb (external_source="imdb") se queda sin
+                # esos datos para siempre, porque solo se enriquecen los ítems
+                # con external_source="tmdb" (metadata.enrich_item los ignora).
+                item.external_source = "tmdb"
+                item.external_id = match["external_id"]
+                metadata.enrich_item(db, item)
             found += 1
         time.sleep(SLEEP_BETWEEN)
     db.commit()
@@ -129,7 +146,9 @@ def enrich_missing_covers(db: Session) -> dict:
     return {
         "procesados": len(batch),
         "encontrados": found,
-        "restantes": max(0, total_missing - len(batch)),
+        # Resta lo ENCONTRADO, no el tamaño del lote: un ítem procesado sin
+        # coincidencia sigue sin portada y no puede desaparecer de la cuenta.
+        "restantes": max(0, total_missing - found),
     }
 
 

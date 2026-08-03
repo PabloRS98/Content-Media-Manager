@@ -80,7 +80,10 @@ def _get(row: dict, *names: str) -> str:
     lowered = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
     for n in names:
         v = lowered.get(n.strip().lower())
-        if v is not None:
+        # "is not None" deja ganar a una columna PRESENTE pero vacía sobre una
+        # alternativa poblada (un CSV bilingüe con "Title" y "Título" descarta
+        # filas buenas como "omitidas"). services/imports.py ya usa "if v:".
+        if v:
             return v
     return ""
 
@@ -130,6 +133,12 @@ async def import_imdb_csv(
     creados = 0
     omitidos = 0
     duplicados = 0
+    # external_id vistos en ESTE fichero: SessionLocal tiene autoflush=False, así
+    # que los db.add() de filas anteriores del mismo bucle no están todavía en la
+    # BD cuando se hace la consulta de abajo. Sin este set, un CSV con la misma
+    # película repetida (p. ej. en "Ratings" y en "Watchlist") crea un duplicado
+    # por cada repetición en vez de detectarlas entre sí.
+    vistos_en_este_csv: set[str] = set()
 
     for row in reader:
         # Busca el tipo de título de forma case-insensitive y tolerante a idiomas
@@ -146,10 +155,14 @@ async def import_imdb_csv(
         external_id = f"imdb:{imdb_id}" if imdb_id else None
 
         if external_id:
-            ya_existe = db.query(MediaItem).filter(MediaItem.external_id == external_id).first()
+            ya_existe = (
+                external_id in vistos_en_este_csv
+                or db.query(MediaItem).filter(MediaItem.external_id == external_id).first() is not None
+            )
             if ya_existe:
                 duplicados += 1
                 continue
+            vistos_en_este_csv.add(external_id)
 
         year = _parse_optional_int(_get(row, "Year", "Año", "Ano"))
         directors = _get(row, "Directors", "Directores", "Director").strip()
