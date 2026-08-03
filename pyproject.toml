@@ -1,6 +1,6 @@
 [project]
 name = "media-catalog"
-version = "3.0.0"
+version = "1.0.0"
 description = "Catálogo self-hosted de libros, películas, series, videojuegos y podcasts"
 requires-python = ">=3.12"
 
