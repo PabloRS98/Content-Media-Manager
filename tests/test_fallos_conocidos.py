@@ -38,7 +38,6 @@ def test_completar_portadas_no_redirige_fuera_del_sitio(client):
     assert not r.headers.get("location", "").startswith("http")
 
 
-@pytest.mark.xfail(strict=True, reason="M2: el dedupe consulta la BD y autoflush está desactivado")
 def test_el_importador_de_imdb_no_duplica_dentro_del_mismo_csv(client, db):
     """Los exports de IMDb repiten títulos entre 'Ratings' y 'Watchlist'."""
     csv = (
@@ -51,7 +50,6 @@ def test_el_importador_de_imdb_no_duplica_dentro_del_mismo_csv(client, db):
     assert db.query(MediaItem).filter(MediaItem.title == "Peli repetida").count() == 1
 
 
-@pytest.mark.xfail(strict=True, reason="M3: resta el tamaño del lote, no las portadas encontradas")
 def test_el_contador_de_portadas_pendientes_dice_la_verdad(db, monkeypatch):
     """Si no se encontró ninguna portada, siguen faltando todas."""
     from app.services import enrich
@@ -68,7 +66,6 @@ def test_el_contador_de_portadas_pendientes_dice_la_verdad(db, monkeypatch):
     assert resultado["restantes"] == pendientes_reales
 
 
-@pytest.mark.xfail(strict=True, reason="M5: add_item no fija completed_at")
 def test_dar_de_alta_algo_ya_completado_registra_la_fecha(client, db):
     """Las estadísticas se apoyan en completed_at; sin ella el ítem es invisible
     en 'completados este año', en el gráfico por meses y en la actividad reciente."""
@@ -137,7 +134,6 @@ def test_el_contador_de_portadas_respeta_el_tipo_que_estas_viendo(client, crear_
     assert "Buscar portadas" not in html
 
 
-@pytest.mark.xfail(strict=True, reason="N1: el enriquecedor renombra el ítem con el título de la API")
 def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
     """`_pick_match` acepta por subcadena, así que 'Harry Potter y el cáliz de
     fuego' casa con un volumen genérico 'Harry Potter' y el ítem acaba

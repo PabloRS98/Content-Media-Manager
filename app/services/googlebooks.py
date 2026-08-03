@@ -11,17 +11,31 @@ logger = logging.getLogger(__name__)
 SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
 
 
-def search_books(query: str, limit: int = 8, year: int | None = None) -> list[dict]:
+def search_books(query: str, limit: int = 8, year: int | None = None, idioma: str | None = None) -> list[dict]:
     """Busca libros en Google Books y devuelve un formato común para el catálogo.
-    Si google_books_api_key está configurada en Settings, la usa para evitar cuotas limitadas."""
+    Si google_books_api_key está configurada en Settings, la usa para evitar cuotas limitadas.
+
+    `idioma` ("es"/"en") filtra los resultados a ese idioma. Se manda como
+    `langRestrict`, pero verificado contra la API real: Google lo trata como
+    sugerencia, no como filtro — la misma consulta con `langRestrict=es` y
+    `langRestrict=en` puede devolver el mismo listado mixto. El filtrado real
+    se hace aquí, por el campo `language` que sí viene bien poblado en cada
+    volumen, sobre un conjunto de candidatos más amplio que `limit`.
+
+    Sin `idioma` (uso interno del enriquecimiento automático, que no conoce el
+    idioma del ítem) no se filtra nada: se conserva el comportamiento de antes."""
     q = query
     if year:
         q += f" publishedDate:{year}"
 
+    # Con idioma pedimos más candidatos de los que se van a mostrar, porque el
+    # filtrado por idioma ocurre después de traerlos (40 es el máximo de Google).
     params = {
         "q": q,
-        "maxResults": limit,
+        "maxResults": min(40, limit * 4) if idioma else limit,
     }
+    if idioma:
+        params["langRestrict"] = idioma
     if settings.google_books_api_key:
         params["key"] = settings.google_books_api_key
 
@@ -57,7 +71,7 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
     try:
         items = resp.json().get("items", [])
         results = []
-        for item in items[:limit]:
+        for item in items:
             vol = item.get("volumeInfo", {})
             info_id = item.get("id")
 
@@ -99,7 +113,9 @@ def search_books(query: str, limit: int = 8, year: int | None = None) -> list[di
                 "page_count": page_count,
                 "language": vol.get("language"),
             })
-        return results
+        if idioma:
+            results = [r for r in results if r["language"] == idioma]
+        return results[:limit]
     except Exception as e:
         log_fallo_api(logger, "Fallo al buscar libros en Google Books para '%s'", query, exc=e)
         return []
