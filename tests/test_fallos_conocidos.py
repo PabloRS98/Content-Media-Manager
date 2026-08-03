@@ -17,7 +17,6 @@ from app.models import MediaItem, MediaStatus, MediaType
 pytestmark = pytest.mark.fallo_conocido
 
 
-@pytest.mark.xfail(strict=True, reason="A1: templating.py pisa el filtro tojson de Jinja")
 def test_los_generos_no_pueden_cerrar_la_etiqueta_script(client, crear_item):
     """El género es texto libre y acaba dentro de un <script> en /estadisticas.
     Jinja trae un `tojson` que escapa `<` y `>` justo para esto, pero
@@ -29,7 +28,6 @@ def test_los_generos_no_pueden_cerrar_la_etiqueta_script(client, crear_item):
     assert payload not in client.get("/estadisticas").text
 
 
-@pytest.mark.xfail(strict=True, reason="A2: se redirige al Referer sin validarlo")
 def test_completar_portadas_no_redirige_fuera_del_sitio(client):
     """La cabecera Referer la controla el cliente; usarla como destino de un
     303 es una redirección abierta."""

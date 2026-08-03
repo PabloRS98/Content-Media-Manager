@@ -4,6 +4,7 @@ import logging
 import httpx
 
 from ..config import settings
+from ._logging_utils import log_fallo_api
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,6 @@ def search_games(query: str, limit: int = 8, year: int | None = None) -> list[di
                 "release_date": released or None,
             })
         return results
-    except Exception:
-        logger.exception("Fallo al buscar videojuegos para '%s'", query)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al buscar videojuegos para '%s'", query, exc=e)
         return []

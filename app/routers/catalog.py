@@ -2,6 +2,7 @@
 ficha de detalle con episodios, orden + paginación y estadísticas."""
 from datetime import UTC, date, datetime
 from math import ceil
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import extract, func, or_
@@ -254,8 +255,13 @@ def catalog_fill_covers(request: Request, db: Session = Depends(get_db)):
     else:
         msg += " ¡Todos los elementos de tu catálogo tienen portada!"
         
-    referer = request.headers.get("referer") or "/catalogo"
-    return redirect_flash(referer, msg)
+    # La cabecera Referer la controla el cliente: no se usa tal cual como
+    # destino de la redirección (open redirect). Solo se conserva la ruta
+    # interna, rechazando "//host" (protocol-relative) además de URLs absolutas.
+    referer = request.headers.get("referer") or ""
+    path = urlparse(referer).path or "/catalogo"
+    destino = path if path.startswith("/") and not path.startswith("//") else "/catalogo"
+    return redirect_flash(destino, msg)
 
 
 @router.get("/buscar")

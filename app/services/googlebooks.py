@@ -4,6 +4,7 @@ import logging
 import httpx
 
 from ..config import settings
+from ._logging_utils import log_fallo_api
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,6 @@ def search_books(query: str, limit: int = 8, year: int | None = None, idioma: st
         if idioma:
             results = [r for r in results if r["language"] == idioma]
         return results[:limit]
-    except Exception:
-        logger.exception("Fallo al buscar libros en Google Books para '%s'", query)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al buscar libros en Google Books para '%s'", query, exc=e)
         return []
