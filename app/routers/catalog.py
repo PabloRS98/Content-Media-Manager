@@ -42,6 +42,14 @@ def _parse_optional(value: str, caster):
         return None
 
 
+def _parse_rating(value: str) -> int | None:
+    """La nota es 1-10. El min/max del HTML es solo del lado del cliente:
+    sin esto, un rating de 99 se guardaba y desaparecía silenciosamente del
+    histograma de /estadisticas (que sí filtra 1 <= rating <= 10) sin avisar."""
+    parsed = _parse_optional(value, int)
+    return parsed if parsed is not None and 1 <= parsed <= 10 else None
+
+
 def _enum_or_none(enum_cls, value):
     """Convierte un valor de query param a enum, o None si no es válido (evita 500)."""
     try:
@@ -75,7 +83,12 @@ def list_catalog(
 
     # 1. Filtro de Género
     if genero:
-        query = query.filter(MediaItem.genres.like(f"%{genero}%"))
+        # No es inyección SQL (SQLAlchemy parametriza), pero % y _ del usuario
+        # se interpretan como comodines de LIKE si no se escapan: sin esto,
+        # ?genero=% devolvía el catálogo entero y ?genero=_ cualquier género
+        # de un carácter.
+        genero_escapado = genero.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        query = query.filter(MediaItem.genres.like(f"%{genero_escapado}%", escape="\\"))
 
     # 2. Filtro de Tiempo/Duración
     if tiempo and mt:
@@ -133,7 +146,13 @@ def list_catalog(
     pagina = min(max(1, pagina), total_paginas)
     items = query.offset((pagina - 1) * PER_PAGE).limit(PER_PAGE).all()
 
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+    # Contado solo del tipo que se está viendo: si no, el botón "Buscar
+    # portadas" de la pestaña de Películas mostraría un número que en
+    # realidad son libros sin portada, sin relación con lo que se ve en pantalla.
+    sin_portada_query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None))
+    if mt:
+        sin_portada_query = sin_portada_query.filter(MediaItem.media_type == mt)
+    sin_portada = sin_portada_query.count()
 
     # 3. Obtener géneros únicos para poblar el filtro
     generos_disponibles = set()
@@ -186,7 +205,11 @@ def list_catalog(
         ]
 
     # 5. Mapeo personalizado de etiquetas de estado
+    # WISHLIST tiene que estar en los 5 diccionarios: `statuses` (abajo) incluye
+    # los 5 valores del enum, y a status_labels.get() le faltaba justo este, así
+    # que Jinja imprimía literalmente "None" en el desplegable del catálogo.
     status_labels_raw = {
+        MediaStatus.WISHLIST: "Wishlist",
         MediaStatus.PENDIENTE: "Pendiente",
         MediaStatus.EN_PROGRESO: "En progreso",
         MediaStatus.COMPLETADO: "Completado",
@@ -194,6 +217,7 @@ def list_catalog(
     }
     if mt == MediaType.LIBRO:
         status_labels_raw = {
+            MediaStatus.WISHLIST: "Lo quiero",
             MediaStatus.PENDIENTE: "Por leer",
             MediaStatus.EN_PROGRESO: "Leyendo",
             MediaStatus.COMPLETADO: "Leído",
@@ -201,6 +225,7 @@ def list_catalog(
         }
     elif mt in (MediaType.PELICULA, MediaType.SERIE):
         status_labels_raw = {
+            MediaStatus.WISHLIST: "Lo quiero ver",
             MediaStatus.PENDIENTE: "Por ver",
             MediaStatus.EN_PROGRESO: "Viendo",
             MediaStatus.COMPLETADO: "Visto",
@@ -208,6 +233,7 @@ def list_catalog(
         }
     elif mt == MediaType.VIDEOJUEGO:
         status_labels_raw = {
+            MediaStatus.WISHLIST: "Lo quiero jugar",
             MediaStatus.PENDIENTE: "Por jugar",
             MediaStatus.EN_PROGRESO: "Jugando",
             MediaStatus.COMPLETADO: "Terminado/Jugado",
@@ -215,6 +241,7 @@ def list_catalog(
         }
     elif mt == MediaType.PODCAST:
         status_labels_raw = {
+            MediaStatus.WISHLIST: "Lo quiero escuchar",
             MediaStatus.PENDIENTE: "Por escuchar",
             MediaStatus.EN_PROGRESO: "Escuchando",
             MediaStatus.COMPLETADO: "Escuchado",
@@ -443,7 +470,7 @@ def update_item(
     if item.status != MediaStatus.COMPLETADO and status == MediaStatus.COMPLETADO and item.completed_at is None:
         item.completed_at = date.today()  # primera vez que se marca completado
     item.status = status
-    item.rating = _parse_optional(rating, int)
+    item.rating = _parse_rating(rating)
     item.notes = notes
     item.progress_current = _parse_optional(progress_current, float)
     item.progress_total = _parse_optional(progress_total, float)
