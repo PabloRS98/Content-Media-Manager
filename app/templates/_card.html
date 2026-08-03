@@ -25,6 +25,7 @@
         <span class="status-badge {{ item.status.value }}">{{ label }}</span>
         {% if item.priority.value == "alta" and item.status.value in ("pendiente", "wishlist") %}
         <span class="prio-badge" title="Prioridad alta">{{ icon("flame", 13) }}</span>{% endif %}
+        {% if item.rating %}{{ stars(item.rating, 13) }}{% endif %}
     </div>
     <div class="mc-body">
         <span class="title">{{ item.title }}</span>
@@ -40,7 +41,6 @@
         </div>
         <span class="subtle">{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or "" }}</span>
         {% endif %}
-        {% if item.rating %}{{ stars(item.rating, 13) }}{% endif %}
     </div>
 </a>
 {% endmacro %}
