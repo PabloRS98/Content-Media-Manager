@@ -54,39 +54,50 @@
         {% endfor %}
     </div>
 
-    <form method="get" action="/catalogo" class="toolbar" data-noload style="margin-bottom:.4rem">
-        {% if tipo_filtro %}<input type="hidden" name="tipo" value="{{ tipo_filtro }}">{% endif %}
-        
-        <!-- Estado -->
-        <select name="estado">
-            <option value="">Todos los estados</option>
-            {% for s in statuses %}
-            <option value="{{ s.value }}" {% if estado_filtro == s.value %}selected{% endif %}>{{ status_labels.get(s.value) }}</option>
-            {% endfor %}
-        </select>
+    <div class="filter-groups">
+        <div class="filter-row">
+            <span class="filter-label">Estado</span>
+            <div class="chips">
+                <a href="/catalogo{{ build_qs(request, estado=None) }}" class="{{ 'active' if not estado_filtro else '' }}">Todos</a>
+                {% for s in statuses %}
+                <a href="/catalogo{{ build_qs(request, estado=s.value) }}" class="{{ 'active' if estado_filtro == s.value else '' }}">{{ status_labels.get(s.value) }}</a>
+                {% endfor %}
+            </div>
+        </div>
 
-        <!-- Género -->
-        <select name="genero">
-            <option value="">Todos los géneros</option>
-            {% for g in generos_disponibles %}
-            <option value="{{ g }}" {% if genero_filtro == g %}selected{% endif %}>{{ g }}</option>
-            {% endfor %}
-        </select>
+        {% if generos_disponibles %}
+        <div class="filter-row">
+            <span class="filter-label">Género</span>
+            <div class="chips">
+                <a href="/catalogo{{ build_qs(request, genero=None) }}" class="{{ 'active' if not genero_filtro else '' }}">Todos</a>
+                {% for g in generos_disponibles %}
+                <a href="/catalogo{{ build_qs(request, genero=g) }}" class="{{ 'active' if genero_filtro == g else '' }}">{{ g }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
-        <!-- Tiempo / Duración -->
-        <select name="tiempo">
-            <option value="">Cualquier duración</option>
-            {% for val, label in tiempos_disponibles %}
-            <option value="{{ val }}" {% if tiempo_filtro == val %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-        </select>
+        {% if tiempos_disponibles %}
+        <div class="filter-row">
+            <span class="filter-label">Duración</span>
+            <div class="chips">
+                <a href="/catalogo{{ build_qs(request, tiempo=None) }}" class="{{ 'active' if not tiempo_filtro else '' }}">Cualquiera</a>
+                {% for val, label in tiempos_disponibles %}
+                <a href="/catalogo{{ build_qs(request, tiempo=val) }}" class="{{ 'active' if tiempo_filtro == val else '' }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
-        <!-- Ordenamiento -->
-        <select name="orden">
-            {% for key, label in ordenes %}<option value="{{ key }}" {% if orden == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-        <button type="submit" class="ghost">{{ icon("filter", 14) }} Aplicar</button>
-    </form>
+        <div class="filter-row">
+            <span class="filter-label">Orden</span>
+            <div class="chips">
+                {% for key, label in ordenes %}
+                <a href="/catalogo{{ build_qs(request, orden=key) }}" class="{{ 'active' if orden == key else '' }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
 
     {% if items %}
     <div class="grid-cards" id="catalog-grid">

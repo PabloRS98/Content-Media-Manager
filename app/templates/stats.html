@@ -94,12 +94,22 @@
 <script src="/static/js/chart.umd.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-    Chart.defaults.color = "#6b5a3e";
+    // Lee los tokens de tema en vivo en vez de hexadecimales fijos: Chart.js
+    // pinta en <canvas> y no puede seguir var(--...) por su cuenta, así que
+    // si se hardcodea aquí, cada cambio de paleta (o el toggle claro/oscuro)
+    // deja los gráficos ilegibles hasta acordarse de tocar este archivo.
+    const tokens = getComputedStyle(document.documentElement);
+    const tok = (name) => tokens.getPropertyValue(name).trim();
+
+    Chart.defaults.color = tok("--text-2");
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-    Chart.defaults.borderColor = "rgba(203, 185, 138, .5)";
+    Chart.defaults.borderColor = `color-mix(in srgb, ${tok("--border-2")} 50%, transparent)`;
     Chart.defaults.maintainAspectRatio = false;
     Chart.defaults.plugins.legend.labels.boxWidth = 12;
-    const PALETTE = ["#8a6423", "#6b2a24", "#4a6b3a", "#5a6b7a", "#a3701f", "#7a4a2e", "#6b5a3e", "#9c8c6a"];
+    const PALETTE = [
+        tok("--accent"), tok("--stamp"), tok("--positive"), tok("--text-3"),
+        tok("--warning"), tok("--accent-soft"), tok("--text-2"), tok("--border-2"),
+    ];
 
     new Chart(document.getElementById("chart-tipos"), {
         type: "doughnut",
@@ -117,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "bar",
         data: {
             labels: ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
-            datasets: [{ label: "Completados", data: {{ por_mes | tojson | safe }}, backgroundColor: "#8a6423", borderRadius: 4 }]
+            datasets: [{ label: "Completados", data: {{ por_mes | tojson | safe }}, backgroundColor: tok("--accent"), borderRadius: 4 }]
         },
         options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
     });
@@ -138,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "bar",
         data: {
             labels: {{ por_decada | map(attribute=0) | map("string") | list | tojson | safe }}.map(d => d + "s"),
-            datasets: [{ data: {{ por_decada | map(attribute=1) | list | tojson | safe }}, backgroundColor: "#5a6b7a", borderRadius: 4 }]
+            datasets: [{ data: {{ por_decada | map(attribute=1) | list | tojson | safe }}, backgroundColor: tok("--text-3"), borderRadius: 4 }]
         },
         options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
     });
@@ -148,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
         type: "bar",
         data: {
             labels: ["1","2","3","4","5","6","7","8","9","10"],
-            datasets: [{ label: "Ítems", data: {{ ratings | tojson | safe }}, backgroundColor: "#a3701f", borderRadius: 4 }]
+            datasets: [{ label: "Ítems", data: {{ ratings | tojson | safe }}, backgroundColor: tok("--warning"), borderRadius: 4 }]
         },
         options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { precision: 0 } } } }
     });
