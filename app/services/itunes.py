@@ -1,7 +1,10 @@
 """Podcasts vía la API pública de búsqueda de iTunes/Apple (gratis, sin key).
 La búsqueda devuelve el feed RSS del programa; de ahí se sacan los episodios."""
+import ipaddress
 import logging
+import socket
 from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -10,6 +13,37 @@ logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://itunes.apple.com/search"
 ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
+
+
+def _es_url_publica(url: str) -> bool:
+    """Rechaza esquemas que no sean http/https y hosts que resuelvan a rangos
+    privados, loopback, link-local o multicast.
+
+    `external_id` (el feed RSS) lo escribe libremente quien da de alta un
+    podcast, y `fetch_podcast_episodes` hace un `httpx.get` con ese valor tal
+    cual. Sin esto, un alta con `external_id=http://169.254.169.254/...` hace
+    que el propio servidor emita esa petición (SSRF ciego: el cuerpo no vuelve
+    al atacante, pero sirve para escanear la red interna por temporización).
+
+    No protege contra un servidor que redirige a una IP privada DESPUÉS de
+    pasar esta comprobación (`follow_redirects=True` sigue activo, porque
+    varios feeds de podcast legítimos dependen de una redirección para
+    funcionar); cubre el caso realista, que es la URL indicada directamente."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, None)
+    except OSError:
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False
+    return True
 
 
 def search_podcasts(query: str, limit: int = 8) -> list[dict]:
@@ -62,6 +96,9 @@ def _duration_minutes(text: str | None) -> int | None:
 
 def fetch_podcast_episodes(feed_url: str, limit: int = 50) -> list[dict]:
     """Episodios (más recientes primero en el RSS; se devuelven cronológicos)."""
+    if not _es_url_publica(feed_url):
+        logger.warning("feed_url rechazada por no ser una URL http(s) pública: %s", feed_url)
+        return []
     try:
         resp = httpx.get(feed_url, timeout=15, follow_redirects=True)
         resp.raise_for_status()
