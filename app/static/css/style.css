@@ -20,6 +20,7 @@
     --card-2: #ede0c0;
     --border: #cbb98a;
     --border-2: #b5a06a;
+    --border-strong: #cbb98a;
     --text: #2e2013;
     --text-2: #6b5a3e;
     --text-3: #9c8c6a;
@@ -34,19 +35,23 @@
     --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
 }
 
-/* Oscuro por defecto (ver script bloqueante en base.html): marrón cuero
-   #2E1B0C, dorado y granate como acentos de lujo, tinta crema para texto.
-   Mismos nombres de token que el claro: todo el resto del CSS se recolorea
-   solo. Contraste verificado (WCAG) para cada token contra --bg y --card. */
+/* Oscuro por defecto (ver script bloqueante en base.html): marrón ébano
+   #170D06, dorado y granate como acentos de lujo, tinta crema para texto.
+   Superficies (tarjeta/borde) con elevación reducida a propósito -- una
+   versión anterior con más salto de luminosidad quedaba "chocolate" en vez
+   de oscura; ahora la separación de la tarjeta depende más del borde y la
+   sombra que de subir el brillo. Mismos nombres de token que el claro: todo
+   el resto del CSS se recolorea solo. Contraste verificado (WCAG). */
 :root[data-theme="dark"] {
     --accent: #d9a83e;
     --accent-soft: #e8c46e;
-    --bg: #2e1b0c;
-    --bg-soft: #24150a;
-    --card: #3a2412;
-    --card-2: #46301a;
-    --border: #4a3018;
-    --border-2: #5c3f20;
+    --bg: #170d06;
+    --bg-soft: #120a05;
+    --card: #1d1108;
+    --card-2: #23150b;
+    --border: #27180c;
+    --border-2: #312010;
+    --border-strong: #4a3018;
     --text: #f3e6c8;
     --text-2: #d8c39c;
     --text-3: #b39a6e;
@@ -54,7 +59,7 @@
     --negative: #e6926e;
     --warning: #e0ae5e;
     --stamp: #e0919e;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 10px 28px -14px rgba(0, 0, 0, .7);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 10px 28px -14px rgba(0, 0, 0, .75);
 }
 
 @font-face {
@@ -510,14 +515,23 @@ details[open] summary { margin-bottom: .7rem; }
 canvas { max-width: 100%; }
 
 /* ---------- Catálogo de medios (media-catalog) ---------- */
-.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: .9rem; }
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 1rem; margin-top: .9rem; }
 
+/* --border-strong (no --border): con el borde plano del tema oscuro cada
+   ítem se fundía con el panel de detrás -- aquí sí conviene un contorno más
+   claro para separar un libro/peli del siguiente, aunque el panel general
+   se quede plano. */
+.media-card, .media-card::before { border-color: var(--border-strong); }
 .media-card { display: flex; flex-direction: column; gap: .45rem; padding: .8rem; }
 .media-card .cover { position: relative; border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 2/3; background: var(--bg-soft); border: 1px solid var(--border); }
 .media-card .cover.podcast { aspect-ratio: 1/1; }
 .media-card .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-card .cover .no-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .media-card .cover .status-badge { position: absolute; top: .45rem; left: .45rem; }
+/* La nota va de sello en la esquina libre de la portada, no debajo del
+   título: son las dos esquinas que el status-badge y el prio-badge dejan
+   sin usar. */
+.media-card .cover .rating-seal { position: absolute; bottom: .45rem; right: .45rem; }
 .media-card .title { font-family: var(--font-display); font-weight: 400; font-size: 1rem; line-height: 1.3; }
 .media-card .meta { color: var(--text-3); font-size: .77rem; }
 
@@ -602,7 +616,7 @@ canvas { max-width: 100%; }
     .budget-row .num { text-align: left; }
 
     th, td { padding: .5rem .45rem; font-size: .83rem; }
-    .grid-cards { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: .7rem; }
+    .grid-cards { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .7rem; }
     dialog { padding: 1.05rem; }
 }
 
@@ -631,7 +645,7 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; }
 
 /* Rieles horizontales (continuar, próximos...) */
 .rail { display: flex; gap: .9rem; overflow-x: auto; padding-bottom: .5rem; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
-.rail .media-card { flex: 0 0 155px; scroll-snap-align: start; }
+.rail .media-card { flex: 0 0 175px; scroll-snap-align: start; }
 
 /* Cuerpo de tarjeta */
 .mc-body { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
@@ -663,7 +677,7 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; }
 .grid-cards.as-list { grid-template-columns: 1fr; gap: .5rem; }
 .as-list .media-card { flex-direction: row; align-items: center; gap: .8rem; padding: .5rem .7rem; }
 .as-list .media-card .cover { width: 44px; flex: 0 0 44px; }
-.as-list .media-card .cover .status-badge, .as-list .media-card .cover .prio-badge { display: none; }
+.as-list .media-card .cover .status-badge, .as-list .media-card .cover .prio-badge, .as-list .media-card .cover .rating-seal { display: none; }
 .as-list .media-card .mc-body { flex: 1; flex-direction: row; align-items: center; flex-wrap: wrap; gap: .3rem .7rem; }
 .as-list .media-card .title { flex: 1 1 40%; }
 .as-list .media-card .progress { width: 110px; flex: 0 0 auto; }
@@ -729,5 +743,5 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; }
     .hsum strong { font-size: 1.2rem; }
     .detail-head { flex-direction: column; }
     .detail-cover { width: 120px; flex-basis: 120px; }
-    .rail .media-card { flex-basis: 135px; }
+    .rail .media-card { flex-basis: 150px; }
 }
