@@ -59,7 +59,10 @@ def _get(row: dict, *names: str) -> str:
     lowered = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
     for n in names:
         v = lowered.get(n.strip().lower())
-        if v is not None:
+        # "is not None" deja ganar a una columna PRESENTE pero vacía sobre una
+        # alternativa poblada (un CSV bilingüe con "Title" y "Título" descarta
+        # filas buenas como "omitidas"). services/imports.py ya usa "if v:".
+        if v:
             return v
     return ""
 

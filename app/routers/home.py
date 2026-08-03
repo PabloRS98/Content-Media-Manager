@@ -28,6 +28,9 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
         db.query(Episode).join(MediaItem)
         .filter(
             Episode.air_date.isnot(None), Episode.air_date >= hoy,
+            # TMDB usa la temporada 0 para especiales/recaps, que a menudo se
+            # "estrenan" el mismo día que el episodio real y lo duplican aquí.
+            Episode.season_number != 0,
             MediaItem.media_type.in_(EPISODIC_TYPES),
             MediaItem.status.in_(_FOLLOWING),
         )

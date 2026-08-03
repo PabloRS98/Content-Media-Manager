@@ -47,6 +47,9 @@ def check_new_episodes(db: Session) -> int:
             Episode.notified.is_(False),
             Episode.air_date.isnot(None),
             Episode.air_date <= today,
+            # Especiales/recaps (temporada 0): no generan aviso, igual que no
+            # aparecen en "Próximamente" (home._upcoming).
+            Episode.season_number != 0,
             MediaItem.status.in_(FOLLOWING),
         )
         .all()

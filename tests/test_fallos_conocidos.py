@@ -82,16 +82,20 @@ def test_dar_de_alta_algo_ya_completado_registra_la_fecha(client, db):
     assert item.completed_at is not None
 
 
-@pytest.mark.xfail(strict=True, reason="B1: no se escapan los comodines de LIKE")
 def test_el_filtro_de_genero_trata_el_porcentaje_como_texto(client, crear_item):
-    """`%` es un comodín de LIKE: sin escapar, filtrar por '%' devuelve todo."""
+    """`%` es un comodín de LIKE: sin escapar, filtrar por '%' devuelve todo.
+
+    Se comprueba el contador de resultados, no si "Novela negra" aparece en
+    el HTML: ese texto sale también en el <select> de géneros disponibles
+    (que lista todos los géneros del tipo, sin aplicar este filtro), así que
+    buscarlo en la página entera daría igual con el bug arreglado o sin
+    arreglar."""
     crear_item(title="Novela negra", genres="Novela negra")
 
     html = client.get("/catalogo?tipo=libro&genero=%25").text
-    assert "Novela negra" not in html
+    assert '<span class="tag accent">0</span>' in html
 
 
-@pytest.mark.xfail(strict=True, reason="B2: _get() se queda con la primera columna presente aunque esté vacía")
 def test_el_lector_de_columnas_de_imdb_se_salta_las_vacias():
     """Un CSV bilingüe trae 'Title' y 'Título'. La versión de
     `services/imports.py` sí lo hace bien: son dos copias divergentes."""
@@ -114,7 +118,6 @@ def test_se_puede_usar_una_contrasena_con_tildes(client, monkeypatch):
     assert r.status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason="B5: no se valida el rango de la nota")
 def test_no_se_admite_una_nota_fuera_de_1_10(client, crear_item, db):
     """El min/max del HTML es solo del lado del cliente. Una nota de 99 se
     guarda y luego desaparece del histograma sin avisar."""
@@ -128,7 +131,6 @@ def test_no_se_admite_una_nota_fuera_de_1_10(client, crear_item, db):
     assert item.rating != 99
 
 
-@pytest.mark.xfail(strict=True, reason="B6: el contador ignora el filtro de tipo activo")
 def test_el_contador_de_portadas_respeta_el_tipo_que_estas_viendo(client, crear_item):
     """Estando en Películas no tiene sentido ver un número que cuenta libros."""
     crear_item(title="Libro sin portada", media_type=MediaType.LIBRO, cover_url=None)
@@ -162,7 +164,6 @@ def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
     assert libro.title == "Harry Potter y el cáliz de fuego"
 
 
-@pytest.mark.xfail(strict=True, reason="N3: falta la etiqueta de wishlist en status_labels")
 def test_el_desplegable_de_estado_no_muestra_none(client):
     """`statuses` incluye WISHLIST pero ninguno de los cinco diccionarios de
     etiquetas la define, así que Jinja imprime literalmente 'None'."""
@@ -170,7 +171,6 @@ def test_el_desplegable_de_estado_no_muestra_none(client):
     assert ">None<" not in html
 
 
-@pytest.mark.xfail(strict=True, reason="N4: los especiales (temporada 0) no se filtran")
 def test_los_especiales_no_aparecen_en_proximamente(client, crear_serie, db):
     """TMDB usa la temporada 0 para especiales y resúmenes, que se estrenan el
     mismo día que el episodio real y lo duplican en la lista."""
