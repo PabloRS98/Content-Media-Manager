@@ -1,33 +1,60 @@
 /* ============================================================
-   Home Apps Suite — sistema visual compartido (tema oscuro)
-   Archivo idéntico en las 3 apps salvo el bloque de acento.
-   Sin frameworks: tokens CSS + componentes propios.
+   Media Catalog — "Archivo vintage"
+   Identidad propia de esta app (ya no comparte tokens con
+   finance-tracker/projects-dashboard): papel envejecido, tinta
+   sepia, latón y óxido de hierro como acentos. Serif editorial
+   para títulos de obra, sans para el resto de la interfaz.
    ============================================================ */
 
-/* ---------- Acento de esta app ---------- */
+/* ---------- Acento ---------- */
 :root {
-    --accent: #a06fe0;
-    --accent-soft: #c29cf2;
+    --accent: #8a6423;
+    --accent-soft: #6b4d1a;
 }
 
 /* ---------- Tokens ---------- */
 :root {
-    --bg: #0b0d12;
-    --bg-soft: #10131a;
-    --card: #141823;
-    --card-2: #1a1f2d;
-    --border: #232a38;
-    --border-2: #303a4d;
-    --text: #e9ecf2;
-    --text-2: #a9b1c0;
-    --text-3: #707a8c;
-    --positive: #3ecf8e;
-    --negative: #f26d6d;
-    --warning: #f5b95f;
-    --r: 12px;
-    --r-sm: 8px;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px -14px rgba(0, 0, 0, .55);
+    --bg: #ece2ca;
+    --bg-soft: #e2d3ac;
+    --card: #f7f1e1;
+    --card-2: #ede0c0;
+    --border: #cbb98a;
+    --border-2: #b5a06a;
+    --text: #2e2013;
+    --text-2: #6b5a3e;
+    --text-3: #9c8c6a;
+    --positive: #4a6b3a;
+    --negative: #9c3b2e;
+    --warning: #a3701f;
+    --stamp: #6b2a24;
+    --r: 10px;
+    --r-sm: 6px;
+    --shadow: 0 1px 2px rgba(58, 42, 20, .12), 0 8px 20px -12px rgba(58, 42, 20, .35);
     --font: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+}
+
+/* Oscuro por defecto (ver script bloqueante en base.html): marrón cuero
+   #2E1B0C, dorado y granate como acentos de lujo, tinta crema para texto.
+   Mismos nombres de token que el claro: todo el resto del CSS se recolorea
+   solo. Contraste verificado (WCAG) para cada token contra --bg y --card. */
+:root[data-theme="dark"] {
+    --accent: #d9a83e;
+    --accent-soft: #e8c46e;
+    --bg: #2e1b0c;
+    --bg-soft: #24150a;
+    --card: #3a2412;
+    --card-2: #46301a;
+    --border: #4a3018;
+    --border-2: #5c3f20;
+    --text: #f3e6c8;
+    --text-2: #d8c39c;
+    --text-3: #b39a6e;
+    --positive: #a3be78;
+    --negative: #e6926e;
+    --warning: #e0ae5e;
+    --stamp: #e0919e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 10px 28px -14px rgba(0, 0, 0, .7);
 }
 
 @font-face {
@@ -46,7 +73,7 @@ html { scrollbar-color: var(--border-2) transparent; }
 body {
     margin: 0;
     background: var(--bg);
-    background-image: radial-gradient(1100px 400px at 50% -160px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+    background-image: radial-gradient(1200px 500px at 50% -220px, color-mix(in srgb, var(--text) 5%, transparent), transparent 70%);
     background-repeat: no-repeat;
     color: var(--text);
     font-family: var(--font);
@@ -56,6 +83,9 @@ body {
 }
 
 h1, h2, h3, h4 { line-height: 1.25; margin: 0 0 .5rem; letter-spacing: -0.01em; }
+/* h1/h2 son título de página (nombre de la obra, nombre de la lista): serif
+   editorial. h3 es cabecera de sección y se trata aparte, en versalitas. */
+h1, h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.5rem; letter-spacing: 0; }
 
 a { color: var(--accent-soft); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -77,10 +107,10 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
     align-items: center;
     gap: 1.25rem;
     padding: .65rem 1.5rem;
-    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    background: color-mix(in srgb, var(--card) 88%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--accent);
 }
 
 .brand {
@@ -88,8 +118,9 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
     align-items: center;
     gap: .55rem;
     color: var(--text);
-    font-weight: 650;
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 1.15rem;
     margin-right: auto;
 }
 .brand:hover { text-decoration: none; }
@@ -110,6 +141,13 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
 .nav-links a:hover { color: var(--text); background: var(--card-2); text-decoration: none; }
 .nav-links a.active { color: var(--accent-soft); background: color-mix(in srgb, var(--accent) 13%, transparent); }
 
+/* Botón claro/oscuro: muestra el icono de a dónde se va a cambiar (sol =
+   pasar a claro, luna = pasar a oscuro), no el del modo actual. */
+#theme-toggle { flex-shrink: 0; }
+#theme-toggle .icon { display: none; }
+:root[data-theme="dark"] #theme-toggle .theme-icon-sun { display: inline-flex; }
+:root[data-theme="light"] #theme-toggle .theme-icon-moon { display: inline-flex; }
+
 
 
 /* ---------- Contenedor ---------- */
@@ -123,23 +161,42 @@ code { background: var(--bg-soft); border: 1px solid var(--border); border-radiu
 }
 
 /* ---------- Tarjetas ---------- */
+/* Doble filete (::before) evocando una ficha de catálogo física, no una
+   card de dashboard. */
 .card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--r);
     padding: 1.15rem 1.3rem;
     box-shadow: var(--shadow);
+    position: relative;
+}
+.card::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--r) - 4px);
+    opacity: .5;
+    pointer-events: none;
 }
 
-.card > h3, .card-title {
+/* Cabeceras de sección en versalitas ("eyebrow"), no titulares grandes:
+   "Continuar", "Mi catálogo", "Por tipo"... son etiquetas de archivo. */
+.card h3, .card-title {
     display: flex;
     align-items: center;
     gap: .5rem;
-    font-size: .95rem;
-    font-weight: 600;
+    font-family: var(--font);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--text-2);
     margin: 0 0 .9rem;
+    position: relative;
 }
-.card > h3 .icon, .card-title .icon { color: var(--accent); }
+.card h3 .icon, .card-title .icon { color: var(--accent); }
 
 .grid-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 1rem; }
 .grid-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1.25rem; }
@@ -212,7 +269,7 @@ button, .btn {
     gap: .45rem;
     background: var(--accent);
     border: 1px solid transparent;
-    color: #fff;
+    color: #fbf6ea;
     padding: .5rem .95rem;
     border-radius: var(--r-sm);
     cursor: pointer;
@@ -297,6 +354,48 @@ button.ghost.is-loading::after, button.danger.is-loading::after {
 }
 .chips a:hover { color: var(--text); background: var(--card-2); text-decoration: none; }
 .chips a.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* Filtros del catálogo: una fila horizontal de desplegables (estado, género,
+   duración, orden) en vez de <select> u opciones siempre visibles -- ambos
+   ocupaban demasiada pantalla, sobre todo con géneros. <details> nativo
+   (sin JS) abre/cierra cada panel; el script de este template solo se
+   encarga de cerrar los demás al abrir uno y de cerrar al clicar fuera. */
+.filter-groups { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; position: relative; }
+.filter-dd { position: relative; }
+.filter-dd > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .42rem .8rem;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-2);
+    background: var(--card-2);
+    color: var(--text-2);
+    font-size: .82rem;
+    font-weight: 570;
+}
+.filter-dd > summary::-webkit-details-marker { display: none; }
+.filter-dd > summary:hover { color: var(--text); }
+.filter-dd[open] > summary { color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.filter-dd .filter-dd-current { color: var(--accent-soft); font-weight: 650; }
+.filter-dd .icon { color: var(--text-3); }
+.filter-dd-panel {
+    position: absolute;
+    top: calc(100% + .4rem);
+    left: 0;
+    z-index: 30;
+    min-width: 230px;
+    max-width: min(360px, 85vw);
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    padding: .7rem;
+}
+.filter-dd-panel .chips { max-height: 260px; overflow-y: auto; }
 
 /* ---------- Toasts ---------- */
 .toasts {
@@ -419,19 +518,22 @@ canvas { max-width: 100%; }
 .media-card .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-card .cover .no-cover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .media-card .cover .status-badge { position: absolute; top: .45rem; left: .45rem; }
-.media-card .title { font-weight: 600; font-size: .9rem; line-height: 1.3; }
+.media-card .title { font-family: var(--font-display); font-weight: 400; font-size: 1rem; line-height: 1.3; }
 .media-card .meta { color: var(--text-3); font-size: .77rem; }
 
+/* Insignias tipo sello/estampilla de archivo. El fondo se mezcla contra
+   var(--card) (opaco), no contra "transparent": flotan sobre portadas de
+   cualquier color y tienen que seguir leyéndose igual. */
 .status-badge {
     display: inline-flex; align-items: center; gap: .25rem;
     padding: .14rem .5rem; border-radius: 999px; font-size: .68rem; font-weight: 620;
     text-transform: uppercase; letter-spacing: .04em;
-    background: var(--card-2); color: var(--text-2); border: 1px solid var(--border-2);
+    background: var(--card); color: var(--text-2); border: 1px solid var(--border-2);
 }
-.status-badge.pendiente { background: rgba(120, 130, 150, .18); color: #b6bfd0; }
-.status-badge.en_progreso { background: color-mix(in srgb, var(--accent) 20%, rgba(10,12,18,.75)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
-.status-badge.completado { background: color-mix(in srgb, var(--positive) 18%, rgba(10,12,18,.75)); color: var(--positive); border-color: color-mix(in srgb, var(--positive) 40%, transparent); }
-.status-badge.abandonado { background: color-mix(in srgb, var(--negative) 16%, rgba(10,12,18,.75)); color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, transparent); }
+.status-badge.pendiente { background: var(--card); color: var(--text-2); }
+.status-badge.en_progreso { background: color-mix(in srgb, var(--accent) 22%, var(--card)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.status-badge.completado { background: color-mix(in srgb, var(--stamp) 18%, var(--card)); color: var(--stamp); border-color: color-mix(in srgb, var(--stamp) 40%, transparent); }
+.status-badge.abandonado { background: color-mix(in srgb, var(--negative) 16%, var(--card)); color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, transparent); }
 
 .rating-chip { display: inline-flex; align-items: center; gap: .25rem; color: var(--warning); font-size: .8rem; font-weight: 600; }
 
@@ -519,7 +621,9 @@ canvas { max-width: 100%; }
 /* Resumen del inicio */
 .home-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7rem; }
 .hsum { display: flex; flex-direction: column; gap: .1rem; padding: .7rem .85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); }
-.hsum:hover { border-color: var(--border-2); text-decoration: none; }
+/* Solo el enlace (a.hsum) sugiere clic con hover; el total es un <div>, sin
+   interacción, y no debe parecer pulsable. */
+a.hsum:hover { border-color: var(--border-2); text-decoration: none; }
 .hsum strong { font-size: 1.4rem; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--text); }
 .hsum span { font-size: .74rem; color: var(--text-3); }
 .hsum.accent strong { color: var(--accent-soft); }
@@ -533,14 +637,23 @@ canvas { max-width: 100%; }
 .mc-body { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
 
 /* Prioridad + wishlist */
-.prio-badge { position: absolute; top: .45rem; right: .45rem; display: inline-flex; padding: .16rem; border-radius: 6px; background: color-mix(in srgb, var(--warning) 22%, rgba(10, 12, 18, .8)); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
-.status-badge.wishlist { background: color-mix(in srgb, var(--accent) 20%, rgba(10, 12, 18, .75)); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.prio-badge { position: absolute; top: .45rem; right: .45rem; display: inline-flex; padding: .16rem; border-radius: 6px; background: color-mix(in srgb, var(--warning) 22%, var(--card)); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
+/* Wishlist con borde discontinuo: aún no lo tienes, es aspiracional */
+.status-badge.wishlist { background: var(--card); color: var(--accent-soft); border: 1px dashed var(--accent-soft); }
 
-/* Estrellas de valoración */
-.stars { display: inline-flex; align-items: center; gap: 1px; }
-.stars .star.on { color: var(--warning); }
-.stars .star.off { color: var(--border-2); }
-.stars-num { margin-left: .3rem; font-size: .8rem; font-weight: 600; color: var(--warning); font-variant-numeric: tabular-nums; }
+/* Sello circular de valoración (sustituye a las estrellas) */
+.rating-seal {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--seal-size, 34px); height: var(--seal-size, 34px);
+    border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--stamp);
+    background: color-mix(in srgb, var(--stamp) 8%, var(--card));
+    color: var(--stamp);
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: calc(var(--seal-size, 34px) * .42);
+    font-variant-numeric: tabular-nums;
+}
 
 /* Toggle de vista grid/lista */
 .view-toggle { display: inline-flex; gap: .3rem; }

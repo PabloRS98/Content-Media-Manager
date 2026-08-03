@@ -69,10 +69,6 @@ def list_catalog(
     pagina: int = 1,
     db: Session = Depends(get_db),
 ):
-    if not tipo:
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse("/catalogo?tipo=libro", status_code=303)
-
     query = db.query(MediaItem)
     mt = _enum_or_none(MediaType, tipo)
     if mt:
@@ -249,6 +245,11 @@ def list_catalog(
         }
     status_labels = {s.value: label for s, label in status_labels_raw.items()}
 
+    # Solo para mostrar la selección actual en el desplegable de filtro sin
+    # repetir esta búsqueda en la plantilla.
+    tiempo_label = next((label for val, label in tiempos_disponibles if val == tiempo), None)
+    orden_label = ORDERINGS[orden][0]
+
     return templates.TemplateResponse(request, "catalog.html", {
         "items": items,
         "media_types": list(MediaType),
@@ -267,6 +268,8 @@ def list_catalog(
         "generos_disponibles": generos_lista,
         "tiempos_disponibles": tiempos_disponibles,
         "status_labels": status_labels,
+        "tiempo_label": tiempo_label,
+        "orden_label": orden_label,
     })
 
 
