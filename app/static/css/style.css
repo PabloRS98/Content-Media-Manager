@@ -355,21 +355,47 @@ button.ghost.is-loading::after, button.danger.is-loading::after {
 .chips a:hover { color: var(--text); background: var(--card-2); text-decoration: none; }
 .chips a.active { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
 
-/* Filtros del catálogo: una fila de botones por categoría (estado, género,
-   duración, orden) en vez de <select>, que en vista de lista quedaban sueltos. */
-.filter-groups { display: flex; flex-direction: column; gap: .55rem; margin-bottom: .9rem; }
-.filter-row { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
-.filter-row .filter-label {
-    flex-shrink: 0;
-    padding-top: .32rem;
-    font-size: .72rem;
-    font-weight: 700;
-    letter-spacing: .09em;
-    text-transform: uppercase;
-    color: var(--text-3);
-    min-width: 62px;
+/* Filtros del catálogo: una fila horizontal de desplegables (estado, género,
+   duración, orden) en vez de <select> u opciones siempre visibles -- ambos
+   ocupaban demasiada pantalla, sobre todo con géneros. <details> nativo
+   (sin JS) abre/cierra cada panel; el script de este template solo se
+   encarga de cerrar los demás al abrir uno y de cerrar al clicar fuera. */
+.filter-groups { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; position: relative; }
+.filter-dd { position: relative; }
+.filter-dd > summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .42rem .8rem;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-2);
+    background: var(--card-2);
+    color: var(--text-2);
+    font-size: .82rem;
+    font-weight: 570;
 }
-.filter-row .chips { flex: 1; }
+.filter-dd > summary::-webkit-details-marker { display: none; }
+.filter-dd > summary:hover { color: var(--text); }
+.filter-dd[open] > summary { color: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.filter-dd .filter-dd-current { color: var(--accent-soft); font-weight: 650; }
+.filter-dd .icon { color: var(--text-3); }
+.filter-dd-panel {
+    position: absolute;
+    top: calc(100% + .4rem);
+    left: 0;
+    z-index: 30;
+    min-width: 230px;
+    max-width: min(360px, 85vw);
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    padding: .7rem;
+}
+.filter-dd-panel .chips { max-height: 260px; overflow-y: auto; }
 
 /* ---------- Toasts ---------- */
 .toasts {
@@ -595,7 +621,9 @@ canvas { max-width: 100%; }
 /* Resumen del inicio */
 .home-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: .7rem; }
 .hsum { display: flex; flex-direction: column; gap: .1rem; padding: .7rem .85rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--shadow); }
-.hsum:hover { border-color: var(--border-2); text-decoration: none; }
+/* Solo el enlace (a.hsum) sugiere clic con hover; el total es un <div>, sin
+   interacción, y no debe parecer pulsable. */
+a.hsum:hover { border-color: var(--border-2); text-decoration: none; }
 .hsum strong { font-size: 1.4rem; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--text); }
 .hsum span { font-size: .74rem; color: var(--text-3); }
 .hsum.accent strong { color: var(--accent-soft); }

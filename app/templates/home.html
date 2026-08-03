@@ -6,7 +6,7 @@
 {% block content %}
 
 <section class="home-summary">
-    <a href="/catalogo" class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></a>
+    <div class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></div>
     <a href="/catalogo?estado=en_progreso" class="hsum accent"><strong>{{ resumen.en_progreso }}</strong><span>en progreso</span></a>
     <a href="/catalogo?estado=pendiente" class="hsum"><strong>{{ resumen.pendientes }}</strong><span>pendientes</span></a>
     <a href="/catalogo?estado=completado" class="hsum positive"><strong>{{ resumen.completados }}</strong><span>completados</span></a>

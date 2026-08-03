@@ -55,48 +55,56 @@
     </div>
 
     <div class="filter-groups">
-        <div class="filter-row">
-            <span class="filter-label">Estado</span>
-            <div class="chips">
-                <a href="/catalogo{{ build_qs(request, estado=None) }}" class="{{ 'active' if not estado_filtro else '' }}">Todos</a>
-                {% for s in statuses %}
-                <a href="/catalogo{{ build_qs(request, estado=s.value) }}" class="{{ 'active' if estado_filtro == s.value else '' }}">{{ status_labels.get(s.value) }}</a>
-                {% endfor %}
+        <details class="filter-dd">
+            <summary>Estado {% if estado_filtro %}<span class="filter-dd-current">{{ status_labels.get(estado_filtro) }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
+            <div class="filter-dd-panel">
+                <div class="chips">
+                    <a href="/catalogo{{ build_qs(request, estado=None) }}" class="{{ 'active' if not estado_filtro else '' }}">Todos</a>
+                    {% for s in statuses %}
+                    <a href="/catalogo{{ build_qs(request, estado=s.value) }}" class="{{ 'active' if estado_filtro == s.value else '' }}">{{ status_labels.get(s.value) }}</a>
+                    {% endfor %}
+                </div>
             </div>
-        </div>
+        </details>
 
         {% if generos_disponibles %}
-        <div class="filter-row">
-            <span class="filter-label">Género</span>
-            <div class="chips">
-                <a href="/catalogo{{ build_qs(request, genero=None) }}" class="{{ 'active' if not genero_filtro else '' }}">Todos</a>
-                {% for g in generos_disponibles %}
-                <a href="/catalogo{{ build_qs(request, genero=g) }}" class="{{ 'active' if genero_filtro == g else '' }}">{{ g }}</a>
-                {% endfor %}
+        <details class="filter-dd">
+            <summary>Género {% if genero_filtro %}<span class="filter-dd-current">{{ genero_filtro }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
+            <div class="filter-dd-panel">
+                <div class="chips">
+                    <a href="/catalogo{{ build_qs(request, genero=None) }}" class="{{ 'active' if not genero_filtro else '' }}">Todos</a>
+                    {% for g in generos_disponibles %}
+                    <a href="/catalogo{{ build_qs(request, genero=g) }}" class="{{ 'active' if genero_filtro == g else '' }}">{{ g }}</a>
+                    {% endfor %}
+                </div>
             </div>
-        </div>
+        </details>
         {% endif %}
 
         {% if tiempos_disponibles %}
-        <div class="filter-row">
-            <span class="filter-label">Duración</span>
-            <div class="chips">
-                <a href="/catalogo{{ build_qs(request, tiempo=None) }}" class="{{ 'active' if not tiempo_filtro else '' }}">Cualquiera</a>
-                {% for val, label in tiempos_disponibles %}
-                <a href="/catalogo{{ build_qs(request, tiempo=val) }}" class="{{ 'active' if tiempo_filtro == val else '' }}">{{ label }}</a>
-                {% endfor %}
+        <details class="filter-dd">
+            <summary>Duración {% if tiempo_label %}<span class="filter-dd-current">{{ tiempo_label }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
+            <div class="filter-dd-panel">
+                <div class="chips">
+                    <a href="/catalogo{{ build_qs(request, tiempo=None) }}" class="{{ 'active' if not tiempo_filtro else '' }}">Cualquiera</a>
+                    {% for val, label in tiempos_disponibles %}
+                    <a href="/catalogo{{ build_qs(request, tiempo=val) }}" class="{{ 'active' if tiempo_filtro == val else '' }}">{{ label }}</a>
+                    {% endfor %}
+                </div>
             </div>
-        </div>
+        </details>
         {% endif %}
 
-        <div class="filter-row">
-            <span class="filter-label">Orden</span>
-            <div class="chips">
-                {% for key, label in ordenes %}
-                <a href="/catalogo{{ build_qs(request, orden=key) }}" class="{{ 'active' if orden == key else '' }}">{{ label }}</a>
-                {% endfor %}
+        <details class="filter-dd">
+            <summary>Orden <span class="filter-dd-current">{{ orden_label }}</span> {{ icon("chevron-down", 13) }}</summary>
+            <div class="filter-dd-panel">
+                <div class="chips">
+                    {% for key, label in ordenes %}
+                    <a href="/catalogo{{ build_qs(request, orden=key) }}" class="{{ 'active' if orden == key else '' }}">{{ label }}</a>
+                    {% endfor %}
+                </div>
             </div>
-        </div>
+        </details>
     </div>
 
     {% if items %}
@@ -134,6 +142,21 @@
         b.addEventListener("click", function () {
             localStorage.setItem("catalogView", b.dataset.view);
             apply(b.dataset.view);
+        });
+    });
+
+    // Desplegables de filtro (estado/género/duración/orden): al abrir uno se
+    // cierran los demás, y un clic fuera cierra el que esté abierto -- los
+    // <details> nativos por sí solos se quedan abiertos indefinidamente.
+    var filterDetails = document.querySelectorAll(".filter-dd");
+    filterDetails.forEach(function (d) {
+        d.addEventListener("toggle", function () {
+            if (d.open) filterDetails.forEach(function (other) { if (other !== d) other.open = false; });
+        });
+    });
+    document.addEventListener("click", function (e) {
+        filterDetails.forEach(function (d) {
+            if (d.open && !d.contains(e.target)) d.open = false;
         });
     });
 

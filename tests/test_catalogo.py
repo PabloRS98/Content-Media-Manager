@@ -99,10 +99,25 @@ class TestAltaEdicionYBorrado:
 
 
 class TestListadoDelCatalogo:
-    def test_sin_tipo_redirige_a_libros(self, client):
+    def test_sin_tipo_muestra_todos_los_tipos(self, client, crear_item):
+        """Antes /catalogo sin `tipo` redirigía forzando libros, lo que rompía
+        los enlaces de inicio "en progreso/pendientes/completados/wishlist"
+        (deberían filtrar por estado en TODO el catálogo, no solo libros)."""
+        crear_item(title="Un libro", media_type=MediaType.LIBRO)
+        crear_item(title="Una peli", media_type=MediaType.PELICULA)
+
         r = client.get("/catalogo", follow_redirects=False)
-        assert r.status_code == 303
-        assert r.headers["location"] == "/catalogo?tipo=libro"
+        assert r.status_code == 200
+        assert "Un libro" in r.text
+        assert "Una peli" in r.text
+
+    def test_sin_tipo_el_filtro_de_estado_cruza_todos_los_tipos(self, client, crear_item):
+        crear_item(title="Libro pendiente", media_type=MediaType.LIBRO, status=MediaStatus.PENDIENTE)
+        crear_item(title="Peli completada", media_type=MediaType.PELICULA, status=MediaStatus.COMPLETADO)
+
+        html = client.get("/catalogo?estado=completado").text
+        assert "Peli completada" in html
+        assert "Libro pendiente" not in html
 
     def test_filtra_por_tipo(self, client, crear_item):
         crear_item(title="Un libro", media_type=MediaType.LIBRO)
