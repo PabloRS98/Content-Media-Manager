@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .config import settings
+from .config import ENV_FILE, settings
 from .csrf import CSRFProtectionMiddleware
 from .database import SessionLocal, init_db
 from .routers import catalog, home, imdb_import, lists
@@ -16,6 +16,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _GENRE_NOTES_RE = re.compile(r"Genero:\s*([^.]+)\.")
+
+
+def avisar_si_no_hay_autenticacion(enable_auth: bool) -> None:
+    """Deja constancia en el log de que la app queda sin credenciales.
+
+    Arrancar sin autenticación puede ser deliberado (localhost), pero también es
+    lo que pasa cuando el `.env` no se lee: `ENABLE_AUTH` vuelve a su valor por
+    defecto (false) sin que nada falle. Los síntomas visibles de ese caso son
+    otros --"no encuentra películas", "no llegan los avisos"--, así que sin este
+    aviso la causa real no aparece por ninguna parte.
+    """
+    if not enable_auth:
+        logger.warning(
+            "ENABLE_AUTH está desactivado: la aplicación no pide credenciales. "
+            "Si no era la intención, comprueba que se está leyendo el .env (%s).",
+            ENV_FILE,
+        )
 
 
 def backfill_v2_columns() -> None:
@@ -50,6 +67,7 @@ def backfill_v2_columns() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    avisar_si_no_hay_autenticacion(settings.enable_auth)
     init_db()
     try:
         backfill_v2_columns()
@@ -82,7 +100,9 @@ app.include_router(catalog.router)
 app.include_router(lists.router)
 app.include_router(imdb_import.router)
 
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+# `.resolve()` igual que en templating.py: la ruta no depende del cwd y aguanta
+# que el proyecto esté detrás de un enlace simbólico.
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 
 @app.get("/salud")
