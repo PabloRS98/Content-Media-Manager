@@ -28,6 +28,12 @@ each entry below names the id it closes.
   **Upgrading:** if you reach this app from another machine, set
   `MEDIA_BIND=0.0.0.0` (behind a reverse proxy or a VPN) or the address of the
   specific interface you want to serve, and turn `ENABLE_AUTH` on.
+- **[MC-C3]** A failed Google Books request wrote `GOOGLE_BOOKS_API_KEY` to the
+  logs in the clear. The project has a module written specifically against this
+  (`_logging_utils`), and the file even imports it — but the main handler used
+  `logger.exception`, which dumps the raw exception, and that exception's
+  message is the full request URL, key included. Now logged with `log_fallo_api`
+  like everywhere else. Covered for TMDB and RAWG too, as a regression.
 
 ## [1.0.0] — 2026-08-03
 

@@ -62,14 +62,20 @@ def search_books(query: str, limit: int = 8, idioma: str | None = None) -> list[
                 continue
             resp.raise_for_status()
             break
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
         # httpx.HTTPError es la base común de los errores de transporte
         # (ConnectError, ConnectTimeout, ReadTimeout...) y de HTTPStatusError.
         # Antes solo se capturaba HTTPStatusError (y encima se relanzaba para
         # códigos que no fueran 429/503): una caída de red devolvía un 500 al
         # usuario, a diferencia de tmdb.py/rawg.py/openlibrary.py, que sí
         # envuelven todo el cuerpo en un try/except.
-        logger.exception("Fallo al buscar libros en Google Books para '%s'", query)
+        #
+        # Se registra con log_fallo_api y no con logger.exception: este except
+        # es precisamente el que atrapa el HTTPStatusError de raise_for_status(),
+        # cuyo mensaje lleva la URL completa con `key=` incluida (ver
+        # _logging_utils.py). El segundo manejador de este mismo fichero ya lo
+        # hacía bien; este se quedó atrás al ensanchar el except.
+        log_fallo_api(logger, "Fallo al buscar libros en Google Books para '%s'", query, exc=e)
         return []
 
     if not resp:
