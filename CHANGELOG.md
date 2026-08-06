@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+Second technical audit (August 2026). Findings are tracked by id (`MC-*`);
+each entry below names the id it closes.
+
+### Fixed
+
+- **[MC-C1]** The `.env` file was read by a path relative to the process's
+  working directory. Started from anywhere other than the repository root,
+  pydantic-settings silently found nothing and the app came up with every
+  default value — including `ENABLE_AUTH=false` and empty API keys — without
+  raising anything. The path is now absolute, `/static` is mounted with a
+  resolved path for the same reason, and starting without authentication now
+  logs a warning naming the `.env` it tried to read.
+
 ## [1.0.0] — 2026-08-03
 
 First tagged release. The project existed and worked before this point, but
