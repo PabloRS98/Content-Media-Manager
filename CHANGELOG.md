@@ -17,6 +17,17 @@ each entry below names the id it closes.
   raising anything. The path is now absolute, `/static` is mounted with a
   resolved path for the same reason, and starting without authentication now
   logs a warning naming the `.env` it tried to read.
+- **[MC-C2]** The container published its port on `0.0.0.0`, and nothing stopped
+  the app from starting with the factory `admin`/`changeme` credentials — so the
+  whole catalog could be readable and writable by anyone on the network with no
+  indication that it was. The port now binds to loopback by default and is
+  opened deliberately with `MEDIA_BIND`, and with `ENABLE_AUTH=true` the app
+  refuses to start while `AUTH_PASSWORD` is the factory value or shorter than 8
+  characters.
+
+  **Upgrading:** if you reach this app from another machine, set
+  `MEDIA_BIND=0.0.0.0` (behind a reverse proxy or a VPN) or the address of the
+  specific interface you want to serve, and turn `ENABLE_AUTH` on.
 
 ## [1.0.0] — 2026-08-03
 

@@ -9,7 +9,13 @@ services:
     container_name: media-catalog
     restart: unless-stopped
     ports:
-      - "0.0.0.0:${MEDIA_PORT:-8002}:8000"
+      # Loopback por defecto: el catálogo (qué lees, qué ves, tus notas y
+      # valoraciones) es información personal y la app permite borrarlo todo.
+      # Publicarlo en 0.0.0.0 lo dejaba legible y modificable por cualquiera en
+      # la red sin que nada lo indicara. Para llegar desde otra máquina, pon
+      # MEDIA_BIND en el .env: a 0.0.0.0 si delante hay un proxy inverso o una
+      # VPN, o directamente a la IP de la interfaz por la que quieras servir.
+      - "${MEDIA_BIND:-127.0.0.1}:${MEDIA_PORT:-8002}:8000"
     env_file:
       # required: false porque el README presenta "cp .env.example .env" como
       # paso OPCIONAL (todas las claves tienen default). Sin esto, "docker

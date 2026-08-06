@@ -1,7 +1,11 @@
 """Configuracion centralizada via variables de entorno (.env)."""
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_PASSWORD = "changeme"
+MIN_PASSWORD_LENGTH = 8
 
 # Absoluta, por el mismo motivo que las plantillas y los estaticos (ver
 # templating.py): con una ruta relativa el .env solo se lee si el proceso
@@ -19,7 +23,7 @@ class Settings(BaseSettings):
     # Autenticacion HTTP Basic opcional (recomendado activar si se expone via VPN)
     enable_auth: bool = False
     auth_username: str = "admin"
-    auth_password: str = "changeme"
+    auth_password: str = DEFAULT_PASSWORD
 
     # Base de datos SQLite
     db_path: str = "/data/media.db"
@@ -45,6 +49,26 @@ class Settings(BaseSettings):
     # Avisos por Telegram (opcional): crea un bot con @BotFather. Vacio = sin avisos.
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
+    @model_validator(mode="after")
+    def _reject_insecure_password(self) -> "Settings":
+        """Con la autenticacion activada, no arrancar con la contrasena de fabrica.
+
+        Un fallo al arrancar es ruidoso y se corrige en un minuto; una app
+        expuesta con admin/changeme puede pasar meses sin que nadie lo note.
+        """
+        if not self.enable_auth:
+            return self
+        if self.auth_password == DEFAULT_PASSWORD:
+            raise ValueError(
+                "ENABLE_AUTH está activado pero AUTH_PASSWORD sigue siendo el valor "
+                "de fábrica. Cámbialo en el .env antes de exponer la aplicación."
+            )
+        if len(self.auth_password) < MIN_PASSWORD_LENGTH:
+            raise ValueError(
+                "AUTH_PASSWORD debe tener al menos %d caracteres." % MIN_PASSWORD_LENGTH
+            )
+        return self
 
 
 settings = Settings()
