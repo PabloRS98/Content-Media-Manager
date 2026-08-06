@@ -7,6 +7,9 @@ tests miran la ruta configurada y no el resultado de un arranque correcto.
 import importlib.util
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from app import config
 
 # La raíz del repositorio: dos niveles por encima de `app/config.py`.
@@ -65,3 +68,53 @@ def test_no_avisa_cuando_la_autenticacion_esta_activada(caplog):
     with caplog.at_level("WARNING"):
         avisar_si_no_hay_autenticacion(enable_auth=True)
     assert caplog.text == ""
+
+
+class TestValidadorDeContrasena:
+    """Con la autenticación activada, la app no debe arrancar insegura.
+
+    Los tres tests pasan `_env_file=None` para no leer el `.env` real: lo que se
+    prueba es el validador, no la configuración de esta máquina.
+    """
+
+    def test_no_arranca_con_la_contrasena_de_fabrica(self):
+        with pytest.raises(ValidationError):
+            config.Settings(
+                _env_file=None, enable_auth=True, auth_password=config.DEFAULT_PASSWORD
+            )
+
+    def test_no_arranca_con_contrasena_corta(self):
+        corta = "a" * (config.MIN_PASSWORD_LENGTH - 1)
+        with pytest.raises(ValidationError):
+            config.Settings(_env_file=None, enable_auth=True, auth_password=corta)
+
+    def test_arranca_con_contrasena_valida(self):
+        ajustes = config.Settings(
+            _env_file=None, enable_auth=True, auth_password="una-contrasena-larga"
+        )
+        assert ajustes.enable_auth is True
+
+    def test_sin_autenticacion_la_contrasena_de_fabrica_no_estorba(self):
+        """Sin `ENABLE_AUTH` la contraseña no se usa para nada, y exigirla
+        rompería el arranque por defecto que documenta el README."""
+        ajustes = config.Settings(
+            _env_file=None, enable_auth=False, auth_password=config.DEFAULT_PASSWORD
+        )
+        assert ajustes.enable_auth is False
+
+
+class TestBindingDelPuerto:
+    def test_el_compose_publica_en_loopback_por_defecto(self):
+        """`0.0.0.0` publicaba el catálogo entero a toda la LAN sin que nada lo
+        dijera. El valor por defecto es ahora loopback y se abre a propósito
+        con MEDIA_BIND."""
+        compose = (RAIZ / "docker-compose.yml").read_text(encoding="utf-8")
+        assert "${MEDIA_BIND:-127.0.0.1}:${MEDIA_PORT:-8002}:8000" in compose
+        assert "0.0.0.0:${MEDIA_PORT" not in compose
+
+    def test_el_env_example_documenta_el_binding_y_la_contrasena(self):
+        ejemplo = (RAIZ / ".env.example").read_text(encoding="utf-8")
+        assert "MEDIA_BIND" in ejemplo
+        # El ejemplo tiene que avisar de que la app se niega a arrancar con la
+        # contraseña de fábrica; si no, el fallo aparece por sorpresa.
+        assert "changeme" in ejemplo and "refuses to start" in ejemplo.lower()
