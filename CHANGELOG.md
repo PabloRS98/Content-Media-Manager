@@ -185,6 +185,13 @@ each entry below names the id it closes.
   the template's copy was missing `wishlist`, so an item you wanted showed as
   "Wishlist" on its card and "Lo quiero ver" in the filter dropdown. One table
   now, in `catalogo_config.py`, read by both.
+- **[MC-M16]** Templates now use `StrictUndefined`: a variable the route forgot
+  to pass raises instead of rendering empty. With the default, `Undefined` is
+  falsy, so an `{% if %}` over it quietly skips the whole block — a bug that can
+  sit unnoticed for months. Turning it on immediately found one: if seeding the
+  automatic lists ever failed, the home page's four counters rendered links to
+  `/listas/` that looked exactly like working ones. They now render as plain
+  numbers when there's no list to point at.
 
 - **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing
   request carrying neither `Sec-Fetch-Site` nor `Origin` was let through on
