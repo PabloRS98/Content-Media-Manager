@@ -5,7 +5,7 @@ import logging
 import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session, joinedload
@@ -19,6 +19,27 @@ logger = logging.getLogger(__name__)
 
 # Estados que consideramos "siguiendo" para avisos
 FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
+
+# Estado de la última ejecución de cada job, para el panel /estado.
+#
+# Sin esto, "no me llegan los avisos de episodios" puede ser: TMDB caída, clave
+# inválida, token de Telegram revocado, chat_id mal, el job caído, o
+# simplemente que no hay episodios nuevos. La única forma de distinguirlos era
+# leer los logs del contenedor.
+#
+# En memoria a propósito: se pierde al reiniciar, y eso es correcto -- lo que
+# interesa es "¿ha corrido desde que arrancó?", no un histórico. Guardarlo en
+# la base añadiría escrituras a cada job para responder una pregunta que se
+# hace tres veces al año.
+JOB_STATUS: dict[str, dict] = {}
+
+
+def _registrar(job_id: str, ok: bool, detalle: str) -> None:
+    JOB_STATUS[job_id] = {
+        "cuando": datetime.now(UTC).replace(tzinfo=None),
+        "ok": ok,
+        "detalle": detalle,
+    }
 
 
 # Cuánto tiempo se sigue considerando "viva" una temporada tras su último
@@ -201,10 +222,27 @@ def run_alerts() -> None:
         r = check_releases(db)
         if n or r:
             logger.info("Avisos enviados: %d episodios, %d estrenos", n, r)
-    except Exception:
+        _registrar("media_alerts", True, "%d episodios, %d estrenos" % (n, r))
+    except Exception as exc:  # noqa: BLE001  el scheduler debe sobrevivir a cualquier job
         logger.exception("Fallo en el job de estrenos")
+        _registrar("media_alerts", False, str(exc)[:200])
     finally:
         db.close()
+
+
+def run_backup() -> None:
+    """`backup_database` envuelto para que su resultado llegue a /estado.
+
+    Antes no estaba envuelto en nada: si fallaba, APScheduler lo registraba a
+    su manera y ya. Un backup diario que lleva semanas sin funcionar es
+    exactamente el tipo de cosa que no se descubre hasta que hace falta.
+    """
+    try:
+        ruta = backup_database()
+        _registrar("daily_backup", True, ruta)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Fallo en el job de backup")
+        _registrar("daily_backup", False, str(exc)[:200])
 
 
 def backup_database(dest_path: str | None = None) -> str:
@@ -255,6 +293,7 @@ def start_scheduler() -> BackgroundScheduler:
         # de las 9:00 (o al que siguiera corriendo).
         max_instances=1,
     )
-    scheduler.add_job(backup_database, "cron", hour=4, minute=45, id="daily_backup")
+    scheduler.add_job(run_backup, "cron", hour=4, minute=45, id="daily_backup",
+                      max_instances=1)
     scheduler.start()
     return scheduler

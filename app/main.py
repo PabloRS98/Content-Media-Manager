@@ -19,7 +19,7 @@ from .database import (
     leer_meta,
     revision_pendiente,
 )
-from .routers import catalog, home, imdb_import, lists
+from .routers import catalog, estado, home, imdb_import, lists
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,6 +191,7 @@ app.include_router(home.router)
 app.include_router(catalog.router)
 app.include_router(lists.router)
 app.include_router(imdb_import.router)
+app.include_router(estado.router)
 
 # `.resolve()` igual que en templating.py: la ruta no depende del cwd y aguanta
 # que el proyecto esté detrás de un enlace simbólico.
