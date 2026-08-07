@@ -12,6 +12,7 @@ from urllib.parse import urlencode
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
+from jinja2 import StrictUndefined
 
 from .catalogo_config import etiqueta_estado
 
@@ -19,6 +20,16 @@ from .catalogo_config import etiqueta_estado
 # relativa al cwd solo funciona si el proceso arranca desde la raíz del repo.
 # En Docker el WORKDIR /app lo salva, pero rompe cualquier otro modo de arranque.
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+# StrictUndefined: una variable ausente lanza error en vez de renderizar vacío.
+# Con el comportamiento por defecto, referenciar algo que el router no pasa es
+# `Undefined`, que es falsy, así que un `{% if %}` sobre ella falla en silencio
+# y el bloque simplemente no se pinta: un fallo así puede pasar meses sin verse.
+#
+# Es exactamente el tipo de bug que ya ocurrió aquí con `status_labels.get()`
+# devolviendo None. El patrón `{% if x is defined and x %}` sigue funcionando,
+# que es la forma correcta de preguntar por algo opcional.
+templates.env.undefined = StrictUndefined
 
 _FILTER_PARAMS = ("tipo", "estado", "genero", "tiempo", "orden")
 

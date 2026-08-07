@@ -6,13 +6,25 @@
 {% block content %}
 
 {# Cada acceso lleva a su vista automática real en la pestaña Listas (se
-   actualiza sola según el estado de cada ítem), no a un filtro suelto. #}
+   actualiza sola según el estado de cada ítem), no a un filtro suelto.
+
+   El macro comprueba que la lista exista antes de enlazar: si el sembrado
+   falla, `lifespan` registra el error y la app sigue arrancando (a propósito),
+   pero entonces estos accesos apuntaban a "/listas/" -- un enlace roto que se
+   veía igual que uno bueno. Sin lista, se pinta el número sin enlace. #}
+{% macro acceso(estado, valor, texto, cls="") -%}
+{%- set id_lista = listas_dinamicas.get(estado) -%}
+{%- if id_lista %}<a href="/listas/{{ id_lista }}" class="hsum {{ cls }}"><strong>{{ valor }}</strong><span>{{ texto }}</span></a>
+{%- else %}<div class="hsum {{ cls }}"><strong>{{ valor }}</strong><span>{{ texto }}</span></div>
+{%- endif %}
+{%- endmacro %}
+
 <section class="home-summary">
     <div class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></div>
-    <a href="/listas/{{ listas_dinamicas.en_progreso }}" class="hsum accent"><strong>{{ resumen.en_progreso }}</strong><span>en progreso</span></a>
-    <a href="/listas/{{ listas_dinamicas.pendiente }}" class="hsum"><strong>{{ resumen.pendientes }}</strong><span>pendientes</span></a>
-    <a href="/listas/{{ listas_dinamicas.completado }}" class="hsum positive"><strong>{{ resumen.completados }}</strong><span>completados</span></a>
-    <a href="/listas/{{ listas_dinamicas.wishlist }}" class="hsum"><strong>{{ resumen.wishlist }}</strong><span>wishlist</span></a>
+    {{ acceso("en_progreso", resumen.en_progreso, "en progreso", "accent") }}
+    {{ acceso("pendiente", resumen.pendientes, "pendientes") }}
+    {{ acceso("completado", resumen.completados, "completados", "positive") }}
+    {{ acceso("wishlist", resumen.wishlist, "wishlist") }}
 </section>
 
 {% if not hay_algo %}
