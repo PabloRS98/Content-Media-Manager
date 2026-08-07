@@ -151,6 +151,13 @@ each entry below names the id it closes.
   query fails, so Docker marks the container unhealthy instead of accepting a
   live process that returns 500 on every page.
 
+### Security
+
+- **[MC-X3]** Updated dependencies carrying **19 known vulnerabilities**: Jinja2
+  3.1.4, python-multipart 0.0.12 and Starlette 0.38.6 (pulled in by FastAPI
+  0.115.0). Found by running `pip-audit` for the first time. `pip-audit` now
+  reports nothing.
+
 ### Changed
 
 - **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing

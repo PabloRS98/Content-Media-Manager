@@ -128,7 +128,11 @@ class TestRutasAbsolutas:
 
         assert Path(templating_mod.templates.env.loader.searchpath[0]).is_absolute()
 
-        static_mount = next(r for r in main_mod.app.routes if r.path == "/static")
+        # getattr y no r.path: desde FastAPI 0.141 `app.routes` incluye objetos
+        # `_IncludedRouter` que no tienen ese atributo.
+        static_mount = next(
+            r for r in main_mod.app.routes if getattr(r, "path", None) == "/static"
+        )
         assert Path(static_mount.app.directory).is_absolute()
 
 
