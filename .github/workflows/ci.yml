@@ -27,6 +27,28 @@ jobs:
       - name: Tests
         run: pytest
 
+  # Independiente de los tests: una vulnerabilidad conocida en una dependencia
+  # no depende de que el código propio esté bien, y enterarse cuanto antes es
+  # el punto. La primera pasada encontró 19 (ver MC-X3).
+  auditoria:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar pip-audit
+        run: pip install pip-audit
+
+      - name: Vulnerabilidades conocidas en las dependencias
+        # Se auditan las versiones declaradas, sin instalarlas: es lo que se va
+        # a desplegar, y no hace falta montar el entorno entero para mirar un
+        # fichero de texto.
+        run: pip-audit -r requirements.txt --progress-spinner off
+
   docker:
     runs-on: ubuntu-latest
     needs: tests

@@ -151,6 +151,11 @@ each entry below names the id it closes.
   query fails, so Docker marks the container unhealthy instead of accepting a
   live process that returns 500 on every page.
 
+- **[MC-M20]** CI now runs `pip-audit` on every push, and Dependabot proposes
+  dependency updates weekly (grouped into one PR, majors separately). Neither
+  existed, which is how the app ended up shipping 19 known vulnerabilities
+  without anyone noticing.
+
 ### Security
 
 - **[MC-X3]** Updated dependencies carrying **19 known vulnerabilities**: Jinja2
