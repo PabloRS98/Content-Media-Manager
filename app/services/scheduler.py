@@ -4,6 +4,7 @@ episodios nuevos, pero sí avisa de los que ya estén en la base con fecha pasad
 import logging
 import os
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -20,21 +21,114 @@ logger = logging.getLogger(__name__)
 FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
 
 
-def refresh_following_episodes(db: Session) -> None:
-    """Trae episodios nuevos de las series que sigues (requiere TMDB key)."""
+# Cuánto tiempo se sigue considerando "viva" una temporada tras su último
+# episodio conocido. Una temporada que cerró hace más de esto no va a recibir
+# episodios nuevos, así que pedirla es una petición HTTP tirada.
+VENTANA_TEMPORADA_VIVA = timedelta(days=30)
+
+# Series refrescadas a la vez. Ojo: fetch_tv_episodes ya paraleliza las
+# temporadas de UNA serie con 5 hilos, así que esto multiplica -- 4 x 5 = 20
+# peticiones simultáneas como mucho, holgadamente por debajo de lo que admite
+# TMDB (del orden de 50 por segundo).
+SERIES_EN_PARALELO = 4
+
+
+def temporadas_que_pueden_cambiar(item: MediaItem, temporadas_remotas: list[int],
+                                  hoy: date | None = None) -> list[int]:
+    """De las temporadas que declara TMDB, las que pueden traer novedades.
+
+    `load_episodes` pedía TODAS las temporadas en cada pasada, incluidas las que
+    terminaron hace años y no van a cambiar nunca. Se piden solo:
+
+    - las que aún no tenemos en la base,
+    - las que tienen algún episodio sin emitir o emitido hace poco,
+    - las que no tienen ninguna fecha conocida (no se puede afirmar que estén
+      cerradas),
+    - y siempre la última, que es donde aparecen los episodios nuevos y por
+      donde se entera uno de una renovación.
+
+    Con esto, una serie terminada deja de consumir peticiones por completo
+    salvo la comprobación de su última temporada.
+    """
+    if not temporadas_remotas:
+        return []
+    hoy = hoy or date.today()
+    limite = hoy - VENTANA_TEMPORADA_VIVA
+
+    ultima_fecha: dict[int, date | None] = {}
+    for ep in item.episodes:
+        if ep.season_number not in ultima_fecha:
+            ultima_fecha[ep.season_number] = None
+        actual = ultima_fecha[ep.season_number]
+        if ep.air_date and (actual is None or ep.air_date > actual):
+            ultima_fecha[ep.season_number] = ep.air_date
+
+    candidatas = set()
+    for sn in temporadas_remotas:
+        if sn not in ultima_fecha:
+            candidatas.add(sn)
+            continue
+        fecha = ultima_fecha[sn]
+        if fecha is None or fecha >= limite:
+            candidatas.add(sn)
+    candidatas.add(max(temporadas_remotas))
+    return sorted(candidatas)
+
+
+def _refrescar_una_serie(item_id: int, session_factory) -> int:
+    """Refresca una serie con su propia sesión. Devuelve episodios añadidos.
+
+    Sesión por hilo (patrón de projects-dashboard) y commit por serie: antes
+    había un único commit al final de todas, así que si la 25ª fallaba se
+    perdía el trabajo de las 24 anteriores.
+    """
+    db = session_factory()
+    try:
+        item = db.get(MediaItem, item_id)
+        if not item or not item.external_id:
+            return 0
+        detalles = tmdb.get_tv_details(item.external_id)
+        if not detalles:
+            return 0
+        temporadas = temporadas_que_pueden_cambiar(item, detalles["seasons"])
+        if not temporadas:
+            return 0
+        añadidos = metadata.load_episodes(db, item, temporadas)
+        db.commit()
+        return añadidos
+    except Exception:
+        logger.exception("Fallo al refrescar los episodios del ítem %s", item_id)
+        db.rollback()
+        return 0
+    finally:
+        db.close()
+
+
+def refresh_following_episodes(db: Session, session_factory=SessionLocal) -> None:
+    """Trae episodios nuevos de las series que sigues (requiere TMDB key).
+
+    Antes era 1+N peticiones HTTP secuenciales por serie: con 30 series de 5
+    temporadas de media, 30 + 150 = 180 peticiones encadenadas con 10 s de
+    timeout cada una. En el peor caso, media hora de job -- y corre también 25 s
+    después de arrancar, así que un reinicio del contenedor lo disparaba entero.
+    """
     if not settings.tmdb_api_key:
         return
-    series = db.query(MediaItem).filter(
-        MediaItem.media_type.in_(EPISODIC_TYPES),
-        MediaItem.status.in_(FOLLOWING),
-        MediaItem.external_source == "tmdb",
-        MediaItem.external_id.isnot(None),
-    ).all()
-    for it in series:
-        d = tmdb.get_tv_details(it.external_id)
-        if d:
-            metadata.load_episodes(db, it, d["seasons"])
-    db.commit()
+    ids = [
+        fila[0] for fila in db.query(MediaItem.id).filter(
+            MediaItem.media_type.in_(EPISODIC_TYPES),
+            MediaItem.status.in_(FOLLOWING),
+            MediaItem.external_source == "tmdb",
+            MediaItem.external_id.isnot(None),
+        ).all()
+    ]
+    if not ids:
+        return
+
+    with ThreadPoolExecutor(max_workers=SERIES_EN_PARALELO) as pool:
+        total = sum(pool.map(lambda i: _refrescar_una_serie(i, session_factory), ids))
+    if total:
+        logger.info("Refresco de series: %d episodios nuevos", total)
 
 
 def check_new_episodes(db: Session) -> int:
@@ -156,6 +250,10 @@ def start_scheduler() -> BackgroundScheduler:
         run_alerts, "cron", hour=9, minute=0,
         next_run_time=datetime.now(scheduler.timezone) + timedelta(seconds=25),  # también al poco de arrancar
         id="media_alerts",
+        # Sin esto, un reinicio del contenedor durante una tanda larga deja dos
+        # ejecuciones solapadas: el disparo de los 25 s de arranque se suma al
+        # de las 9:00 (o al que siguiera corriendo).
+        max_instances=1,
     )
     scheduler.add_job(backup_database, "cron", hour=4, minute=45, id="daily_backup")
     scheduler.start()
