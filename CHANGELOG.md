@@ -63,6 +63,13 @@ each entry below names the id it closes.
   flag is only set on a successful send, and the bot token no longer reaches the
   logs (it travels in the URL path, and the failure was logged with the raw
   exception).
+- **[MC-M6]** Deleting an item left dead rows in `list_items`: the relationship
+  was declared only on the `Lista` side, so SQLAlchemy didn't know they existed
+  from the item's side, and SQLite doesn't enforce foreign keys unless
+  `PRAGMA foreign_keys=ON` (which this app doesn't set). Because SQLite reuses
+  ids, a newly added item could inherit the deleted one's list memberships —
+  a visible and very confusing bug. The inverse relationship is now declared,
+  and startup sweeps any dead rows an existing database already carries.
 
 ## [1.0.0] — 2026-08-03
 

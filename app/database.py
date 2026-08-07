@@ -50,6 +50,28 @@ def ensure_columns(table: str, columns: dict[str, str]) -> list[str]:
     return added
 
 
+def limpiar_filas_huerfanas(bind=None) -> dict[str, int]:
+    """Borra de las tablas puente las filas que apuntan a ítems inexistentes.
+
+    Declarar la relación inversa evita que se creen nuevas, pero no limpia las
+    que ya arrastra una base desplegada: cada ítem borrado antes de ese arreglo
+    dejó su fila en `list_items`. Y el id se reutiliza, así que una fila muerta
+    no es solo basura -- puede resucitar como pertenencia de un ítem distinto.
+
+    Idempotente y barato (dos DELETE con subconsulta), así que corre en cada
+    arranque sin necesidad de marca de versión.
+    """
+    borradas: dict[str, int] = {}
+    with (bind or engine).begin() as conn:
+        for tabla in ("list_items", "media_item_tags"):
+            r = conn.exec_driver_sql(
+                "DELETE FROM %s WHERE media_item_id NOT IN (SELECT id FROM media_items)" % tabla
+            )
+            if r.rowcount:
+                borradas[tabla] = r.rowcount
+    return borradas
+
+
 def init_db():
     from . import models  # noqa: F401  asegura que los modelos queden registrados
 
@@ -75,3 +97,4 @@ def init_db():
     ensure_columns("listas", {
         "filtro_estado": "VARCHAR(20)",
     })
+    limpiar_filas_huerfanas()
