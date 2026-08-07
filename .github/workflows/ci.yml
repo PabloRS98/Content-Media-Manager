@@ -60,13 +60,10 @@ jobs:
 
       - name: Comprobar que el contenedor arranca y responde
         run: |
+          chmod +x .github/*.sh
           docker run -d --name smoke -p 8000:8000 media-catalog:ci
-          for i in $(seq 1 15); do
-            curl -sf http://localhost:8000/salud && break
-            sleep 1
-          done
-          curl -sf http://localhost:8000/salud
-          docker logs smoke
+          .github/esperar-salud.sh smoke 8000
+          .github/comprobar-rutas.sh 8000
           docker stop smoke
 
   # Los fallos que este job caza no están en el código, así que ningún test
@@ -143,22 +140,17 @@ jobs:
 
       - name: Arrancar contra esa base y exigir que se ponga al día
         run: |
+          chmod +x .github/*.sh
           docker run -d --name viejo -p 8000:8000 -v datos-viejos:/data media-catalog:ci
-          for i in $(seq 1 20); do
-            curl -sf http://localhost:8000/salud > /dev/null && break
-            sleep 1
-          done
+          # El healthcheck de Docker pide /salud, que desde MC-M4 devuelve 503
+          # si el esquema no está al día: llegar a "healthy" ES la comprobación
+          # de que la migración corrió.
+          .github/esperar-salud.sh viejo 8000
           docker logs viejo
-          # /salud devuelve 503 si el esquema no está al día, así que este
-          # curl es la comprobación: si la migración no corrió, falla aquí.
-          curl -sf http://localhost:8000/salud
 
       - name: Comprobar que los datos siguen ahí y las rutas responden
         run: |
-          for ruta in / /catalogo /listas /estadisticas /calendario /importar; do
-            echo "GET $ruta"
-            curl -sf -o /dev/null -w '%{http_code}\n' "http://localhost:8000$ruta" | grep -q '^200$'
-          done
+          .github/comprobar-rutas.sh 8000
           docker exec viejo python -c "
           import sqlite3
           c = sqlite3.connect('/data/media.db')

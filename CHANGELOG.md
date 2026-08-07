@@ -164,6 +164,11 @@ each entry below names the id it closes.
   dependency updates weekly (grouped into one PR, majors separately). Neither
   existed, which is how the app ended up shipping 19 known vulnerabilities
   without anyone noticing.
+- **[MC-B10]** The container smoke test only curled `/salud`. It now waits for
+  Docker's own healthcheck to report healthy and then requests all 16 GET
+  routes, failing on anything that isn't a 200 — a missing column leaves the
+  process alive and answering while every page returns 500, and only asking for
+  the pages catches that. A test keeps the route list in step with the app.
 
 ### Security
 
