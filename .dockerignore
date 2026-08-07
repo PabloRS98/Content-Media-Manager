@@ -1,5 +1,39 @@
+# Todo lo que hay aquí se manda al daemon de Docker en cada build, aunque el
+# Dockerfile no lo copie. Un entorno virtual suelto en la raíz son ~90 MB de
+# contexto por build, así que esto va en paralelo con el .gitignore.
+
+# --- Entornos virtuales y cachés ---
+.venv*/
+venv/
 __pycache__/
-*.pyc
-.venv/
-data/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# --- Historial y metadatos del repositorio ---
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# --- Datos y secretos: la imagen no debe llevarlos nunca ---
 .env
+.env.*
+!.env.example
+data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# --- Lo que no hace falta dentro de la imagen ---
+# El Dockerfile solo copia requirements.txt, app/ y docker-entrypoint.sh.
+tests/
+docs/
+scripts-legacy/
+*.md
+LICENSE
+docker-compose.yml
+docker-compose.override.yml
+.vscode/
+.idea/

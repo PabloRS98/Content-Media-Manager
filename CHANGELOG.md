@@ -42,6 +42,12 @@ each entry below names the id it closes.
   `logger.exception`, which dumps the raw exception, and that exception's
   message is the full request URL, key included. Now logged with `log_fallo_api`
   like everywhere else. Covered for TMDB and RAWG too, as a regression.
+- **[MC-A7]** `.gitignore` had ten lines and `.dockerignore` five, so a stray
+  virtualenv in the working tree (`.venv/` didn't match `.venv-audit/`) was one
+  `git add -A` away from putting thousands of files and compiled binaries into
+  the history, and was being uploaded to the Docker daemon on every build. Both
+  files now cover virtualenvs, tool caches and database sidecar files, with the
+  reasoning written down. Verified that none of it ever reached the history.
 
 ## [1.0.0] — 2026-08-03
 

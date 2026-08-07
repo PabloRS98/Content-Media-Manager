@@ -1,10 +1,40 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-data/
+# --- Datos y secretos ---
 .env
+.env.*
+# La plantilla no lleva secretos y es lo primero que necesita un clon nuevo:
+# sin esta excepción, ".env.*" también la ocultaba.
+!.env.example
+data/
 *.db
-*.db-journal
+# El WAL y el índice compartido llevan escrituras que aún no están en el .db, y
+# `*.db` no los caza: el sufijo va DESPUÉS de la extensión.
 *.db-wal
 *.db-shm
+*.db-journal
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+# Con asterisco: los entornos de trabajo puntuales (.venv-audit, .venv-3.13...)
+# no los cubría `.venv/` a secas, y un `git add -A` metería miles de ficheros y
+# binarios compilados en el historial. Recuperarse de eso exige reescribirlo.
+.venv*/
+venv/
+*.egg-info/
+
+# --- Cachés de herramientas ---
+# Hoy se autoignoran (pytest y ruff escriben su propio .gitignore dentro), pero
+# eso es una cortesía de la herramienta, no una garantía del proyecto: si dejan
+# de hacerlo, aparecen en cada `git status` y es así como se acaba haciendo un
+# `git add -A` a ciegas.
+.pytest_cache/
+.ruff_cache/
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Editores ---
+.vscode/
+.idea/
+*.swp
+*.swo
