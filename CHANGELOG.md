@@ -101,6 +101,11 @@ each entry below names the id it closes.
 - **[MC-M9]** The episode-alert job issued one extra query per episode: its
   `join` filtered but didn't load the relationship, so every title read hit the
   database again. Measured: 21 queries for 20 pending episodes, now 2.
+- **[MC-M5]** The home page loaded every pending item — full rows, `overview`
+  Text column and all — in order to sort them in Python and show twelve. Same
+  for the "coming up" strip, which fetched every future episode and every dated
+  wishlist entry to show six. Sorting and limiting now happen in SQL.
+  `/calendario` still fetches everything, because that view genuinely needs it.
 
 ### Changed
 
