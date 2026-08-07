@@ -12,6 +12,7 @@ from ..auth import verify_auth
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority, Tag
+from ..security import safe_external_url
 from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
 
@@ -364,7 +365,7 @@ def add_item(
         status=status,
         external_id=external_id or None,
         external_source=external_source or None,
-        cover_url=cover_url or None,
+        cover_url=safe_external_url(cover_url),
         year=_parse_optional(year, int),
         creator=creator or None,
         overview=overview,
@@ -466,7 +467,9 @@ def update_item(
     item.title = title.strip() or item.title
     item.year = _parse_optional(year, int)
     item.creator = creator.strip() or None
-    item.cover_url = cover_url.strip() or None
+    # safe_external_url y no strip() a secas: el campo es editable a mano y se
+    # autorrellena desde seis APIs, y su valor acaba en el src de un <img>.
+    item.cover_url = safe_external_url(cover_url)
     item.genres = genres.strip() or None
     item.saga = saga.strip() or None
     item.priority = priority
