@@ -224,11 +224,11 @@ def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es"
         elif tipo == MediaType.PODCAST.value:
             results = itunes.search_podcasts(q)
             source = "itunes"
-            
+
     if not source:
         source = {"libro": "googlebooks", "pelicula": "tmdb", "serie": "tmdb",
                   "videojuego": "rawg", "podcast": "itunes"}.get(tipo)
-                  
+
     return templates.TemplateResponse(request, "search_results.html",
                                       {"results": results, "tipo": tipo, "source": source, "idioma": idioma})
 

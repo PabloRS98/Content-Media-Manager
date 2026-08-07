@@ -15,6 +15,14 @@ código, señaladas como tales.
 > arregló cada cosa, ver el [CHANGELOG](../CHANGELOG.md) y el historial de pull
 > requests cerradas del repositorio.
 
+> **Hay una segunda auditoría.** En agosto de 2026 se revisó de nuevo el proyecto
+> entero, junto a las otras dos aplicaciones self-hosted, y salieron 44 hallazgos
+> nuevos con el prefijo `MC-*`. Esa segunda ronda **no repite ninguno de los de
+> aquí**: se comprobó que los patrones corregidos siguen corregidos (el saneado
+> de esquemas de URL, el escapado de `LIKE`, el límite de subida, el `tojson` de
+> Jinja y el guard anti-SSRF de los feeds) y todos aguantan. El registro de qué
+> cerró cada uno está en el [CHANGELOG](../CHANGELOG.md), por identificador.
+
 ---
 
 ## Resumen ejecutivo

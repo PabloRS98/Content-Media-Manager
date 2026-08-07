@@ -27,7 +27,9 @@
         {% if item.genres %}<div class="badges" style="margin:.4rem 0">{% for g in item.genres.split(",") %}<span class="tag">{{ g.strip() }}</span>{% endfor %}</div>{% endif %}
         {% if item.priority %}<p class="subtle">Prioridad: {{ item.priority.value|capitalize }}</p>{% endif %}
         {% if item.media_type.value == "libro" and item.page_count %}
-        <p class="subtle">{{ icon("clock", 13) }} {{ item.page_count }} págs · ~{{ (item.page_count * 1.5)|round|int }} min de lectura</p>
+        {# El factor lo pone `metadata.MINUTES_PER_PAGE`, no un 1.5 escrito aquí:
+           estaba duplicado y cambiar uno dejaba el otro desincronizado. #}
+        <p class="subtle">{{ icon("clock", 13) }} {{ item.page_count }} págs · ~{{ minutos_estimados(item) }} min de lectura</p>
         {% elif item.media_type.value == "videojuego" and item.hltb_hours %}
         <p class="subtle">{{ icon("clock", 13) }} ~{{ item.hltb_hours|round(1) }} h para completar (HowLongToBeat)</p>
         {% endif %}

@@ -1,7 +1,12 @@
 """Avisos por Telegram (opcional). Si no hay token/chat configurados, no hace nada.
 
 El usuario crea un bot con @BotFather, mete su token en TELEGRAM_BOT_TOKEN y el
-id de su chat en TELEGRAM_CHAT_ID (se lo da @userinfobot, por ejemplo)."""
+id de su chat en TELEGRAM_CHAT_ID (se lo da @userinfobot, por ejemplo).
+
+Es una versión reducida a propósito del cliente de finance-tracker: aquí la
+app solo ENVÍA avisos, así que no hay `edit_message`, ni `answer_callback`,
+ni long polling. Si algún día se quiere responder a comandos desde el chat,
+ese es el sitio de donde copiarlo, no algo que falte por descuido."""
 import html
 import logging
 
