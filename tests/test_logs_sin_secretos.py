@@ -13,7 +13,7 @@ import logging
 import httpx
 import pytest
 
-from app.services import googlebooks, rawg, tmdb
+from app.services import googlebooks, rawg, telegram, tmdb
 
 CLAVE_FICTICIA = "CLAVE-RECONOCIBLE-DE-TEST"
 
@@ -65,4 +65,24 @@ def test_un_401_no_escribe_la_api_key_en_el_log(
     assert CLAVE_FICTICIA not in caplog.text
     # El log tiene que seguir sirviendo para diagnosticar: sin el código HTTP,
     # quitar la clave lo dejaría mudo.
+    assert "401" in caplog.text
+
+
+def test_el_log_de_telegram_no_contiene_el_token(monkeypatch, caplog):
+    """El token del bot es la credencial más sensible de la app y va en la
+    RUTA de la URL, no en un query param: un token filtrado permite suplantar
+    el bot y leer los mensajes pendientes con getUpdates."""
+    monkeypatch.setattr(telegram.settings, "telegram_bot_token", CLAVE_FICTICIA)
+    monkeypatch.setattr(telegram.settings, "telegram_chat_id", "12345")
+
+    url = "https://api.telegram.org/bot%s/sendMessage" % CLAVE_FICTICIA
+    monkeypatch.setattr(
+        telegram.httpx, "post",
+        lambda *a, **k: httpx.Response(401, request=httpx.Request("POST", url)),
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        assert telegram.send_message("hola") is False
+
+    assert CLAVE_FICTICIA not in caplog.text
     assert "401" in caplog.text

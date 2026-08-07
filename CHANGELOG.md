@@ -55,6 +55,14 @@ each entry below names the id it closes.
   through `build_qs`, the same helper the filter buttons already used four lines
   above. Filter buttons still reset to page 1, which is the behaviour the helper
   exists to protect.
+- **[MC-A4]** Telegram alerts were sent with `parse_mode: HTML` and titles
+  interpolated raw, so anything called `Marley & Me` or `Will & Grace` came back
+  as `400 Bad Request` — and the episode was marked as notified anyway, because
+  the flag was set without checking whether the send worked. That alert was lost
+  permanently and never retried. Titles and episode names are now escaped, the
+  flag is only set on a successful send, and the bot token no longer reaches the
+  logs (it travels in the URL path, and the failure was logged with the raw
+  exception).
 
 ## [1.0.0] — 2026-08-03
 
