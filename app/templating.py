@@ -21,11 +21,22 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 _FILTER_PARAMS = ("tipo", "estado", "genero", "tiempo", "orden")
 
 
-def build_qs(request: Request, **overrides: str | None) -> str:
+def build_qs(request: Request, **overrides: str | int | None) -> str:
     """Query string del catálogo aplicando `overrides` sobre los filtros ya
     activos en `request`, para que un botón de filtro cambie un solo
-    parámetro sin descartar los demás (ni la página, que siempre vuelve a 1
-    porque cambiar de filtro invalida la paginación anterior)."""
+    parámetro sin descartar los demás.
+
+    `pagina` NO está en `_FILTER_PARAMS` a propósito: no se arrastra de la
+    petición, así que un botón de filtro siempre devuelve a la página 1 --
+    cambiar de filtro invalida la paginación anterior. Los enlaces de
+    "Anterior"/"Siguiente" sí la pasan, como `override` explícito
+    (`build_qs(request, pagina=pagina + 1)`), que es el único caso en el que
+    tiene sentido conservarla.
+
+    Todo sale por `urlencode`. Los enlaces de paginación se construían antes
+    concatenando cadenas a mano, y un género como "Sci-Fi & Fantasy" (real en
+    TMDB) partía la URL en dos parámetros: el filtro se perdía justo al pasar
+    de página."""
     params = {k: v for k, v in request.query_params.items() if k in _FILTER_PARAMS and v}
     for key, value in overrides.items():
         if value:
