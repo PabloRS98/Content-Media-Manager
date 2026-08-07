@@ -151,3 +151,44 @@ class TestImportsYRegex:
         """`_search_for` y `_pick_match.clean` repetían el mismo regex escrito
         dos veces cada uno."""
         assert enrich._limpiar_titulo(entrada) == esperado
+
+
+class TestHallazgosBajos:
+    def test_el_factor_de_lectura_no_esta_duplicado(self):
+        """[MC-B1] `detail.html` tenía el 1.5 escrito a mano, duplicado con
+        `metadata.MINUTES_PER_PAGE`: cambiar uno dejaba el otro desfasado."""
+        detalle = (RAIZ / "app" / "templates" / "detail.html").read_text(encoding="utf-8")
+        assert "* 1.5" not in detalle
+        assert "minutos_estimados(item)" in detalle
+
+    def test_los_minutos_de_lectura_salen_de_metadata(self, client, crear_item):
+        from app.services import metadata
+
+        item = crear_item(title="Libro largo", media_type=MediaType.LIBRO, page_count=200)
+        esperado = metadata.estimated_minutes(item)
+        assert "%d min de lectura" % esperado in client.get("/item/%d" % item.id).text
+
+    @pytest.mark.parametrize("fichero", sorted((RAIZ / "app").rglob("*.py"), key=str))
+    def test_no_quedan_espacios_al_final_de_linea(self, fichero):
+        """[MC-B4]"""
+        for numero, linea in enumerate(fichero.read_text(encoding="utf-8").split("\n"), 1):
+            assert linea == linea.rstrip(), "%s:%d" % (fichero.name, numero)
+
+    def test_los_numeros_del_lote_estan_explicados(self):
+        """[MC-B5] BATCH_SIZE y SLEEP_BETWEEN salían de la nada."""
+        fuente = (RAIZ / "app" / "services" / "enrich.py").read_text(encoding="utf-8")
+        cabecera = fuente[:fuente.index("BATCH_SIZE")]
+        assert "Open Library" in cabecera and "peticiones" in cabecera
+
+    def test_el_cliente_de_telegram_dice_por_que_es_reducido(self):
+        """[MC-B12] 33 líneas sin `edit_message` ni long polling: correcto
+        aquí, pero había que decir que es deliberado."""
+        fuente = (RAIZ / "app" / "services" / "telegram.py").read_text(encoding="utf-8")
+        assert "reducida a propósito" in fuente
+
+    def test_los_except_del_arranque_distinguen_sus_consecuencias(self):
+        """[MC-M19] Los dos capturan todo y siguen --correcto--, pero fallar el
+        backfill y fallar el sembrado no significan lo mismo."""
+        fuente = (RAIZ / "app" / "main.py").read_text(encoding="utf-8")
+        assert "se reintentará al arrancar" in fuente
+        assert "la app arranca sin ellas" in fuente

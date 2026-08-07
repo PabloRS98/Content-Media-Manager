@@ -129,10 +129,20 @@ def avisar_si_el_esquema_esta_desactualizado() -> None:
 async def lifespan(app: FastAPI):
     avisar_si_no_hay_autenticacion(settings.enable_auth)
     avisar_si_el_esquema_esta_desactualizado()
+    # Los dos bloques de abajo capturan cualquier excepción y siguen a
+    # propósito: son trabajos de puesta a punto, y ninguno debe impedir que la
+    # app arranque y sirva el catálogo. Lo que sí hacen es dejar constancia
+    # distinguible, porque las consecuencias no son iguales:
+    #
+    # - Si el backfill falla, la marca no se escribe y se reintenta al
+    #   arrancar de nuevo (ver `backfill_v2_columns`).
+    # - Si el sembrado falla, la app se queda sin las listas automáticas. La
+    #   portada lo tolera desde MC-M16 (pinta los números sin enlace en vez de
+    #   enlazar a ninguna parte), pero el usuario pierde esas cuatro vistas.
     try:
         backfill_v2_columns()
     except Exception:
-        logger.exception("Fallo en el backfill de columnas v2")
+        logger.exception("Fallo en el backfill de columnas v2: se reintentará al arrancar")
     try:
         db = SessionLocal()
         try:
@@ -140,7 +150,10 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
     except Exception:
-        logger.exception("Fallo al sembrar las listas automáticas")
+        logger.exception(
+            "Fallo al sembrar las listas automáticas: la app arranca sin ellas y "
+            "los accesos de la portada se quedan sin enlace"
+        )
 
     app.state.scheduler = None
     if settings.enable_scheduler:

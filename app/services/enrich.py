@@ -29,7 +29,14 @@ def _limpiar_titulo(texto: str) -> str:
     sin_adornos = _RE_CORCHETES.sub("", _RE_PARENTESIS.sub("", texto or ""))
     return " ".join(sin_adornos.split()).strip()
 
-BATCH_SIZE = 30  # ítems por ejecución, para respetar los límites de las APIs gratuitas
+# Tamaño del lote y pausa entre ítems. Los dos números salen del cliente más
+# restrictivo de la cascada: Open Library pide "no más de 100 peticiones por
+# IP y minuto" en su política de uso, y un ítem puede gastar hasta 3
+# peticiones (Google Books, Wikipedia, Open Library). 30 ítems x 3 = 90
+# peticiones, repartidas en 21 s con la pausa, se queda holgadamente por
+# debajo. El lote se corta en 30 y no se procesa todo de golpe para que un
+# catálogo recién importado no dispare cientos de peticiones seguidas.
+BATCH_SIZE = 30
 SLEEP_BETWEEN = 0.7
 
 
@@ -48,11 +55,11 @@ def _search_for(item: MediaItem) -> list[dict]:
     if item.media_type == MediaType.LIBRO:
         cleaned_title = _limpiar_titulo(item.title)
         query_str = cleaned_title if len(cleaned_title) > 2 else item.title
-        
+
         # Añadir autor a la consulta para mayor precisión si existe
         if item.creator:
             query_str += f" {item.creator}"
-            
+
         # Cascada: Google Books -> Wikipedia -> Open Library
         try:
             res = googlebooks.search_books(query_str, limit=5)

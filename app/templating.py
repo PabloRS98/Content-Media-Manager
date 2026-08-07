@@ -66,3 +66,18 @@ templates.env.globals["build_qs"] = build_qs
 # vuelvan a tener su propia copia del mapeo, que es como acabó divergiendo del
 # router. Ver `catalogo_config.py`.
 templates.env.globals["etiqueta_estado"] = etiqueta_estado
+
+
+def minutos_estimados(item) -> int | None:
+    """Minutos que se estima que lleva consumir un ítem.
+
+    Se expone para que las plantillas no repitan la fórmula: `detail.html`
+    tenía escrito el factor 1.5 a mano, duplicado con
+    `metadata.MINUTES_PER_PAGE`, y cambiar uno dejaba el otro desincronizado.
+    """
+    from .services import metadata
+
+    return metadata.estimated_minutes(item)
+
+
+templates.env.globals["minutos_estimados"] = minutos_estimados

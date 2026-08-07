@@ -159,7 +159,7 @@ async def import_imdb_csv(
         # Busca el tipo de título de forma case-insensitive y tolerante a idiomas
         title_type = _get(row, "Title Type", "Tipo de título", "Tipo de titulo", "Type").strip().lower()
         media_type = TITLE_TYPE_MAP.get(title_type)
-        
+
         title = _get(row, "Title", "Título", "Titulo").strip()
 
         if media_type is None or not title:
@@ -180,7 +180,7 @@ async def import_imdb_csv(
         imdb_rating = _get(row, "IMDb Rating", "Calificación de IMDb", "Calificacion de IMDb", "IMDB Rating").strip()
         genres = _get(row, "Genres", "Géneros", "Generos").strip()
         num_votes = _get(row, "Num Votes", "Número de votos", "Numero de votos").strip()
-        
+
         # Obtener valoración del usuario si existe la columna
         your_rating_str = _get(row, "Your Rating", "Tu calificación", "Tu calificacion", "Rating")
         your_rating = _parse_optional_int(your_rating_str) if tiene_rating else None
