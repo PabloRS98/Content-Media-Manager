@@ -8,6 +8,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Second technical audit (August 2026). Findings are tracked by id (`MC-*`);
 each entry below names the id it closes.
 
+### Added
+
+- **[MC-A5]** Security headers on every response: `Content-Security-Policy`,
+  `X-Content-Type-Options`, `Referrer-Policy`. `img-src` stays open to `https:`
+  on purpose — cover art comes from six different metadata APIs and the field is
+  editable by hand, so a domain allowlist would silently break covers from any
+  new source. A test pins that choice so nobody tightens it by accident.
+
 ### Fixed
 
 - **[MC-C1]** The `.env` file was read by a path relative to the process's

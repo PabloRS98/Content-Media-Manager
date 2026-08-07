@@ -4,7 +4,7 @@ import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from .config import ENV_FILE, settings
@@ -94,6 +94,38 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
 
 app.add_middleware(CSRFProtectionMiddleware)
+
+
+@app.middleware("http")
+async def cabeceras_de_seguridad(request: Request, call_next):
+    """Cabeceras que el navegador aplica aunque la app se equivoque en algo.
+
+    Se registra después del middleware CSRF a propósito: en Starlette el último
+    middleware añadido es el más externo, así que estas cabeceras salen también
+    en las respuestas que el CSRF rechaza y en los estáticos.
+
+    `setdefault` y no asignación directa: si algún día una vista necesita su
+    propia política (un `frame-ancestors` distinto para un embebido, por
+    ejemplo), la suya gana y esto solo rellena lo que falte.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        # img-src abierto a https: es un compromiso consciente. Las portadas
+        # vienen de TMDB, Google Books, Open Library, Wikipedia, RAWG e iTunes,
+        # y `cover_url` es además editable a mano en la ficha del ítem, así que
+        # una lista blanca de dominios dejaría sin portada cualquier fuente
+        # nueva. Lo que sí cierra: `default-src 'self'` evita que una portada
+        # con esquema raro sirva de canal para otra cosa, y `frame-ancestors`
+        # impide embeber la app (que aquí pesa más que en las apps hermanas,
+        # porque la protección CSRF de este proyecto falla abierta -- MC-A6).
+        "default-src 'self'; img-src 'self' data: https:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    )
+    return response
 
 app.include_router(home.router)
 app.include_router(catalog.router)
