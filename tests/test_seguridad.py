@@ -41,12 +41,23 @@ class TestProteccionCSRF:
                         follow_redirects=False)
         assert r.status_code == 303
 
-    def test_sin_ninguna_cabecera_se_deja_pasar(self, client, crear_item):
-        """Fallo abierto a propósito: sin Sec-Fetch-Site ni Origin (curl,
-        scripts, la propia suite de tests) no hay evidencia de cruce."""
+    def test_sin_ninguna_cabecera_se_rechaza(self, client, crear_item):
+        """Este test decía lo contrario hasta [MC-A6].
+
+        La auditoría anterior dejó el fallo abierto a propósito: sin
+        Sec-Fetch-Site ni Origin no hay evidencia de cruce, y así no se rompían
+        los clientes que no son navegadores. La segunda auditoría revisó el
+        balance y salió al revés -- un navegador manda siempre al menos una de
+        las tres cabeceras en un POST, así que el hueco solo servía para dejar
+        pasar webviews antiguos. El razonamiento completo está en el docstring
+        de `app/csrf.py`, y los casos nuevos en `test_csrf.py`.
+        """
         item = crear_item()
+        # El fixture manda `Origin` como un navegador: hay que quitarlo para
+        # llegar al caso "no llega ninguna".
+        client.headers.pop("origin", None)
         r = client.post(f"/item/{item.id}/eliminar", follow_redirects=False)
-        assert r.status_code == 303
+        assert r.status_code == 403
 
     def test_los_get_nunca_se_bloquean(self, client):
         r = client.get("/catalogo?tipo=libro", headers={"sec-fetch-site": "cross-site"})

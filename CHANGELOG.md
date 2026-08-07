@@ -77,6 +77,19 @@ each entry below names the id it closes.
   appears in an `<a href>` it becomes an XSS, and this is where the value is
   written. Only absolute `http(s)` URLs are accepted now.
 
+### Changed
+
+- **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing
+  request carrying neither `Sec-Fetch-Site` nor `Origin` was let through on
+  purpose, so as not to break non-browser clients. It now fails closed and also
+  accepts `Referer` as a fallback. A browser always sends at least one of the
+  three on a POST, so the open case only ever helped scripts — which can add a
+  header in one line — while leaving the door open to old webviews.
+
+  **Upgrading:** if you POST to this app from a script, send an `Origin` or
+  `Referer` header. If you reach the app under a name your reverse proxy
+  doesn't set as `Host`, list it in the new `TRUSTED_ORIGINS`.
+
 ## [1.0.0] — 2026-08-03
 
 First tagged release. The project existed and worked before this point, but

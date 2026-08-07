@@ -80,10 +80,16 @@ def client(db):
 
     No se usa `with TestClient(app)` a propósito: eso dispararía el lifespan,
     que crea las tablas en la BD de verdad y arranca el scheduler de fondo.
+
+    Manda `Origin` por defecto porque es lo que hace un navegador en cada POST,
+    y desde [MC-A6] la comprobación de origen falla cerrada: sin esa cabecera
+    todos los POST de la suite serían 403, que no es lo que ninguno de ellos
+    quiere probar. Los tests que sí van sobre el origen la retiran a mano
+    (ver `test_csrf.py::limpiar`).
     """
     app.dependency_overrides[get_db] = lambda: db
     try:
-        yield TestClient(app)
+        yield TestClient(app, headers={"origin": "http://testserver"})
     finally:
         app.dependency_overrides.clear()
 
