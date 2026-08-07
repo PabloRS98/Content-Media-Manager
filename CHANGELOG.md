@@ -114,6 +114,14 @@ each entry below names the id it closes.
   share one lock and run in the background. The import page also gained a status
   strip that refreshes itself, so you can finally tell when a batch has
   finished; the old message said "come back in a minute and reload".
+- **[MC-A9]** Adding an item made its metadata HTTP calls inside the POST. For a
+  TMDB series that's one details call plus **one call per season** — 37 requests
+  in a row for a 36-season show, each with a 10 second timeout, with the browser
+  waiting. If a proxy timed out first you saw an error while the work carried on
+  behind it and the final commit never ran, leaving the item created but without
+  episodes. Enrichment now runs in the background, and seasons are fetched in
+  parallel. Measured on a real 39-season series: the response takes 186 ms and
+  885 episodes arrive afterwards.
 
 ### Changed
 

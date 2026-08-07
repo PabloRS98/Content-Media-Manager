@@ -1,6 +1,7 @@
 """Búsqueda de películas/series vía TMDB. Requiere una API key gratuita (TMDB_API_KEY).
 Incluye géneros (mapeados desde /genre/*/list, cacheados en memoria)."""
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
@@ -211,32 +212,57 @@ def get_tv_details(tmdb_id: str) -> dict | None:
         return None
 
 
+# Temporadas que se piden a la vez. TMDB admite del orden de 50 peticiones por
+# segundo, así que 5 hilos no rozan la cuota; el límite real aquí es no abrir
+# una conexión por temporada en una serie de 36.
+_TEMPORADAS_EN_PARALELO = 5
+
+
+def _fetch_una_temporada(tmdb_id: str, sn: int) -> list[dict]:
+    """Episodios de UNA temporada. Su propio try/except: una temporada que
+    falle no puede tumbar las demás."""
+    try:
+        resp = httpx.get(
+            f"{BASE_URL}/tv/{tmdb_id}/season/{sn}",
+            params={"api_key": settings.tmdb_api_key, "language": "es-ES"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        episodios = []
+        for e in resp.json().get("episodes", []):
+            if e.get("episode_number") is None:
+                continue
+            episodios.append({
+                "season_number": e.get("season_number", sn),
+                "episode_number": e.get("episode_number"),
+                "name": e.get("name") or None,
+                "overview": e.get("overview") or "",
+                "air_date": e.get("air_date") or None,
+                "runtime_minutes": e.get("runtime") or None,
+            })
+        return episodios
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al obtener episodios TMDB %s temporada %s", tmdb_id, sn, exc=e)
+        return []
+
+
 def fetch_tv_episodes(tmdb_id: str, seasons: list[int]) -> list[dict]:
     """Episodios de las temporadas indicadas: temporada, número, nombre, fecha,
-    duración y sinopsis. Cada temporada es una llamada aparte (así lo da TMDB)."""
+    duración y sinopsis. Cada temporada es una llamada aparte (así lo da TMDB).
+
+    Las temporadas se piden en paralelo. En serie, con timeout de 10 s por
+    petición, Los Simpson (36 temporadas) son hasta 36 esperas encadenadas.
+
+    El resultado se ordena al final: en paralelo las respuestas llegan en el
+    orden que quieran, y quien llama espera episodios ordenados.
+    """
     if not settings.tmdb_api_key:
         return []
+
     out: list[dict] = []
-    for sn in seasons:
-        try:
-            resp = httpx.get(
-                f"{BASE_URL}/tv/{tmdb_id}/season/{sn}",
-                params={"api_key": settings.tmdb_api_key, "language": "es-ES"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            for e in resp.json().get("episodes", []):
-                if e.get("episode_number") is None:
-                    continue
-                out.append({
-                    "season_number": e.get("season_number", sn),
-                    "episode_number": e.get("episode_number"),
-                    "name": e.get("name") or None,
-                    "overview": e.get("overview") or "",
-                    "air_date": e.get("air_date") or None,
-                    "runtime_minutes": e.get("runtime") or None,
-                })
-        except Exception as e:
-            log_fallo_api(logger, "Fallo al obtener episodios TMDB %s temporada %s", tmdb_id, sn, exc=e)
-            continue
+    with ThreadPoolExecutor(max_workers=_TEMPORADAS_EN_PARALELO) as pool:
+        for episodios in pool.map(lambda sn: _fetch_una_temporada(tmdb_id, sn), seasons):
+            out.extend(episodios)
+
+    out.sort(key=lambda e: (e["season_number"], e["episode_number"]))
     return out

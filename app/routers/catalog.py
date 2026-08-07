@@ -1,5 +1,6 @@
 """Catálogo de medios: búsqueda con autocompletado, alta, edición completa,
 ficha de detalle con episodios, orden + paginación y estadísticas."""
+import logging
 from datetime import UTC, date, datetime
 from math import ceil
 from urllib.parse import urlparse
@@ -15,6 +16,8 @@ from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority
 from ..security import safe_external_url
 from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["catalogo"], dependencies=[Depends(verify_auth)])
 
@@ -274,6 +277,24 @@ def list_catalog(
     })
 
 
+def enriquecer_en_segundo_plano(item_id: int) -> None:
+    """Enriquece un ítem recién creado, fuera del ciclo petición-respuesta.
+
+    Sesión propia: la de la petición original ya está cerrada cuando esto se
+    ejecuta. Mismo patrón que `enrich_missing_covers_en_segundo_plano`.
+    """
+    db = SessionLocal()
+    try:
+        item = db.get(MediaItem, item_id)
+        if item:
+            metadata.enrich_item(db, item)
+            db.commit()
+    except Exception:
+        logger.exception("Fallo enriqueciendo el ítem %s en segundo plano", item_id)
+    finally:
+        db.close()
+
+
 @router.post("/catalogo/completar-portadas")
 def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # BATCH_SIZE=30 ítems x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de
@@ -350,6 +371,7 @@ def suggest_random(request: Request, tipo: str | None = None, db: Session = Depe
 
 @router.post("/agregar")
 def add_item(
+    background_tasks: BackgroundTasks,
     media_type: MediaType = Form(...),
     title: str = Form(...),
     status: MediaStatus = Form(MediaStatus.PENDIENTE),
@@ -383,14 +405,20 @@ def add_item(
     db.commit()
     db.refresh(item)
 
-    # Enriquecer (duración/reparto/saga) y, en series, traer episodios
-    metadata.enrich_item(db, item)
-    db.commit()
+    # Enriquecer (duración/reparto/saga) y, en series, traer episodios: en
+    # segundo plano. `metadata.enrich_item` hace peticiones HTTP síncronas con
+    # timeout de 10 s, y para una serie de TMDB la cadena es 1 petición de
+    # detalles + una POR TEMPORADA. Los Simpson tiene 36 temporadas: hasta 37
+    # peticiones secuenciales dentro del POST, con el navegador bloqueado. Y si
+    # el proxy corta antes, el usuario ve un error mientras el trabajo sigue
+    # por detrás y el commit final no llega a ejecutarse: el ítem se queda
+    # creado pero sin episodios.
+    background_tasks.add_task(enriquecer_en_segundo_plano, item.id)
 
     destino = "wishlist" if status == MediaStatus.WISHLIST else "el catálogo"
-    extra = ""
-    if item.is_episodic and item.episodes:
-        extra = " (%d episodios)" % len(item.episodes)
+    # Ya no se puede prometer un número de episodios: todavía no existen. Antes
+    # decía "(24 episodios)"; decir "(0 episodios)" sería peor que no decirlo.
+    extra = "; trayendo episodios…" if item.is_episodic and external_source else ""
     return redirect_flash("/catalogo", '"%s" añadido a %s%s' % (title, destino, extra))
 
 
