@@ -1,0 +1,32 @@
+# Las dependencias van pinneadas, que está bien, pero sin nadie que las suba se
+# quedan congeladas. Esta app lo demostró: la primera pasada de pip-audit
+# encontró 19 vulnerabilidades conocidas en tres paquetes, dos de ellos en el
+# camino de cada petición HTTP (ver MC-X3).
+#
+# Agrupadas en un solo PR semanal a propósito: ocho dependencias sueltas serían
+# ocho PRs que nadie mira, y el CI ya construye la imagen, la levanta contra una
+# base vieja y comprueba las rutas, así que un grupo entero se valida de una
+# vez. Los saltos de versión mayor van aparte, porque esos sí hay que leerlos.
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      # Sin prefijos tipo Conventional Commits: no se usan en este repo.
+      prefix: "Actualizar"
+    groups:
+      menores:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # El propio CI: una acción abandonada es tan problema como una librería vieja.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "Actualizar"
