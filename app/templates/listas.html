@@ -15,10 +15,10 @@
 <section class="card">
     <h3>{{ icon("refresh-cw") }} Vistas automáticas</h3>
     <div class="grid-summary">
-        {% for l in dinamicas %}
-        <a href="/listas/{{ l.id }}" class="card list-tile">
-            <strong>{{ l.name }}</strong>
-            <span class="subtle">{{ l.item_count }} ítem{{ "s" if l.item_count != 1 else "" }}</span>
+        {% for d in dinamicas %}
+        <a href="/listas/{{ d.lista.id }}" class="card list-tile">
+            <strong>{{ d.lista.name }}</strong>
+            <span class="subtle">{{ d.total }} ítem{{ "s" if d.total != 1 else "" }}</span>
         </a>
         {% endfor %}
     </div>

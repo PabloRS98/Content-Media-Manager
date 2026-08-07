@@ -7,6 +7,7 @@ se calcula en vivo por `MediaItem.status`, no se guarda como una relación:
 ver `seed_smart_lists()`.
 """
 from fastapi import APIRouter, Depends, Form, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
@@ -46,9 +47,21 @@ def seed_smart_lists(db: Session) -> None:
 
 @router.get("/listas")
 def list_lists(request: Request, db: Session = Depends(get_db)):
-    dinamicas = db.query(Lista).filter(Lista.filtro_estado.isnot(None)).order_by(Lista.id).all()
-    for lista in dinamicas:
-        lista.item_count = db.query(MediaItem).filter(MediaItem.status == MediaStatus(lista.filtro_estado)).count()
+    # Un COUNT agrupado, no uno por lista. Y el resultado va en un diccionario
+    # aparte en vez de inyectarse como atributo en los objetos del ORM: eso
+    # último funcionaba, pero `item_count` no existe en el modelo, así que
+    # cualquier `db.refresh()` o expiración de sesión lo borraba sin avisar --
+    # y con StrictUndefined (MC-M16) eso ya no falla en silencio, revienta la
+    # página. Además podría colisionar con una columna futura del mismo nombre.
+    conteos = dict(
+        db.query(MediaItem.status, func.count(MediaItem.id))
+        .group_by(MediaItem.status).all()
+    )
+    dinamicas = [
+        {"lista": lista, "total": conteos.get(MediaStatus(lista.filtro_estado), 0)}
+        for lista in db.query(Lista).filter(Lista.filtro_estado.isnot(None))
+        .order_by(Lista.id).all()
+    ]
     manuales = db.query(Lista).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
     return templates.TemplateResponse(request, "listas.html", {"dinamicas": dinamicas, "listas": manuales})
 

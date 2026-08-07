@@ -2,6 +2,7 @@
 cruza título+año contra TMDB (pelis/series), Open Library (libros) y RAWG (juegos)
 para rellenar cover_url, y de paso géneros y sinopsis si faltan."""
 import logging
+import re
 import threading
 import time
 
@@ -11,6 +12,22 @@ from ..models import MediaItem, MediaType
 from . import googlebooks, metadata, openlibrary, rawg, tmdb, wikipedia_covers
 
 logger = logging.getLogger(__name__)
+
+# Limpieza de títulos de importación: Goodreads trae cosas como
+# "The Well of Ascension (Mistborn, #2)" y los CSV a veces "[edición X]".
+# Compilados a nivel de módulo: `clean()` se llama una vez por candidato de
+# cada resultado, así que el import estaba dentro de una función anidada que
+# se ejecuta cientos de veces por lote.
+_RE_PARENTESIS = re.compile(r"\(.*?\)")
+_RE_CORCHETES = re.compile(r"\[.*?\]")
+
+
+def _limpiar_titulo(texto: str) -> str:
+    """Quita paréntesis y corchetes. La misma limpieza que hacían por
+    separado `_search_for` y `_pick_match.clean`, con el regex escrito dos
+    veces en cada sitio."""
+    sin_adornos = _RE_CORCHETES.sub("", _RE_PARENTESIS.sub("", texto or ""))
+    return " ".join(sin_adornos.split()).strip()
 
 BATCH_SIZE = 30  # ítems por ejecución, para respetar los límites de las APIs gratuitas
 SLEEP_BETWEEN = 0.7
@@ -29,11 +46,7 @@ def _search_for(item: MediaItem) -> list[dict]:
     if item.media_type == MediaType.SERIE:
         return tmdb.search_tv(item.title, limit=3, year=item.year)
     if item.media_type == MediaType.LIBRO:
-        import re
-        # Limpieza de títulos de Goodreads (ej. "The Well of Ascension (Mistborn, #2)")
-        cleaned_title = re.sub(r'\(.*?\)', '', item.title)
-        cleaned_title = re.sub(r'\[.*?\]', '', cleaned_title)
-        cleaned_title = " ".join(cleaned_title.split()).strip()
+        cleaned_title = _limpiar_titulo(item.title)
         query_str = cleaned_title if len(cleaned_title) > 2 else item.title
         
         # Añadir autor a la consulta para mayor precisión si existe
@@ -83,10 +96,7 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
     (no como filtro: sigue aceptando el primero compatible si ninguno coincide
     en año, en vez de devolver nada)."""
     def clean(s: str) -> str:
-        import re
-        s_clean = re.sub(r'\(.*?\)', '', s or '')
-        s_clean = re.sub(r'\[.*?\]', '', s_clean)
-        return "".join(c for c in s_clean.lower() if c.isalnum())
+        return "".join(c for c in _limpiar_titulo(s).lower() if c.isalnum())
 
     with_cover = [r for r in results if r.get("cover_url")]
     if not with_cover:
@@ -128,34 +138,25 @@ def enrich_missing_covers(db: Session) -> dict:
 
     found = 0
     for item in batch:
+        # El try envuelve el ítem ENTERO, no solo la búsqueda. Antes solo
+        # cubría `_pick_match(_search_for(item))`, así que un fallo dentro de
+        # `metadata.enrich_item` (más abajo) rompía el lote completo y se
+        # perdían las portadas ya encontradas.
         try:
             match = _pick_match(item, _search_for(item))
+            _aplicar_coincidencia(db, item, match)
+            if match:
+                found += 1
+            # Commit por ítem: el lote tarda de 21 s a varios minutos, y si el
+            # proceso muere a mitad --un restart, un OOM, un despliegue-- se
+            # perdían las 29 portadas ya encontradas, con sus peticiones a APIs
+            # que tienen cuota. Commitear en SQLite con WAL es barato, y aquí
+            # se compite con peticiones HTTP de 700 ms.
+            db.commit()
         except Exception:
             logger.exception("Fallo enriqueciendo '%s'", item.title)
-            match = None
-
-        if match:
-            if match.get("title") and match["title"].strip() and match["title"].strip().lower() != item.title.lower():
-                item.title = match["title"].strip()
-            item.cover_url = match.get("cover_url")
-            if not item.genres and match.get("genres"):
-                item.genres = match["genres"]
-            if not item.overview and match.get("overview"):
-                item.overview = match["overview"]
-            if not item.year and match.get("year"):
-                item.year = match["year"]
-            if item.media_type in (MediaType.PELICULA, MediaType.SERIE) and match.get("external_id"):
-                # La portada vino de TMDB: aprovechamos el mismo id para traer
-                # también duración, reparto y (en series) episodios. Sin esto,
-                # un ítem importado de IMDb (external_source="imdb") se queda sin
-                # esos datos para siempre, porque solo se enriquecen los ítems
-                # con external_source="tmdb" (metadata.enrich_item los ignora).
-                item.external_source = "tmdb"
-                item.external_id = match["external_id"]
-                metadata.enrich_item(db, item)
-            found += 1
+            db.rollback()
         time.sleep(SLEEP_BETWEEN)
-    db.commit()
 
     return {
         "procesados": len(batch),
@@ -164,6 +165,30 @@ def enrich_missing_covers(db: Session) -> dict:
         # coincidencia sigue sin portada y no puede desaparecer de la cuenta.
         "restantes": max(0, total_missing - found),
     }
+
+
+def _aplicar_coincidencia(db: Session, item: MediaItem, match: dict | None) -> None:
+    """Vuelca en el ítem lo que traiga la coincidencia, si hay alguna."""
+    if not match:
+        return
+    if match.get("title") and match["title"].strip() and match["title"].strip().lower() != item.title.lower():
+        item.title = match["title"].strip()
+    item.cover_url = match.get("cover_url")
+    if not item.genres and match.get("genres"):
+        item.genres = match["genres"]
+    if not item.overview and match.get("overview"):
+        item.overview = match["overview"]
+    if not item.year and match.get("year"):
+        item.year = match["year"]
+    if item.media_type in (MediaType.PELICULA, MediaType.SERIE) and match.get("external_id"):
+        # La portada vino de TMDB: aprovechamos el mismo id para traer
+        # también duración, reparto y (en series) episodios. Sin esto,
+        # un ítem importado de IMDb (external_source="imdb") se queda sin
+        # esos datos para siempre, porque solo se enriquecen los ítems
+        # con external_source="tmdb" (metadata.enrich_item los ignora).
+        item.external_source = "tmdb"
+        item.external_id = match["external_id"]
+        metadata.enrich_item(db, item)
 
 
 # ---------- Versión para BackgroundTasks (ver M9 en docs/AUDITORIA.md) ----------
