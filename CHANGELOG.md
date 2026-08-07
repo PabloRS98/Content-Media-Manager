@@ -98,6 +98,9 @@ each entry below names the id it closes.
   healthcheck could even answer. It's now recorded as done in a small `app_meta`
   table — which is also the first step towards knowing what schema version a
   database is on.
+- **[MC-M9]** The episode-alert job issued one extra query per episode: its
+  `join` filtered but didn't load the relationship, so every title read hit the
+  database again. Measured: 21 queries for 20 pending episodes, now 2.
 
 ### Changed
 
