@@ -46,3 +46,103 @@ jobs:
           curl -sf http://localhost:8000/salud
           docker logs smoke
           docker stop smoke
+
+  # Los fallos que este job caza no están en el código, así que ningún test
+  # unitario los ve: son de despliegue. El caso concreto es una base de datos
+  # anterior a Alembic, que es la que tiene cualquier instalación existente.
+  despliegue:
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir la imagen
+        run: docker build -t media-catalog:ci .
+
+      - name: Preparar una base anterior a Alembic
+        run: |
+          docker volume create datos-viejos
+          # Se crea con el esquema de la 1.0.0: sin tabla alembic_version,
+          # sin app_meta y sin las columnas que se añadieron después. Es lo
+          # que hay en cualquier instalación que venga de antes.
+          #
+          # `-i` es imprescindible: sin él, docker run no conecta stdin, y
+          # `python -` lee un programa vacío y sale con éxito sin hacer nada.
+          # Este job pasó en verde así una vez, comprobando una base recién
+          # creada en vez de una vieja.
+          #
+          # `--entrypoint python` salta docker-entrypoint.sh, que aplica las
+          # migraciones: sin eso, la base ya estaría migrada antes de que este
+          # script la tocara y no habría nada viejo que probar.
+          docker run --rm -i --entrypoint python -v datos-viejos:/data media-catalog:ci - <<'PY'
+          import sqlite3
+          c = sqlite3.connect("/data/media.db")
+          c.executescript("""
+            CREATE TABLE media_items (
+              id INTEGER PRIMARY KEY, media_type VARCHAR(20) NOT NULL,
+              title VARCHAR(255) NOT NULL, external_id VARCHAR(60),
+              external_source VARCHAR(20), cover_url VARCHAR(500),
+              year INTEGER, creator VARCHAR(255), overview TEXT,
+              status VARCHAR(20) NOT NULL, rating INTEGER, notes TEXT,
+              progress_current FLOAT, progress_total FLOAT,
+              progress_unit VARCHAR(20),
+              created_at DATETIME, updated_at DATETIME);
+            CREATE TABLE listas (
+              id INTEGER PRIMARY KEY, name VARCHAR(100) UNIQUE, created_at DATETIME);
+            CREATE TABLE tags (id INTEGER PRIMARY KEY, name VARCHAR(50) UNIQUE);
+            CREATE TABLE list_items (list_id INTEGER, media_item_id INTEGER,
+              PRIMARY KEY (list_id, media_item_id));
+            CREATE TABLE media_item_tags (media_item_id INTEGER, tag_id INTEGER,
+              PRIMARY KEY (media_item_id, tag_id));
+            CREATE TABLE episodes (
+              id INTEGER PRIMARY KEY, item_id INTEGER NOT NULL,
+              season_number INTEGER, episode_number INTEGER, name VARCHAR(255),
+              overview TEXT, air_date DATE, runtime_minutes INTEGER,
+              watched BOOLEAN, watched_at DATETIME);
+            INSERT INTO media_items (media_type, title, status, overview, created_at, updated_at)
+              VALUES ('libro', 'Un libro de antes', 'completado', '', '2026-01-01', '2026-01-01');
+          """)
+          c.commit()
+          print("base de la 1.0.0 creada")
+          PY
+
+      - name: Comprobar que la base de partida es la que se cree
+        run: |
+          docker run --rm -i --entrypoint python -v datos-viejos:/data media-catalog:ci - <<'PY'
+          import sqlite3
+          c = sqlite3.connect("/data/media.db")
+          tablas = {r[0] for r in c.execute("select name from sqlite_master where type='table'")}
+          assert "alembic_version" not in tablas, "la base de partida ya está migrada"
+          assert "app_meta" not in tablas, "la base de partida no es de la 1.0.0"
+          n = list(c.execute("select count(*) from media_items"))[0][0]
+          assert n == 1, "la base de partida no tiene el ítem de prueba: %d filas" % n
+          print("base de partida correcta:", sorted(tablas))
+          PY
+
+      - name: Arrancar contra esa base y exigir que se ponga al día
+        run: |
+          docker run -d --name viejo -p 8000:8000 -v datos-viejos:/data media-catalog:ci
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/salud > /dev/null && break
+            sleep 1
+          done
+          docker logs viejo
+          # /salud devuelve 503 si el esquema no está al día, así que este
+          # curl es la comprobación: si la migración no corrió, falla aquí.
+          curl -sf http://localhost:8000/salud
+
+      - name: Comprobar que los datos siguen ahí y las rutas responden
+        run: |
+          for ruta in / /catalogo /listas /estadisticas /calendario /importar; do
+            echo "GET $ruta"
+            curl -sf -o /dev/null -w '%{http_code}\n' "http://localhost:8000$ruta" | grep -q '^200$'
+          done
+          docker exec viejo python -c "
+          import sqlite3
+          c = sqlite3.connect('/data/media.db')
+          n = list(c.execute('select count(*) from media_items'))[0][0]
+          assert n == 1, 'se perdieron datos al migrar: %d filas' % n
+          rev = list(c.execute('select version_num from alembic_version'))
+          print('filas intactas:', n, '| revision:', rev)
+          "
+          docker stop viejo

@@ -1,7 +1,17 @@
 """Motor y sesión de SQLAlchemy sobre SQLite, con migración ligera de columnas."""
 import os
 
-from sqlalchemy import Column, String, Table, create_engine, delete, event, insert, select
+from sqlalchemy import (
+    Column,
+    String,
+    Table,
+    create_engine,
+    delete,
+    event,
+    insert,
+    inspect,
+    select,
+)
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -67,13 +77,18 @@ def get_db():
         db.close()
 
 
-def ensure_columns(table: str, columns: dict[str, str]) -> list[str]:
-    """Migración mínima sin Alembic: añade a `table` las columnas de `columns`
-    ({nombre: DDL}) que aún no existan, con ALTER TABLE ADD COLUMN.
-    Solo para columnas nullable/con default: no rompe bases de datos existentes.
-    Devuelve la lista de columnas añadidas."""
+def ensure_columns(table: str, columns: dict[str, str], bind=None) -> list[str]:
+    """Añade a `table` las columnas de `columns` ({nombre: DDL}) que aún no
+    existan, con ALTER TABLE ADD COLUMN. Solo para columnas nullable/con
+    default: no rompe bases de datos existentes. Devuelve las que añadió.
+
+    Ya NO es el mecanismo general de migración: eso es Alembic desde MC-M4.
+    Se conserva solo para el camino de reconciliación de `init_db`, que tiene
+    que completar una base anterior a Alembic antes de marcarla.
+
+    `bind` permite apuntar a otro motor (los tests migran bases temporales)."""
     added: list[str] = []
-    with engine.begin() as conn:
+    with (bind or engine).begin() as conn:
         existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
         for name, ddl in columns.items():
             if name not in existing:
@@ -99,24 +114,17 @@ def ensure_columns(table: str, columns: dict[str, str]) -> list[str]:
 # vez por carga; el coste en escrituras no compensa. Queda medido y descartado
 # a propósito, no olvidado.
 #
-# Van con CREATE INDEX IF NOT EXISTS porque `ensure_columns` solo sabe hacer
-# ADD COLUMN. Cuando entre Alembic (MC-M4), esto se convierte en la primera
-# migración real y esta función desaparece.
+# Los índices se crean ahora en una migración de Alembic
+# (`migrations/versions/*_indices_de_filtrado.py`). La lista se conserva aquí
+# como fuente única para los tests, que comprueban que el esquema los tiene.
 INDICES = (
-    "CREATE INDEX IF NOT EXISTS ix_media_items_status ON media_items (status)",
-    "CREATE INDEX IF NOT EXISTS ix_media_items_tipo_estado ON media_items (media_type, status)",
-    "CREATE INDEX IF NOT EXISTS ix_media_items_external_id ON media_items (external_id)",
-    "CREATE INDEX IF NOT EXISTS ix_media_items_completed_at ON media_items (completed_at)",
-    "CREATE INDEX IF NOT EXISTS ix_media_items_updated_at ON media_items (updated_at)",
-    "CREATE INDEX IF NOT EXISTS ix_episodes_air_date ON episodes (air_date)",
+    ("ix_media_items_status", "media_items", ["status"]),
+    ("ix_media_items_tipo_estado", "media_items", ["media_type", "status"]),
+    ("ix_media_items_external_id", "media_items", ["external_id"]),
+    ("ix_media_items_completed_at", "media_items", ["completed_at"]),
+    ("ix_media_items_updated_at", "media_items", ["updated_at"]),
+    ("ix_episodes_air_date", "episodes", ["air_date"]),
 )
-
-
-def crear_indices(bind=None) -> None:
-    """Crea los índices que falten. Idempotente: corre en cada arranque."""
-    with (bind or engine).begin() as conn:
-        for sentencia in INDICES:
-            conn.exec_driver_sql(sentencia)
 
 
 def limpiar_filas_huerfanas(bind=None) -> dict[str, int]:
@@ -141,12 +149,20 @@ def limpiar_filas_huerfanas(bind=None) -> dict[str, int]:
     return borradas
 
 
-def init_db():
-    from . import models  # noqa: F401  asegura que los modelos queden registrados
+# Primera revisión de Alembic: describe el esquema tal y como quedó en la 1.0.0
+# más lo que la segunda auditoría añadió antes de este cambio.
+REVISION_INICIAL = "c3b3688bf8aa"
 
-    Base.metadata.create_all(bind=engine)
-    # Columnas añadidas después de la v1 (bases de datos ya desplegadas)
-    ensure_columns("media_items", {
+# Columnas que se fueron añadiendo al modelo antes de que existiera Alembic.
+#
+# Solo se usan para reconciliar una base anterior a Alembic: esas bases se
+# crearon con `create_all()`, que no altera tablas ya existentes, así que a cada
+# una le falta todo lo que se añadiera después de su creación. Antes de marcarla
+# en REVISION_INICIAL hay que completarlas, porque esa revisión afirma que la
+# tabla ya tiene estas columnas. Si no, la app arranca y revienta en la primera
+# consulta con "no such column: ...". Lo vigila tests/test_migraciones.py.
+COLUMNAS_PRE_ALEMBIC: dict[str, dict[str, str]] = {
+    "media_items": {
         "completed_at": "DATE",
         "genres": "VARCHAR(255)",
         # v3
@@ -159,12 +175,77 @@ def init_db():
         "saga": "VARCHAR(120)",
         "release_date": "DATE",
         "release_notified": "BOOLEAN DEFAULT 0",
-    })
-    ensure_columns("episodes", {
+    },
+    "episodes": {
         "notified": "BOOLEAN DEFAULT 0",
-    })
-    ensure_columns("listas", {
+    },
+    "listas": {
         "filtro_estado": "VARCHAR(20)",
-    })
-    crear_indices()
-    limpiar_filas_huerfanas()
+    },
+}
+
+
+def _config_alembic(target):
+    from alembic.config import Config
+
+    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config = Config(os.path.join(raiz, "alembic.ini"))
+    config.set_main_option("script_location", os.path.join(raiz, "migrations"))
+    config.set_main_option("sqlalchemy.url", target.url.render_as_string(hide_password=False))
+    return config
+
+
+def revision_pendiente(bind=None) -> tuple[str | None, str | None]:
+    """(revisión de la BD, revisión objetivo). Iguales = esquema al día.
+
+    Solo lee `alembic_version`, sin abrir transacción de escritura ni tocar el
+    DDL, así que es seguro llamarlo desde el arranque del servidor: es la
+    diferencia con `init_db()`, que sí puede quedarse esperando un lock."""
+    from alembic.runtime.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    target = bind or engine
+    with target.connect() as conn:
+        actual = MigrationContext.configure(conn).get_current_revision()
+    head = ScriptDirectory.from_config(_config_alembic(target)).get_current_head()
+    return actual, head
+
+
+def init_db(bind=None):
+    """Deja el esquema al día aplicando las migraciones pendientes de Alembic.
+
+    Alembic sustituye a `ensure_columns` como mecanismo general: aquel solo
+    sabía hacer ADD COLUMN, no podía crear índices ni cambiar tipos ni llevar
+    registro de en qué versión está una base.
+
+    Una base anterior a Alembic no tiene tabla `alembic_version`, así que
+    `upgrade` la trataría como vacía e intentaría crear tablas que ya existen.
+    Se detecta y se marca en la revisión inicial, completándole antes lo que le
+    falte para que la marca no mienta:
+
+    - `create_all(checkfirst=True)` crea las TABLAS que falten sin tocar las que
+      ya están. Hace falta porque no todas las bases desplegadas llegan aquí
+      desde el mismo punto: una que venga de la 1.0.0 no tiene `app_meta`.
+    - `ensure_columns` completa las COLUMNAS que falten, que es lo que
+      `create_all` no hace.
+
+    Es automático a propósito: pedir un `alembic stamp` a mano deja la app rota
+    hasta que alguien lo recuerde.
+    """
+    from alembic import command
+
+    from . import models  # noqa: F401  asegura que los modelos queden registrados
+
+    target = bind or engine
+    config = _config_alembic(target)
+
+    tablas = set(inspect(target).get_table_names())
+    if "media_items" in tablas and "alembic_version" not in tablas:
+        Base.metadata.create_all(bind=target, checkfirst=True)
+        for tabla, columnas in COLUMNAS_PRE_ALEMBIC.items():
+            if tabla in tablas:
+                ensure_columns(tabla, columnas, target)
+        command.stamp(config, REVISION_INICIAL)
+
+    command.upgrade(config, "head")
+    limpiar_filas_huerfanas(target)

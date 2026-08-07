@@ -11,6 +11,7 @@ from sqlalchemy import (
     Enum as SAEnum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
@@ -102,11 +103,19 @@ class Lista(Base):
 
 class MediaItem(Base):
     __tablename__ = "media_items"
+    __table_args__ = (
+        # Cubre el caso más común del catálogo --filtrar por pestaña y estado a
+        # la vez-- y sirve también para las consultas que solo filtran por
+        # media_type, porque es su primera columna. Ver MC-M1: elegido midiendo
+        # con EXPLAIN QUERY PLAN, no a ojo.
+        Index("ix_media_items_tipo_estado", "media_type", "status"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     media_type: Mapped[MediaType] = mapped_column(SAEnum(MediaType, values_callable=_by_value))
     title: Mapped[str] = mapped_column(String(255))
-    external_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # index: se consulta una vez por fila al importar un CSV de IMDb.
+    external_id: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
     external_source: Mapped[str | None] = mapped_column(String(20), nullable=True)  # tmdb|openlibrary|rawg|imdb|itunes
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -114,8 +123,10 @@ class MediaItem(Base):
     overview: Mapped[str] = mapped_column(Text, default="")
     cast: Mapped[str | None] = mapped_column(Text, nullable=True)  # reparto principal, separado por coma
 
+    # index: la portada hace ocho consultas filtradas por estado en cada visita.
     status: Mapped[MediaStatus] = mapped_column(
-        SAEnum(MediaStatus, values_callable=_by_value), default=MediaStatus.PENDIENTE
+        SAEnum(MediaStatus, values_callable=_by_value), default=MediaStatus.PENDIENTE,
+        index=True,
     )
     priority: Mapped[Priority] = mapped_column(
         SAEnum(Priority, values_callable=_by_value), default=Priority.MEDIA
@@ -133,7 +144,8 @@ class MediaItem(Base):
     page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)       # libros
     hltb_hours: Mapped[float | None] = mapped_column(Float, nullable=True)        # juegos (HowLongToBeat)
 
-    completed_at: Mapped[date | None] = mapped_column(Date, nullable=True)  # fecha de completado (estadísticas)
+    # index: lo filtran la portada y cuatro consultas de estadísticas.
+    completed_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)  # fecha de completado (estadísticas)
     genres: Mapped[str | None] = mapped_column(String(255), nullable=True)  # géneros separados por coma
 
     # Saga/franquicia: nombre editable (manual) + id de colección de TMDB (automático)
@@ -160,7 +172,9 @@ class MediaItem(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    # index: es el ORDER BY por defecto del catálogo. No evita el recorrido,
+    # pero sí el TEMP B-TREE de ordenar el resultado aparte.
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow, index=True)
 
     @property
     def is_episodic(self) -> bool:
@@ -199,7 +213,8 @@ class Episode(Base):
     episode_number: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     overview: Mapped[str] = mapped_column(Text, default="")
-    air_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # index: lo filtran "Próximamente" de la portada y el job de avisos.
+    air_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     runtime_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     watched: Mapped[bool] = mapped_column(Boolean, default=False)

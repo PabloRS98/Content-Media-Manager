@@ -5,12 +5,20 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
 from .config import ENV_FILE, settings
 from .csrf import CSRFProtectionMiddleware
-from .database import CLAVE_BACKFILL_V2, SessionLocal, escribir_meta, init_db, leer_meta
+from .database import (
+    CLAVE_BACKFILL_V2,
+    SessionLocal,
+    escribir_meta,
+    get_db,
+    leer_meta,
+    revision_pendiente,
+)
 from .routers import catalog, home, imdb_import, lists
 
 logging.basicConfig(level=logging.INFO)
@@ -93,10 +101,34 @@ def backfill_v2_columns() -> None:
     escribir_meta(CLAVE_BACKFILL_V2, datetime.now(UTC).isoformat(timespec="seconds"))
 
 
+def avisar_si_el_esquema_esta_desactualizado() -> None:
+    """Comprueba la revisión del esquema, sin aplicarla.
+
+    Las migraciones NO se aplican aquí: las corre el entrypoint del contenedor
+    antes de levantar uvicorn. Ejecutar `alembic upgrade` dentro del lifespan
+    puede quedarse esperando un lock de SQLite y dejar el arranque colgado sin
+    decir por qué; en el entrypoint no hay servidor ni scheduler tocando la
+    base todavía. Aquí solo se lee `alembic_version`, que no bloquea.
+    """
+    try:
+        actual, head = revision_pendiente()
+    except Exception:
+        logger.exception("No se pudo comprobar la revisión del esquema")
+        return
+    if actual == head:
+        return
+    logger.error(
+        "La base de datos está en la revisión %s y el código espera %s. "
+        "Arranca con el entrypoint del contenedor o ejecuta 'alembic upgrade head'; "
+        "hasta entonces habrá errores de columna inexistente.",
+        actual or "sin marcar", head,
+    )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     avisar_si_no_hay_autenticacion(settings.enable_auth)
-    init_db()
+    avisar_si_el_esquema_esta_desactualizado()
     try:
         backfill_v2_columns()
     except Exception:
@@ -165,6 +197,44 @@ app.include_router(imdb_import.router)
 app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent / "static"), name="static")
 
 
+def _problemas_para_servir(db: Session) -> list[str]:
+    """Lo que impediría a la app pintar páginas, comprobado de verdad.
+
+    No basta con "el proceso responde": el fallo que este healthcheck existe
+    para cazar es un esquema desactualizado, que deja la app viva devolviendo
+    500 en todas las vistas. Por eso también se consulta un `MediaItem` con el
+    ORM, que emite un SELECT con todas las columnas mapeadas y revienta igual
+    que reventarían las páginas.
+    """
+    problemas = []
+    try:
+        actual, head = revision_pendiente(db.get_bind())
+        if actual != head:
+            problemas.append("esquema desactualizado")
+    except Exception:
+        logger.exception("Healthcheck: no se pudo leer la revisión del esquema")
+        problemas.append("esquema ilegible")
+
+    try:
+        from .models import MediaItem
+        db.query(MediaItem).limit(1).all()
+    except Exception:
+        logger.exception("Healthcheck: la consulta de prueba falló")
+        problemas.append("consulta de prueba fallida")
+    return problemas
+
+
 @app.get("/salud")
-def health():
+def health(response: Response, db: Session = Depends(get_db)):
+    """Healthcheck del contenedor: sin auth a propósito (Docker no manda credenciales).
+
+    Devuelve 503 si la app no puede servir páginas, para que Docker marque el
+    contenedor como `unhealthy` en vez de dar por bueno un proceso vivo que
+    responde 500 a todo. El detalle va al log, no a la respuesta: esta ruta no
+    pide credenciales.
+    """
+    problemas = _problemas_para_servir(db)
+    if problemas:
+        response.status_code = 503
+        return {"status": "degradado", "problemas": problemas}
     return {"status": "ok"}

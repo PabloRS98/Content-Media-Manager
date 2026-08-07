@@ -6,6 +6,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# Las migraciones las aplica el entrypoint antes de arrancar uvicorn, así que
+# tienen que estar dentro de la imagen.
+COPY alembic.ini ./alembic.ini
+COPY migrations ./migrations
 
 # Usuario sin privilegios: sin esto el proceso corre como root y los ficheros
 # de /data (la base de datos y los backups) quedan a nombre de root en el
