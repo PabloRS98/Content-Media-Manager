@@ -26,12 +26,20 @@ def avisar_si_no_hay_autenticacion(enable_auth: bool) -> None:
     defecto (false) sin que nada falle. Los síntomas visibles de ese caso son
     otros --"no encuentra películas", "no llegan los avisos"--, así que sin este
     aviso la causa real no aparece por ninguna parte.
+
+    Se dice si el fichero existe o no, que es el dato que hace falta para
+    distinguir los dos casos. Nombrar la ruta a secas manda a mirar donde
+    normalmente no hay nada: en Docker la configuración llega como variables de
+    entorno desde el `env_file` del compose, y `/app/.env` no existe dentro del
+    contenedor porque el Dockerfile no lo copia.
     """
     if not enable_auth:
         logger.warning(
             "ENABLE_AUTH está desactivado: la aplicación no pide credenciales. "
-            "Si no era la intención, comprueba que se está leyendo el .env (%s).",
+            "Si no era la intención, revisa la configuración: %s %s, y en Docker "
+            "los valores llegan por el env_file del compose, no de ese fichero.",
             ENV_FILE,
+            "existe" if ENV_FILE.exists() else "NO existe",
         )
 
 
