@@ -95,7 +95,9 @@ class Lista(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     filtro_estado: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    items: Mapped[list["MediaItem"]] = relationship(secondary=list_items, order_by="MediaItem.title")
+    items: Mapped[list["MediaItem"]] = relationship(
+        secondary=list_items, order_by="MediaItem.title", back_populates="listas"
+    )
 
 
 class MediaItem(Base):
@@ -143,6 +145,15 @@ class MediaItem(Base):
     release_notified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     tags: Mapped[list["Tag"]] = relationship(secondary=media_item_tags)
+    # La relación inversa de Lista.items existe para que SQLAlchemy sepa
+    # limpiar `list_items` al borrar un ítem. Declarada solo del lado de Lista,
+    # no lo sabía, y cada ítem borrado dejaba una fila muerta: SQLite reasigna
+    # los ids de media_items (no hay AUTOINCREMENT), así que un ítem nuevo
+    # podía recibir el id de uno borrado y aparecer en las listas del anterior.
+    # SQLite tampoco aplica las FK sin PRAGMA foreign_keys=ON, que no se activa.
+    listas: Mapped[list["Lista"]] = relationship(
+        secondary=list_items, back_populates="items"
+    )
     episodes: Mapped[list["Episode"]] = relationship(
         back_populates="item", cascade="all, delete-orphan",
         order_by="Episode.season_number, Episode.episode_number",
