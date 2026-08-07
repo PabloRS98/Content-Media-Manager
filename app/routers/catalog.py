@@ -6,13 +6,22 @@ from math import ceil
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
-from sqlalchemy import extract, func, or_
+from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
-from ..models import Episode, Lista, MediaItem, MediaStatus, MediaType, Priority, Tag
+from ..models import (
+    Episode,
+    Lista,
+    MediaItem,
+    MediaStatus,
+    MediaType,
+    Priority,
+    Tag,
+    media_item_tags,
+)
 from ..security import safe_external_url
 from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
@@ -277,6 +286,23 @@ def list_catalog(
     })
 
 
+def borrar_etiquetas_huerfanas(db: Session) -> int:
+    """Borra las etiquetas que ya no usa ningún ítem. Devuelve cuántas.
+
+    Nada las borraba: al quitar la última "documental" de todos los ítems, la
+    fila seguía ahí para siempre. La tabla crecía monótonamente y un día una
+    nube de etiquetas o un autocompletado ofrecería etiquetas que ya no usa
+    nadie. Se hace aquí, tras guardar, porque son pocas filas y es el único
+    momento en el que una etiqueta puede quedarse sin uso.
+    """
+    huerfanas = db.query(Tag).filter(~Tag.id.in_(select(media_item_tags.c.tag_id))).all()
+    for tag in huerfanas:
+        db.delete(tag)
+    if huerfanas:
+        db.commit()
+    return len(huerfanas)
+
+
 def enriquecer_en_segundo_plano(item_id: int) -> None:
     """Enriquece un ítem recién creado, fuera del ciclo petición-respuesta.
 
@@ -519,17 +545,19 @@ def update_item(
     item.progress_unit = progress_unit.strip() or None
     item.updated_at = _utcnow()
 
+    # Una sola consulta para todas las etiquetas, no una por etiqueta.
+    # `Tag.name` es unique, así que cada una era rápida; el problema no era el
+    # coste sino que fueran N round-trips.
     tag_names = [t.strip() for t in tags.split(",") if t.strip()]
-    tag_objs = []
-    for name in tag_names:
-        tag = db.query(Tag).filter(Tag.name == name).first()
-        if not tag:
-            tag = Tag(name=name)
-            db.add(tag)
-            db.flush()
-        tag_objs.append(tag)
+    existentes = {
+        t.name: t for t in db.query(Tag).filter(Tag.name.in_(tag_names)).all()
+    } if tag_names else {}
+    tag_objs = [existentes.get(n) or Tag(name=n) for n in tag_names]
+    db.add_all([t for t in tag_objs if t.id is None])
     item.tags = tag_objs
     db.commit()
+
+    borrar_etiquetas_huerfanas(db)
     return redirect_flash("/item/%d" % item.id, '"%s" actualizado' % item.title)
 
 
