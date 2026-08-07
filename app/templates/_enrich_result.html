@@ -1,17 +1,36 @@
+{# Estado del lote de portadas. Se pide al lanzarlo y luego cada 3 s hasta que
+   termina: el trabajo corre en segundo plano, así que la única forma de saber
+   si acabó es preguntar. Antes el mensaje decía "vuelve en un minuto y
+   recarga", que es una forma educada de no saberlo. #}
 {% from "_icons.html" import icon %}
-<div class="toolbar" style="gap:.5rem">
-    {% if procesados == 0 %}
+<div class="toolbar" style="gap:.5rem"
+     {% if corriendo %}
+     hx-get="/importar/estado-portadas"
+     hx-trigger="every 3s"
+     hx-target="#enrich-result"
+     hx-swap="innerHTML"
+     {% endif %}>
+    {% if corriendo %}
+    <span class="tag">{{ icon("refresh-cw", 13) }} Buscando portadas en segundo plano…</span>
+    <span class="subtle">Esta línea se actualiza sola al terminar.</span>
+
+    {% elif resultado %}
+    {% if resultado.procesados == 0 %}
     <span class="tag positive">{{ icon("circle-check", 13) }} No queda ningún ítem sin portada</span>
     {% else %}
-    <span class="tag positive">{{ icon("circle-check", 13) }} {{ encontrados }} portadas encontradas</span>
-    <span class="tag">{{ procesados }} procesados</span>
-    {% if restantes > 0 %}
-    <span class="tag warning">{{ restantes }} aún sin portada</span>
+    <span class="tag positive">{{ icon("circle-check", 13) }} {{ resultado.encontrados }} portadas encontradas</span>
+    <span class="tag">{{ resultado.procesados }} procesados</span>
+    {% if resultado.restantes > 0 %}
+    <span class="tag warning">{{ resultado.restantes }} aún sin portada</span>
     <button type="button" class="small"
             hx-post="/importar/completar-portadas" hx-target="#enrich-result" hx-swap="innerHTML"
             hx-indicator="#enrich-spinner">
         {{ icon("refresh-cw", 13) }} Procesar siguiente lote
     </button>
     {% endif %}
+    {% endif %}
+
+    {% else %}
+    <span class="subtle">No hay ninguna búsqueda de portadas en marcha.</span>
     {% endif %}
 </div>

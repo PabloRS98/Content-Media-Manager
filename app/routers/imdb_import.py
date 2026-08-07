@@ -7,13 +7,17 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
-from ..database import get_db
+from ..database import SessionLocal, get_db
 from ..models import MediaItem, MediaStatus, MediaType
-from ..services.enrich import enrich_missing_covers
+from ..services.enrich import (
+    enrich_missing_covers_en_segundo_plano,
+    estado_actual,
+    reservar_lote,
+)
 from ..services.imports import import_books_csv, import_games_csv
 from ..templating import templates
 
@@ -242,7 +246,28 @@ async def import_games(request: Request, archivo: UploadFile = File(...), db: Se
 
 
 @router.post("/importar/completar-portadas")
-def fill_covers(request: Request, db: Session = Depends(get_db)):
-    """Procesa un lote de ítems sin portada (fragmento HTMX con el resultado)."""
-    result = enrich_missing_covers(db)
-    return templates.TemplateResponse(request, "_enrich_result.html", result)
+def fill_covers(request: Request, background_tasks: BackgroundTasks):
+    """Lanza un lote de ítems sin portada y devuelve el fragmento de estado.
+
+    Antes procesaba el lote entero aquí dentro: BATCH_SIZE=30 x
+    SLEEP_BETWEEN=0.7s son 21 s mínimo, y más de 2 minutos con las APIs lentas.
+    Como es un `def` y no un `async def`, FastAPI lo ejecuta en el threadpool,
+    así que `time.sleep` bloqueaba un hilo del pool todo ese rato mientras el
+    usuario veía la petición colgada. `/catalogo/completar-portadas` ya lo había
+    resuelto; este endpoint, que hace exactamente lo mismo, se quedó fuera.
+
+    Tampoco consultaba el estado, así que se podía lanzar en paralelo con el
+    lote del otro endpoint: dos tandas sobre los mismos ítems, duplicando
+    peticiones a APIs gratuitas con cuota y arriesgando un 429.
+    """
+    if reservar_lote():
+        background_tasks.add_task(
+            enrich_missing_covers_en_segundo_plano, SessionLocal, ya_reservado=True
+        )
+    return templates.TemplateResponse(request, "_enrich_result.html", estado_actual())
+
+
+@router.get("/importar/estado-portadas")
+def covers_status(request: Request):
+    """Estado del lote, para que el fragmento se refresque solo."""
+    return templates.TemplateResponse(request, "_enrich_result.html", estado_actual())
