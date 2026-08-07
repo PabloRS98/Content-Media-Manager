@@ -65,7 +65,12 @@ jobs:
           # Se crea con el esquema de la 1.0.0: sin tabla alembic_version,
           # sin app_meta y sin las columnas que se añadieron después. Es lo
           # que hay en cualquier instalación que venga de antes.
-          docker run --rm -v datos-viejos:/data media-catalog:ci python - <<'PY'
+          #
+          # `-i` es imprescindible: sin él, docker run no conecta stdin, y
+          # `python -` lee un programa vacío y sale con éxito sin hacer nada.
+          # Este job pasó en verde así una vez, comprobando una base recién
+          # creada en vez de una vieja.
+          docker run --rm -i -v datos-viejos:/data media-catalog:ci python - <<'PY'
           import sqlite3
           c = sqlite3.connect("/data/media.db")
           c.executescript("""
@@ -95,6 +100,19 @@ jobs:
           """)
           c.commit()
           print("base de la 1.0.0 creada")
+          PY
+
+      - name: Comprobar que la base de partida es la que se cree
+        run: |
+          docker run --rm -i -v datos-viejos:/data media-catalog:ci python - <<'PY'
+          import sqlite3
+          c = sqlite3.connect("/data/media.db")
+          tablas = {r[0] for r in c.execute("select name from sqlite_master where type='table'")}
+          assert "alembic_version" not in tablas, "la base de partida ya está migrada"
+          assert "app_meta" not in tablas, "la base de partida no es de la 1.0.0"
+          n = list(c.execute("select count(*) from media_items"))[0][0]
+          assert n == 1, "la base de partida no tiene el ítem de prueba: %d filas" % n
+          print("base de partida correcta:", sorted(tablas))
           PY
 
       - name: Arrancar contra esa base y exigir que se ponga al día
