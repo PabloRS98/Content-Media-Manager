@@ -4,11 +4,15 @@ Los tests miran el plan de ejecución, no el tiempo: con la base de un test el
 reloj no distingue nada, y lo que hay que fijar es que SQLite *elija* el índice.
 Medido antes con `EXPLAIN QUERY PLAN` sobre una copia de la base real, donde 6
 de 8 consultas representativas pasaban de `SCAN` a `SEARCH ... USING INDEX`.
+
+Desde [MC-M4] los crea una migración de Alembic, no `init_db` a mano. Aquí se
+prueba el efecto (que SQLite los elija); que la migración los cree está en
+`test_migraciones.py`.
 """
 import pytest
 from sqlalchemy import text
 
-from app.database import INDICES, crear_indices
+from app.database import INDICES
 
 CONSULTAS_DEL_CATALOGO = {
     "catálogo por pestaña y estado":
@@ -26,7 +30,9 @@ CONSULTAS_DEL_CATALOGO = {
 
 @pytest.fixture
 def base_indexada(db):
-    crear_indices(db.get_bind())
+    """Los índices están declarados en los modelos, así que el `create_all` de
+    conftest ya los crea. La migración de Alembic existe para las bases YA
+    desplegadas, que no se recrean desde los modelos."""
     return db
 
 
@@ -50,21 +56,20 @@ def test_el_orden_por_defecto_no_ordena_en_memoria(base_indexada):
     assert "ix_media_items_updated_at" in p, p
 
 
-def test_crear_indices_es_idempotente(db):
-    """Corre en cada arranque: la segunda vez no debe fallar ni duplicar."""
-    crear_indices(db.get_bind())
-    crear_indices(db.get_bind())
+def test_los_indices_declarados_existen_tras_migrar(base_indexada):
+    """La lista de `app.database.INDICES` es la fuente para los tests; que
+    coincida con lo que crea la migración es lo que se comprueba aquí."""
     nombres = {
-        f[0] for f in db.execute(text(
+        f[0] for f in base_indexada.execute(text(
             "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'ix_%'"
         ))
     }
-    for sentencia in INDICES:
-        assert sentencia.split()[5] in nombres
+    for nombre, _, _ in INDICES:
+        assert nombre in nombres, nombre
 
 
-def test_init_db_crea_los_indices():
-    """No basta con que la función exista: tiene que llamarse al arrancar.
+def test_init_db_deja_los_indices_creados():
+    """No basta con que la migración exista: `init_db` tiene que aplicarla.
 
     Va contra el motor global, que en los tests apunta a una base desechable
     (conftest fija DB_PATH antes de importar nada de `app`).
@@ -78,5 +83,5 @@ def test_init_db_crea_los_indices():
                 "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'ix_%'"
             )
         }
-    for sentencia in INDICES:
-        assert sentencia.split()[5] in nombres
+    for nombre, _, _ in INDICES:
+        assert nombre in nombres, nombre

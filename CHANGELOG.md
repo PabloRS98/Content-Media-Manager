@@ -140,6 +140,17 @@ each entry below names the id it closes.
   than a relation — that's the underlying problem, and normalising it is its own
   piece of work.
 
+- **[MC-M4]** Real database migrations, with Alembic. The old `ensure_columns`
+  could only ever `ADD COLUMN` — no indexes, no type changes, and no record of
+  what version a database was on. It survives only to reconcile a pre-Alembic
+  database, which `init_db` now detects, completes and stamps automatically
+  before migrating. Migrations run in the container entrypoint before uvicorn
+  starts, not inside the app: `alembic upgrade` there could sit waiting on a
+  SQLite lock and hang startup without saying why.
+- **[MC-M4]** `/salud` now answers 503 when the schema is out of date or a probe
+  query fails, so Docker marks the container unhealthy instead of accepting a
+  live process that returns 500 on every page.
+
 ### Changed
 
 - **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing

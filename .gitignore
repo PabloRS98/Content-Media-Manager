@@ -38,3 +38,8 @@ docker-compose.override.yml
 .idea/
 *.swp
 *.swo
+
+# --- Alembic ---
+# Las cachés de las migraciones; los ficheros de versión SÍ se versionan.
+migrations/__pycache__/
+migrations/versions/__pycache__/

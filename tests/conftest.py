@@ -24,11 +24,12 @@ for _clave in ("TMDB_API_KEY", "RAWG_API_KEY", "GOOGLE_BOOKS_API_KEY",
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
+from alembic import command  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from app.database import Base, get_db  # noqa: E402
+from app.database import Base, _config_alembic, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType  # noqa: E402
 
@@ -57,14 +58,20 @@ def sin_red(monkeypatch):
 def db(tmp_path):
     """Sesión contra una base de datos SQLite nueva por test.
 
-    Se crea el esquema desde los modelos (no con `ensure_columns`): los modelos
-    son la fuente de verdad y así el test no depende del historial de migraciones.
+    Se crea el esquema desde los modelos y no aplicando las migraciones: los
+    modelos son la fuente de verdad y así los tests no dependen del historial de
+    Alembic ni pagan su coste en cada uno. Que las migraciones produzcan ese
+    mismo esquema es responsabilidad de `test_migraciones.py`, que sí las corre.
+
+    Se marca la revisión al día porque un esquema creado desde los modelos LO
+    ESTÁ, y `/salud` responde 503 si no lo está (ver `app/main.py`).
     """
     engine = create_engine(
         f"sqlite:///{tmp_path / 'test.db'}",
         connect_args={"check_same_thread": False},
     )
     Base.metadata.create_all(bind=engine)
+    command.stamp(_config_alembic(engine), "head")
     Sesion = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     sesion = Sesion()
     try:
