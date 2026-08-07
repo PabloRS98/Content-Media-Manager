@@ -114,10 +114,13 @@
 
     {% if total_paginas > 1 %}
     <div class="pagination">
-        {% set qs = ("&tipo=" ~ tipo_filtro if tipo_filtro else "") ~ ("&estado=" ~ estado_filtro if estado_filtro else "") ~ ("&genero=" ~ genero_filtro if genero_filtro else "") ~ ("&tiempo=" ~ tiempo_filtro if tiempo_filtro else "") ~ "&orden=" ~ orden %}
-        {% if pagina > 1 %}<a class="btn ghost small" href="/catalogo?pagina={{ pagina - 1 }}{{ qs }}">{{ icon("chevron-left", 14) }} Anterior</a>{% endif %}
+        {# build_qs, igual que los filtros de arriba: codifica los valores. Con
+           la concatenación a mano que había aquí, un género con "&" o "#"
+           (Sci-Fi & Fantasy, Action & Adventure... reales en TMDB) partía la
+           URL y el filtro se perdía al cambiar de página. #}
+        {% if pagina > 1 %}<a class="btn ghost small" href="/catalogo{{ build_qs(request, pagina=pagina - 1) }}">{{ icon("chevron-left", 14) }} Anterior</a>{% endif %}
         <span class="subtle">Página {{ pagina }} de {{ total_paginas }}</span>
-        {% if pagina < total_paginas %}<a class="btn ghost small" href="/catalogo?pagina={{ pagina + 1 }}{{ qs }}">Siguiente {{ icon("chevron-right", 14) }}</a>{% endif %}
+        {% if pagina < total_paginas %}<a class="btn ghost small" href="/catalogo{{ build_qs(request, pagina=pagina + 1) }}">Siguiente {{ icon("chevron-right", 14) }}</a>{% endif %}
     </div>
     {% endif %}
 

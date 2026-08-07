@@ -48,6 +48,13 @@ each entry below names the id it closes.
   the history, and was being uploaded to the Docker daemon on every build. Both
   files now cover virtualenvs, tool caches and database sidecar files, with the
   reasoning written down. Verified that none of it ever reached the history.
+- **[MC-A1]** Paging past the first page dropped the active filter when the
+  genre contained an `&` — `Sci-Fi & Fantasy` and `Action & Adventure` are real
+  TMDB genres, and the pagination links were built by string concatenation with
+  no URL encoding, so the `&` split the parameter in two. The links now go
+  through `build_qs`, the same helper the filter buttons already used four lines
+  above. Filter buttons still reset to page 1, which is the behaviour the helper
+  exists to protect.
 
 ## [1.0.0] — 2026-08-03
 
