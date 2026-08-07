@@ -70,7 +70,11 @@ jobs:
           # `python -` lee un programa vacío y sale con éxito sin hacer nada.
           # Este job pasó en verde así una vez, comprobando una base recién
           # creada en vez de una vieja.
-          docker run --rm -i -v datos-viejos:/data media-catalog:ci python - <<'PY'
+          #
+          # `--entrypoint python` salta docker-entrypoint.sh, que aplica las
+          # migraciones: sin eso, la base ya estaría migrada antes de que este
+          # script la tocara y no habría nada viejo que probar.
+          docker run --rm -i --entrypoint python -v datos-viejos:/data media-catalog:ci - <<'PY'
           import sqlite3
           c = sqlite3.connect("/data/media.db")
           c.executescript("""
@@ -104,7 +108,7 @@ jobs:
 
       - name: Comprobar que la base de partida es la que se cree
         run: |
-          docker run --rm -i -v datos-viejos:/data media-catalog:ci python - <<'PY'
+          docker run --rm -i --entrypoint python -v datos-viejos:/data media-catalog:ci - <<'PY'
           import sqlite3
           c = sqlite3.connect("/data/media.db")
           tablas = {r[0] for r in c.execute("select name from sqlite_master where type='table'")}
