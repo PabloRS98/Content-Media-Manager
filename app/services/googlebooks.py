@@ -1,5 +1,6 @@
 """Búsqueda de libros vía Google Books API. API pública y gratuita."""
 import logging
+import time
 
 import httpx
 
@@ -9,6 +10,14 @@ from ._logging_utils import log_fallo_api
 logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://www.googleapis.com/books/v1/volumes"
+
+# Identificarse, no suplantar un navegador. Aquí iba un UA de Chrome 120
+# --una versión que ya no existe-- contra una API pública y documentada que
+# no lo exige: es frágil (si Google decide filtrar UAs de navegador en
+# endpoints de API, esto deja de funcionar sin aviso) e impide identificar
+# el tráfico legítimo de esta app. Mismo formato que wikipedia_covers.py,
+# que es el que Wikipedia pide en su política.
+USER_AGENT = "MediaCatalog/1.0 (+https://github.com/PabloRS98/Content-Media-Manager)"
 
 
 def search_books(query: str, limit: int = 8, idioma: str | None = None) -> list[dict]:
@@ -45,11 +54,8 @@ def search_books(query: str, limit: int = 8, idioma: str | None = None) -> list[
     if settings.google_books_api_key:
         params["key"] = settings.google_books_api_key
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    headers = {"User-Agent": USER_AGENT}
 
-    import time
     resp = None
     try:
         for attempt in range(3):

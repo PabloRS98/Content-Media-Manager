@@ -179,6 +179,22 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **[MC-M13]** Cover enrichment committed once at the end of a batch that takes
+  anywhere from 21 seconds to several minutes, so a restart halfway through
+  discarded the 29 covers already found — along with the API quota spent finding
+  them. It commits per item now, and each item is wrapped individually: a
+  failure enriching one no longer aborts the whole batch.
+- **[MC-M14]** Google Books was called impersonating Chrome 120's user agent
+  against a public, documented API that doesn't require it. It now identifies
+  itself the way `wikipedia_covers.py` already did. `hltb.py` still spoofs, and
+  that stays — it has no public API and the module says so.
+- **[MC-M15]** The lists page injected an `item_count` attribute onto ORM
+  objects, which isn't in the model: a `db.refresh()` or a session expiry would
+  drop it silently, and after [MC-M16] that would break the page instead. It
+  also did one `COUNT` per automatic list where one grouped query does.
+- **[MC-M17]** `import re` and `import time` moved out of function bodies, and
+  the title-cleaning regex — written twice in each of two places, inside a
+  nested function called once per candidate — is compiled once at module level.
 - **[MC-M2]** `list_catalog` was 210 lines mixing query building, translation
   and presentation, in the largest file in the project. The duration filter's
   ranges were hardcoded twice — once to filter and once to label the dropdown,
