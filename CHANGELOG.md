@@ -70,6 +70,12 @@ each entry below names the id it closes.
   ids, a newly added item could inherit the deleted one's list memberships —
   a visible and very confusing bug. The inverse relationship is now declared,
   and startup sweeps any dead rows an existing database already carries.
+- **[MC-M11]** `cover_url` was stored straight from the form without checking
+  the URL scheme, and it ends up in an `<img src>`. Not exploitable today —
+  Jinja escapes the attribute and `javascript:` doesn't run in an image source —
+  but the field is hand-editable and auto-filled from six APIs, so the day it
+  appears in an `<a href>` it becomes an XSS, and this is where the value is
+  written. Only absolute `http(s)` URLs are accepted now.
 
 ## [1.0.0] — 2026-08-03
 
