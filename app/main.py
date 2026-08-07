@@ -2,6 +2,7 @@
 import logging
 import re
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -9,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import ENV_FILE, settings
 from .csrf import CSRFProtectionMiddleware
-from .database import SessionLocal, init_db
+from .database import CLAVE_BACKFILL_V2, SessionLocal, escribir_meta, init_db, leer_meta
 from .routers import catalog, home, imdb_import, lists
 
 logging.basicConfig(level=logging.INFO)
@@ -44,10 +45,25 @@ def avisar_si_no_hay_autenticacion(enable_auth: bool) -> None:
 
 
 def backfill_v2_columns() -> None:
-    """Rellena (una sola vez, idempotente) las columnas nuevas en BDs que ya tenían datos:
+    """Rellena las columnas nuevas en BDs que ya tenían datos, UNA sola vez:
     - completed_at: aproximado con updated_at para ítems ya completados.
-    - genres: extraído de las notas de importaciones antiguas de IMDB ("Genero: X, Y.")."""
+    - genres: extraído de las notas de importaciones antiguas de IMDB ("Genero: X, Y.").
+
+    Antes decía "una sola vez" pero nada lo garantizaba: lo idempotente era el
+    resultado, no la ejecución, y corría entera en cada arranque. Sus dos
+    consultas son caras --la segunda hace `LIKE '%Genero:%'` sobre una columna
+    Text, que no puede usar índice ni aunque existiera porque el comodín va
+    delante--, así que con un catálogo de 5 000 ítems importados eran 10 000
+    filas leídas y 5 000 búsquedas de subcadena en cada `docker compose
+    restart`, antes de que el healthcheck pudiera responder siquiera.
+
+    Ahora se marca en `app_meta` al terminar. Es una migración puntual de la v1
+    a la v2, no una regla permanente: una base ya marcada no se vuelve a tocar.
+    """
     from .models import MediaItem, MediaStatus
+
+    if leer_meta(CLAVE_BACKFILL_V2):
+        return
 
     db = SessionLocal()
     try:
@@ -71,6 +87,10 @@ def backfill_v2_columns() -> None:
             logger.info("Backfill de columnas v2: %d ítems actualizados", changed)
     finally:
         db.close()
+
+    # Solo si llegó hasta aquí: si el backfill revienta a mitad, la excepción
+    # sube y la marca no se escribe, así que el arranque siguiente lo reintenta.
+    escribir_meta(CLAVE_BACKFILL_V2, datetime.now(UTC).isoformat(timespec="seconds"))
 
 
 @asynccontextmanager

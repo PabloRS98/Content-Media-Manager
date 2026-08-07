@@ -90,6 +90,14 @@ each entry below names the id it closes.
   for a reverse proxy in front to time out. The existing ids are now preloaded
   once, the same way the Goodreads and Backloggd importers already did it.
   Measured: 202 read queries for a 200-row file, now 2.
+- **[MC-A8]** The one-off v2 column backfill ran in full on *every* startup —
+  its docstring said "once", but what was idempotent was the result, not the
+  execution. One of its two queries is a `LIKE '%…%'` over a Text column, which
+  can't use an index at all, so a large catalog paid for a full scan plus a
+  substring search per row on every `docker compose restart`, before the
+  healthcheck could even answer. It's now recorded as done in a small `app_meta`
+  table — which is also the first step towards knowing what schema version a
+  database is on.
 
 ### Changed
 
