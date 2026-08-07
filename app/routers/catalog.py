@@ -10,6 +10,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
+from ..catalogo_config import etiquetas_de
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import (
@@ -213,50 +214,11 @@ def list_catalog(
             ("largo", "> 60 mins")
         ]
 
-    # 5. Mapeo personalizado de etiquetas de estado
-    # WISHLIST tiene que estar en los 5 diccionarios: `statuses` (abajo) incluye
-    # los 5 valores del enum, y a status_labels.get() le faltaba justo este, así
-    # que Jinja imprimía literalmente "None" en el desplegable del catálogo.
-    status_labels_raw = {
-        MediaStatus.WISHLIST: "Wishlist",
-        MediaStatus.PENDIENTE: "Pendiente",
-        MediaStatus.EN_PROGRESO: "En progreso",
-        MediaStatus.COMPLETADO: "Completado",
-        MediaStatus.ABANDONADO: "Abandonado"
-    }
-    if mt == MediaType.LIBRO:
-        status_labels_raw = {
-            MediaStatus.WISHLIST: "Lo quiero",
-            MediaStatus.PENDIENTE: "Por leer",
-            MediaStatus.EN_PROGRESO: "Leyendo",
-            MediaStatus.COMPLETADO: "Leído",
-            MediaStatus.ABANDONADO: "Abandonado"
-        }
-    elif mt in (MediaType.PELICULA, MediaType.SERIE):
-        status_labels_raw = {
-            MediaStatus.WISHLIST: "Lo quiero ver",
-            MediaStatus.PENDIENTE: "Por ver",
-            MediaStatus.EN_PROGRESO: "Viendo",
-            MediaStatus.COMPLETADO: "Visto",
-            MediaStatus.ABANDONADO: "Abandonado"
-        }
-    elif mt == MediaType.VIDEOJUEGO:
-        status_labels_raw = {
-            MediaStatus.WISHLIST: "Lo quiero jugar",
-            MediaStatus.PENDIENTE: "Por jugar",
-            MediaStatus.EN_PROGRESO: "Jugando",
-            MediaStatus.COMPLETADO: "Terminado/Jugado",
-            MediaStatus.ABANDONADO: "Abandonado"
-        }
-    elif mt == MediaType.PODCAST:
-        status_labels_raw = {
-            MediaStatus.WISHLIST: "Lo quiero escuchar",
-            MediaStatus.PENDIENTE: "Por escuchar",
-            MediaStatus.EN_PROGRESO: "Escuchando",
-            MediaStatus.COMPLETADO: "Escuchado",
-            MediaStatus.ABANDONADO: "Abandonado"
-        }
-    status_labels = {s.value: label for s, label in status_labels_raw.items()}
+    # 5. Etiquetas de estado del tipo activo. La tabla vive en
+    # catalogo_config.py, compartida con la macro de las tarjetas: estaban
+    # duplicadas y ya habían divergido (a la de la plantilla le faltaba
+    # wishlist, así que un ítem deseado se veía distinto en cada sitio).
+    status_labels = {s.value: label for s, label in etiquetas_de(mt).items()}
 
     # Solo para mostrar la selección actual en el desplegable de filtro sin
     # repetir esta búsqueda en la plantilla.

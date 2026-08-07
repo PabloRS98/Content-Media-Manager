@@ -179,6 +179,13 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **[MC-M3]** Status labels ("Por leer", "Viendo", "Lo quiero ver"…) lived in
+  two places: five dictionaries in the catalog router and the same mapping again
+  in the card template as a 13-level nested ternary. They had already drifted —
+  the template's copy was missing `wishlist`, so an item you wanted showed as
+  "Wishlist" on its card and "Lo quiero ver" in the filter dropdown. One table
+  now, in `catalogo_config.py`, read by both.
+
 - **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing
   request carrying neither `Sec-Fetch-Site` nor `Origin` was let through on
   purpose, so as not to break non-browser clients. It now fails closed and also
