@@ -2,6 +2,7 @@
 cruza título+año contra TMDB (pelis/series), Open Library (libros) y RAWG (juegos)
 para rellenar cover_url, y de paso géneros y sinopsis si faltan."""
 import logging
+import threading
 import time
 
 from sqlalchemy.orm import Session
@@ -169,6 +170,10 @@ def enrich_missing_covers(db: Session) -> dict:
 
 _estado_lote: dict = {"corriendo": False, "resultado": None}
 
+# El lote se lanza desde dos endpoints distintos y corre en el threadpool, así
+# que comprobar y marcar tiene que ser una sola operación.
+_candado_lote = threading.Lock()
+
 
 def estado_actual() -> dict:
     """Copia del estado del último lote, para que la UI sepa si ya puede
@@ -176,7 +181,23 @@ def estado_actual() -> dict:
     return dict(_estado_lote)
 
 
-def enrich_missing_covers_en_segundo_plano(session_factory) -> None:
+def reservar_lote() -> bool:
+    """Marca el lote como en marcha si no lo estaba ya. Devuelve si se reservó.
+
+    Lo llama el endpoint, no la tarea de fondo: `BackgroundTasks` se ejecuta
+    DESPUÉS de mandar la respuesta, así que si la reserva ocurriera dentro de
+    la tarea, el primer refresco del fragmento vería `corriendo=False` y daría
+    el lote por terminado antes de que empezara.
+    """
+    with _candado_lote:
+        if _estado_lote["corriendo"]:
+            return False
+        _estado_lote["corriendo"] = True
+        _estado_lote["resultado"] = None
+        return True
+
+
+def enrich_missing_covers_en_segundo_plano(session_factory, ya_reservado: bool = False) -> None:
     """Como enrich_missing_covers, pero para BackgroundTasks: crea su propia
     sesión de BD (la de la petición original ya se habrá cerrado cuando esto
     se ejecute) y deja constancia en _estado_lote de que sigue corriendo.
@@ -184,11 +205,13 @@ def enrich_missing_covers_en_segundo_plano(session_factory) -> None:
     Antes, `/catalogo/completar-portadas` corría el lote entero (BATCH_SIZE=30
     x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de 2 minutos con las
     APIs lentas) dentro de la propia petición HTTP: cualquier proxy inverso
-    delante corta por timeout antes de que termine."""
-    if _estado_lote["corriendo"]:
+    delante corta por timeout antes de que termine.
+
+    `ya_reservado` lo pasan los endpoints, que reservan antes de encolar la
+    tarea (ver `reservar_lote`). Sin él, la función reserva por su cuenta, que
+    es lo que necesita quien la llame directamente."""
+    if not ya_reservado and not reservar_lote():
         return
-    _estado_lote["corriendo"] = True
-    _estado_lote["resultado"] = None
 
     db = session_factory()
     try:
@@ -197,4 +220,5 @@ def enrich_missing_covers_en_segundo_plano(session_factory) -> None:
         logger.exception("Fallo en el enriquecimiento de portadas en segundo plano")
     finally:
         db.close()
-        _estado_lote["corriendo"] = False
+        with _candado_lote:
+            _estado_lote["corriendo"] = False

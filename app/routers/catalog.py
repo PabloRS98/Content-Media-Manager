@@ -281,13 +281,18 @@ def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db:
     # cualquier proxy inverso delante corta por timeout antes de que termine.
     # Se lanza en segundo plano y se avisa de que ha empezado; el contador
     # "sin portada" de la página ya se recalcula solo en la siguiente carga.
-    from ..services.enrich import enrich_missing_covers_en_segundo_plano, estado_actual
+    from ..services.enrich import enrich_missing_covers_en_segundo_plano, reservar_lote
 
-    if estado_actual()["corriendo"]:
-        msg = "Ya hay una búsqueda de portadas en marcha; espera a que termine."
-    else:
-        background_tasks.add_task(enrich_missing_covers_en_segundo_plano, SessionLocal)
+    # reservar_lote y no "consultar y luego marcar": los dos endpoints que
+    # lanzan lotes corren en el threadpool, así que comprobar y reservar tiene
+    # que ser una sola operación.
+    if reservar_lote():
+        background_tasks.add_task(
+            enrich_missing_covers_en_segundo_plano, SessionLocal, ya_reservado=True
+        )
         msg = "Buscando portadas en segundo plano. Vuelve en un minuto y recarga para ver el resultado."
+    else:
+        msg = "Ya hay una búsqueda de portadas en marcha; espera a que termine."
 
     # La cabecera Referer la controla el cliente: no se usa tal cual como
     # destino de la redirección (open redirect). Solo se conserva la ruta

@@ -106,6 +106,14 @@ each entry below names the id it closes.
   for the "coming up" strip, which fetched every future episode and every dated
   wishlist entry to show six. Sorting and limiting now happen in SQL.
   `/calendario` still fetches everything, because that view genuinely needs it.
+- **[MC-A3]** There were two "fill in missing covers" endpoints doing the same
+  work and only one of them had been fixed: the import page's still ran the
+  whole batch inside the HTTP request — 21 seconds at minimum, minutes with slow
+  APIs — and didn't check whether a batch was already running, so it could be
+  started alongside the other one and burn twice the free API quota. Both now
+  share one lock and run in the background. The import page also gained a status
+  strip that refreshes itself, so you can finally tell when a batch has
+  finished; the old message said "come back in a minute and reload".
 
 ### Changed
 
