@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
+    # Hosts extra admitidos como origen de las peticiones que escriben (ver
+    # csrf.py). Solo hace falta si se accede por un nombre distinto al del
+    # proxy inverso; separados por comas.
+    trusted_origins: str = ""
+
+    def trusted_origin_hosts(self) -> set[str]:
+        return {h.strip() for h in self.trusted_origins.split(",") if h.strip()}
+
     @model_validator(mode="after")
     def _reject_insecure_password(self) -> "Settings":
         """Con la autenticacion activada, no arrancar con la contrasena de fabrica.
