@@ -77,6 +77,14 @@ each entry below names the id it closes.
   appears in an `<a href>` it becomes an XSS, and this is where the value is
   written. Only absolute `http(s)` URLs are accepted now.
 
+- **[MC-M1]** The schema had exactly one declared index while the app filtered
+  or sorted on nine columns without one, so the home page's eight status queries
+  were eight full table scans per visit. Six indexes are now created at startup,
+  chosen by measuring `EXPLAIN QUERY PLAN` against a copy of a real database
+  rather than by guessing: six of eight representative queries go from `SCAN` to
+  `SEARCH … USING INDEX`, and the catalog's default sort no longer needs a temp
+  B-tree. `cover_url` was measured and deliberately left unindexed.
+
 ### Changed
 
 - **[MC-A6]** The CSRF origin check used to fail *open*: a state-changing

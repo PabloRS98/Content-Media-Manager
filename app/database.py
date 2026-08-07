@@ -50,6 +50,43 @@ def ensure_columns(table: str, columns: dict[str, str]) -> list[str]:
     return added
 
 
+# Índices de las columnas por las que la aplicación filtra u ordena. El esquema
+# solo tenía uno declarado (la FK de episodes.item_id), y estas ocho consultas
+# hacían un escaneo completo cada vez.
+#
+# Medido con EXPLAIN QUERY PLAN sobre una copia de la base real: seis de ocho
+# consultas representativas pasan de SCAN a SEARCH ... USING INDEX, y el ORDER
+# BY por defecto del catálogo deja de necesitar un TEMP B-TREE.
+#
+# El compuesto (media_type, status) cubre el caso más común --filtrar por
+# pestaña y estado a la vez-- y sirve también para las consultas que solo
+# filtran por media_type, porque es la primera columna del índice.
+#
+# NO se indexa cover_url pese a que también se filtra por ella ("sin portada"):
+# es una columna de 500 caracteres y la consulta es un contador que se pide una
+# vez por carga; el coste en escrituras no compensa. Queda medido y descartado
+# a propósito, no olvidado.
+#
+# Van con CREATE INDEX IF NOT EXISTS porque `ensure_columns` solo sabe hacer
+# ADD COLUMN. Cuando entre Alembic (MC-M4), esto se convierte en la primera
+# migración real y esta función desaparece.
+INDICES = (
+    "CREATE INDEX IF NOT EXISTS ix_media_items_status ON media_items (status)",
+    "CREATE INDEX IF NOT EXISTS ix_media_items_tipo_estado ON media_items (media_type, status)",
+    "CREATE INDEX IF NOT EXISTS ix_media_items_external_id ON media_items (external_id)",
+    "CREATE INDEX IF NOT EXISTS ix_media_items_completed_at ON media_items (completed_at)",
+    "CREATE INDEX IF NOT EXISTS ix_media_items_updated_at ON media_items (updated_at)",
+    "CREATE INDEX IF NOT EXISTS ix_episodes_air_date ON episodes (air_date)",
+)
+
+
+def crear_indices(bind=None) -> None:
+    """Crea los índices que falten. Idempotente: corre en cada arranque."""
+    with (bind or engine).begin() as conn:
+        for sentencia in INDICES:
+            conn.exec_driver_sql(sentencia)
+
+
 def limpiar_filas_huerfanas(bind=None) -> dict[str, int]:
     """Borra de las tablas puente las filas que apuntan a ítems inexistentes.
 
@@ -97,4 +134,5 @@ def init_db():
     ensure_columns("listas", {
         "filtro_estado": "VARCHAR(20)",
     })
+    crear_indices()
     limpiar_filas_huerfanas()
