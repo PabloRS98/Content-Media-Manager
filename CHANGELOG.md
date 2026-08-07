@@ -129,6 +129,11 @@ each entry below names the id it closes.
   four series at a time, and commits per series so a failure halfway through
   doesn't discard the work already done. The job also declares
   `max_instances=1`, so a container restart can no longer overlap two runs.
+- **[MC-M7]** Saving an item queried the database once per tag, and tags were
+  never deleted: removing the last "documentary" from every item left the row
+  behind forever, so the table only ever grew and any future tag cloud or
+  autocomplete would offer tags nobody uses. One query now, and unused tags are
+  swept after each save.
 
 ### Changed
 
