@@ -55,12 +55,18 @@ def check_new_episodes(db: Session) -> int:
         .all()
     )
     for ep in eps:
-        telegram.send_message(
+        enviado = telegram.send_message(
             "📺 <b>%s</b> — nuevo episodio %s%s" % (
-                ep.item.title, ep.code, (" · " + ep.name) if ep.name else "")
+                telegram.esc(ep.item.title), ep.code,
+                (" · " + telegram.esc(ep.name)) if ep.name else "")
         )
-        ep.notified = True
-        sent += 1
+        # Marcar solo si el envío funcionó. Antes se marcaba siempre, y como
+        # send_message se traga la excepción, un aviso que Telegram rechazaba
+        # (un título con "&" da 400) quedaba como notificado y no se
+        # reintentaba jamás: el aviso se perdía para siempre.
+        if enviado:
+            ep.notified = True
+            sent += 1
     db.commit()
     return sent
 
@@ -80,9 +86,11 @@ def check_releases(db: Session) -> int:
         .all()
     )
     for it in items:
-        telegram.send_message("🎉 Ya disponible: <b>%s</b>" % it.title)
-        it.release_notified = True
-        sent += 1
+        # Mismo criterio que en check_new_episodes: escapar el título y marcar
+        # solo si el envío funcionó.
+        if telegram.send_message("🎉 Ya disponible: <b>%s</b>" % telegram.esc(it.title)):
+            it.release_notified = True
+            sent += 1
     db.commit()
     return sent
 
