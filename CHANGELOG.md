@@ -134,6 +134,11 @@ each entry below names the id it closes.
   behind forever, so the table only ever grew and any future tag cloud or
   autocomplete would offer tags nobody uses. One query now, and unused tags are
   swept after each save.
+- **[MC-M10]** The stats page's "collection by decade" chart pulled one row per
+  catalog item into Python just to count them. SQLite groups them now. Genres
+  still aggregate in Python because `genres` is a comma-separated string rather
+  than a relation — that's the underlying problem, and normalising it is its own
+  piece of work.
 
 ### Changed
 

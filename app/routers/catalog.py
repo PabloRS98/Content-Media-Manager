@@ -663,12 +663,19 @@ def stats(request: Request, db: Session = Depends(get_db)):
         tiempo_min += ep.runtime_minutes or ep.item.runtime_minutes or 45
     tiempo_horas = round(tiempo_min / 60)
 
-    # Colección por década (según el año del ítem)
-    dec_counts: dict[int, int] = {}
-    for (yr,) in db.query(MediaItem.year).filter(MediaItem.year.isnot(None)).all():
-        dec = (int(yr) // 10) * 10
-        dec_counts[dec] = dec_counts.get(dec, 0) + 1
-    por_decada = sorted(dec_counts.items())
+    # Colección por década (según el año del ítem). Lo agrega SQLite con un
+    # GROUP BY, igual que las sumas de tiempo de más arriba: antes se traía una
+    # fila por ítem del catálogo entero solo para contarlas en Python.
+    # La división entera de SQLite sobre enteros ya trunca, así que year/10*10
+    # da la década sin más.
+    decada = (MediaItem.year / 10 * 10).label("decada")
+    por_decada = sorted(
+        (int(d), n) for d, n in
+        db.query(decada, func.count(MediaItem.id))
+        .filter(MediaItem.year.isnot(None))
+        .group_by(decada)
+        .all()
+    )
 
     # "Año en cifras": comparación con el año anterior + mejores del año
     completados_prev = (
