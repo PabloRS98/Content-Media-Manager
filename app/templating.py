@@ -13,6 +13,8 @@ from urllib.parse import urlencode
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from .catalogo_config import etiqueta_estado
+
 # Ruta absoluta (relativa a este fichero), no "app/templates": una ruta
 # relativa al cwd solo funciona si el proceso arranca desde la raíz del repo.
 # En Docker el WORKDIR /app lo salva, pero rompe cualquier otro modo de arranque.
@@ -47,3 +49,9 @@ def build_qs(request: Request, **overrides: str | int | None) -> str:
 
 
 templates.env.globals["build_qs"] = build_qs
+
+# La etiqueta de estado depende del tipo de medio (no se "ve" un libro ni se
+# "lee" un videojuego). Se expone como global para que las plantillas no
+# vuelvan a tener su propia copia del mapeo, que es como acabó divergiendo del
+# router. Ver `catalogo_config.py`.
+templates.env.globals["etiqueta_estado"] = etiqueta_estado

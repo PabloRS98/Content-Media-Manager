@@ -9,19 +9,9 @@
     <div class="cover{% if item.media_type.value == 'podcast' %} podcast{% endif %}">
         {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">
         {% else %}<span class="no-cover">{{ media_icon(item.media_type.value, 30) }}</span>{% endif %}
-        {% set label = 'Por ver' if item.status.value == 'pendiente' and item.media_type.value in ('pelicula', 'serie') else 
-                      ('Por leer' if item.status.value == 'pendiente' and item.media_type.value == 'libro' else
-                      ('Por jugar' if item.status.value == 'pendiente' and item.media_type.value == 'videojuego' else
-                      ('Por escuchar' if item.status.value == 'pendiente' and item.media_type.value == 'podcast' else
-                      ('Viendo' if item.status.value == 'en_progreso' and item.media_type.value in ('pelicula', 'serie') else
-                      ('Leyendo' if item.status.value == 'en_progreso' and item.media_type.value == 'libro' else
-                      ('Jugando' if item.status.value == 'en_progreso' and item.media_type.value == 'videojuego' else
-                      ('Escuchando' if item.status.value == 'en_progreso' and item.media_type.value == 'podcast' else
-                      ('Visto' if item.status.value == 'completado' and item.media_type.value in ('pelicula', 'serie') else
-                      ('Leído' if item.status.value == 'completado' and item.media_type.value == 'libro' else
-                      ('Terminado' if item.status.value == 'completado' and item.media_type.value == 'videojuego' else
-                      ('Escuchado' if item.status.value == 'completado' and item.media_type.value == 'podcast' else
-                      ('Abandonado' if item.status.value == 'abandonado' else item.status.value|replace("_", " ")|capitalize)))))))))))) %}
+        {# La tabla vive en catalogo_config.py: esta plantilla tenía su propia
+           copia del mapeo, y ya había divergido (le faltaba wishlist). #}
+        {% set label = etiqueta_estado(item) %}
         <span class="status-badge {{ item.status.value }}">{{ label }}</span>
         {% if item.priority.value == "alta" and item.status.value in ("pendiente", "wishlist") %}
         <span class="prio-badge" title="Prioridad alta">{{ icon("flame", 13) }}</span>{% endif %}
