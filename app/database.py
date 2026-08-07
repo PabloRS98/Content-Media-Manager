@@ -1,7 +1,7 @@
 """Motor y sesión de SQLAlchemy sobre SQLite, con migración ligera de columnas."""
 import os
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import Column, String, Table, create_engine, delete, event, insert, select
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from .config import settings
@@ -25,6 +25,38 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     pass
+
+
+# Tabla de metadatos del propio esquema: qué migraciones puntuales ya se
+# aplicaron. Vive aquí y no en models.py a propósito -- no es parte del dominio
+# (no hay libros ni episodios aquí), es infraestructura de la base, y las
+# funciones que la usan están en este mismo módulo.
+#
+# Es además el primer paso hacia saber en qué versión de esquema está una base,
+# que es lo que hoy no se puede responder (ver MC-M4, Alembic).
+app_meta = Table(
+    "app_meta",
+    Base.metadata,
+    Column("clave", String(50), primary_key=True),
+    Column("valor", String(255)),
+)
+
+# Marca del backfill de columnas de la v2 (ver main.backfill_v2_columns).
+CLAVE_BACKFILL_V2 = "backfill_v2_completado"
+
+
+def leer_meta(clave: str, bind=None) -> str | None:
+    with (bind or engine).connect() as conn:
+        fila = conn.execute(
+            select(app_meta.c.valor).where(app_meta.c.clave == clave)
+        ).first()
+    return fila[0] if fila else None
+
+
+def escribir_meta(clave: str, valor: str, bind=None) -> None:
+    with (bind or engine).begin() as conn:
+        conn.execute(delete(app_meta).where(app_meta.c.clave == clave))
+        conn.execute(insert(app_meta).values(clave=clave, valor=valor))
 
 
 def get_db():
