@@ -122,6 +122,13 @@ each entry below names the id it closes.
   episodes. Enrichment now runs in the background, and seasons are fetched in
   parallel. Measured on a real 39-season series: the response takes 186 ms and
   885 episodes arrive afterwards.
+- **[MC-M8]** The daily series refresh re-fetched *every* season of *every*
+  followed series, including ones that finished years ago and will never change:
+  with 30 series averaging 5 seasons that's 180 sequential requests, up to half
+  an hour of job. It now asks only for seasons that can still bring news, runs
+  four series at a time, and commits per series so a failure halfway through
+  doesn't discard the work already done. The job also declares
+  `max_instances=1`, so a container restart can no longer overlap two runs.
 
 ### Changed
 
