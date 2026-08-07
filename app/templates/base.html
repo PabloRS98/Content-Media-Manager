@@ -33,6 +33,7 @@
         <a href="/listas" class="{{ 'active' if path.startswith('/listas') else '' }}">{{ icon("list") }}<span>Listas</span></a>
         <a href="/estadisticas" class="{{ 'active' if path.startswith('/estadisticas') else '' }}">{{ icon("chart-column") }}<span>Stats</span></a>
         <a href="/importar" class="{{ 'active' if path.startswith('/importar') else '' }}">{{ icon("upload") }}<span>Importar</span></a>
+        <a href="/estado" class="{{ 'active' if path.startswith('/estado') else '' }}">{{ icon("activity") }}<span>Estado</span></a>
     </nav>
     <button type="button" id="theme-toggle" class="ghost icon-btn" title="Cambiar entre oscuro y claro" aria-label="Cambiar entre oscuro y claro">
         {{ icon("sun", 17, cls="theme-icon-sun") }}

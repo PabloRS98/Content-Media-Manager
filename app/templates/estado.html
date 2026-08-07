@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Estado · Catálogo{% endblock %}
+{% block content %}
+
+{# Nunca se imprime el valor de una credencial, solo si está puesta: esta
+   página es justo la que uno acaba enseñando en una captura para pedir ayuda. #}
+
+<section class="card">
+    <h3>{{ icon("activity") }} Tareas de fondo</h3>
+    {% if not scheduler_activo %}
+    <p class="subtle">{{ icon("circle-alert", 14) }} El planificador está desactivado
+        (<code>ENABLE_SCHEDULER=false</code>): no habrá avisos ni backups automáticos.</p>
+    {% endif %}
+    <div class="table-wrap"><table>
+        <thead><tr><th>Tarea</th><th>Última ejecución</th><th>Resultado</th></tr></thead>
+        <tbody>
+        {% for job in jobs %}
+        <tr>
+            <td><strong>{{ job.nombre }}</strong><br><span class="subtle">{{ job.descripcion }}</span></td>
+            {% if job.ultima %}
+            <td>{{ job.ultima.cuando.strftime("%d/%m/%Y %H:%M") }} UTC</td>
+            <td>
+                {% if job.ultima.ok %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Bien</span>
+                {% else %}
+                <span class="tag negative">{{ icon("circle-alert", 13) }} Falló</span>
+                {% endif %}
+                {% if job.ultima.detalle %}<span class="subtle">{{ job.ultima.detalle }}</span>{% endif %}
+            </td>
+            {% else %}
+            <td class="subtle">Sin ejecuciones desde el arranque</td>
+            <td class="subtle">—</td>
+            {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+
+<section class="card">
+    <h3>{{ icon("plug") }} Fuentes de metadatos</h3>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Fuente</th><th>Para</th><th>Estado</th></tr></thead>
+        <tbody>
+        {% for f in fuentes %}
+        <tr>
+            <td><strong>{{ f.nombre }}</strong></td>
+            <td class="subtle">{{ f.para }}</td>
+            <td>
+                {% if f.configurada and f.necesita_clave %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Clave configurada</span>
+                {% elif f.configurada %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Sin clave necesaria</span>
+                {% else %}
+                <span class="tag warning">{{ icon("circle-alert", 13) }} Sin clave</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td><strong>Telegram</strong></td>
+            <td class="subtle">Avisos de episodios y estrenos</td>
+            <td>
+                {% if telegram_configurado %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Configurado</span>
+                {% else %}
+                <span class="tag">Sin configurar</span>
+                {% endif %}
+            </td>
+        </tr>
+    </tbody>
+    </table></div>
+</section>
+
+<section class="card">
+    <h3>{{ icon("database") }} Base de datos</h3>
+    <div class="table-wrap"><table>
+        <tbody>
+        <tr>
+            <td>Esquema</td>
+            <td>
+                {% if revision_actual and revision_actual == revision_head %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Al día</span>
+                <span class="subtle">{{ revision_actual }}</span>
+                {% else %}
+                <span class="tag negative">{{ icon("circle-alert", 13) }} Desactualizado</span>
+                <span class="subtle">{{ revision_actual or "sin marcar" }} → {{ revision_head or "?" }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Último backup</td>
+            <td>
+                {% if backup %}
+                <strong>{{ backup.nombre }}</strong>
+                <span class="subtle">{{ backup.mb }} MB · {{ backup.total }} copia{{ "s" if backup.total != 1 else "" }} guardada{{ "s" if backup.total != 1 else "" }}</span>
+                {% else %}
+                <span class="tag warning">{{ icon("circle-alert", 13) }} Ninguno todavía</span>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td>Autenticación</td>
+            <td>
+                {% if autenticacion %}
+                <span class="tag positive">{{ icon("circle-check", 13) }} Activada</span>
+                {% else %}
+                <span class="tag warning">{{ icon("circle-alert", 13) }} Desactivada</span>
+                <span class="subtle">La aplicación no pide credenciales</span>
+                {% endif %}
+            </td>
+        </tr>
+        </tbody>
+    </table></div>
+</section>
+
+<section class="card">
+    <h3>{{ icon("search") }} Huecos en los datos</h3>
+    <div class="table-wrap"><table>
+        <thead><tr><th>Qué</th><th>Cuántos</th><th>Qué hacer</th></tr></thead>
+        <tbody>
+        {% for h in huecos %}
+        <tr>
+            <td>{{ h.que }}</td>
+            <td>{% if h.cuantos %}<strong>{{ h.cuantos }}</strong>{% else %}<span class="subtle">0</span>{% endif %}</td>
+            <td class="subtle">{% if h.cuantos %}{{ h.arreglo }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</section>
+
+{% endblock %}

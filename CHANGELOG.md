@@ -10,6 +10,15 @@ each entry below names the id it closes.
 
 ### Added
 
+- **[MC-M12]** A `/estado` panel. "The episode alerts aren't arriving" could
+  mean TMDB is down, the key is invalid, the Telegram token was revoked, the
+  chat id is wrong, the job died, or there simply are no new episodes — and the
+  only way to tell them apart was reading container logs. The panel shows each
+  background job's last run and result, which metadata sources are configured
+  (presence only, never the value), the schema revision, the latest backup, and
+  the gaps in the data that explain things that look wrong. The daily backup job
+  is now wrapped too: it previously ran unsupervised, so a backup that had been
+  failing for weeks would only surface when you needed it.
 - **[MC-A5]** Security headers on every response: `Content-Security-Policy`,
   `X-Content-Type-Options`, `Referrer-Policy`. `img-src` stays open to `https:`
   on purpose — cover art comes from six different metadata APIs and the field is
