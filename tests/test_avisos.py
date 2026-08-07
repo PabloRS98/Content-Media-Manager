@@ -138,6 +138,44 @@ class TestMarcadoCondicional:
         assert scheduler.check_new_episodes(db) == 1
 
 
+def test_avisar_de_episodios_no_hace_n_mas_uno(db, envios):
+    """El `join(MediaItem)` sirve para filtrar, pero no CARGA la relación:
+    cada `ep.item.title` del bucle disparaba un SELECT adicional. Tras un fin
+    de semana sin correr el job, con 40 episodios pendientes, eran 40 consultas
+    de más -- el mismo N+1 que `catalog.stats` ya resolvió con joinedload."""
+    from sqlalchemy import event
+
+    for n in range(20):
+        serie = MediaItem(
+            title="Serie %02d" % n, media_type=MediaType.SERIE,
+            status=MediaStatus.EN_PROGRESO,
+        )
+        serie.episodes.append(
+            Episode(season_number=1, episode_number=1, name="Piloto",
+                    air_date=AYER, notified=False)
+        )
+        db.add(serie)
+    db.commit()
+
+    lecturas: list[str] = []
+
+    def _antes(conn, cursor, sentencia, parametros, contexto, muchos):
+        if sentencia.lstrip().upper().startswith("SELECT"):
+            lecturas.append(sentencia)
+
+    motor = db.get_bind()
+    event.listen(motor, "before_cursor_execute", _antes)
+    try:
+        assert scheduler.check_new_episodes(db) == 20
+    finally:
+        event.remove(motor, "before_cursor_execute", _antes)
+
+    assert len(lecturas) <= 2, (
+        "%d consultas para 20 episodios: el número crece con N.\n%s"
+        % (len(lecturas), "\n".join(s.replace("\n", " ")[:90] for s in lecturas[:4]))
+    )
+
+
 def test_send_message_devuelve_false_sin_configurar(monkeypatch):
     """El contrato del que depende todo lo anterior."""
     monkeypatch.setattr(telegram.settings, "telegram_bot_token", "")

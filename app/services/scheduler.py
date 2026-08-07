@@ -7,7 +7,7 @@ import sqlite3
 from datetime import date, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..config import settings
 from ..database import SessionLocal
@@ -43,6 +43,10 @@ def check_new_episodes(db: Session) -> int:
     sent = 0
     eps = (
         db.query(Episode).join(MediaItem)
+        # El join filtra, pero no carga la relación: sin esto, cada
+        # `ep.item.title` del bucle de abajo dispara un SELECT aparte. Es el
+        # mismo N+1 que ya se resolvió en catalog.stats, con el mismo remedio.
+        .options(joinedload(Episode.item))
         .filter(
             Episode.notified.is_(False),
             Episode.air_date.isnot(None),
