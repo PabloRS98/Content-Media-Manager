@@ -133,12 +133,23 @@ async def import_imdb_csv(
     creados = 0
     omitidos = 0
     duplicados = 0
-    # external_id vistos en ESTE fichero: SessionLocal tiene autoflush=False, así
-    # que los db.add() de filas anteriores del mismo bucle no están todavía en la
-    # BD cuando se hace la consulta de abajo. Sin este set, un CSV con la misma
-    # película repetida (p. ej. en "Ratings" y en "Watchlist") crea un duplicado
-    # por cada repetición en vez de detectarlas entre sí.
-    vistos_en_este_csv: set[str] = set()
+    # Un solo SELECT con los external_id que ya existen, en vez de uno por fila
+    # del CSV. Un export de "Your Ratings" tiene fácilmente 2 000-5 000 filas, y
+    # eran 5 000 consultas secuenciales dentro de una sola petición HTTP: la
+    # importación tardaba minutos y cualquier proxy inverso delante cortaba por
+    # timeout. Es el patrón que services/imports.py (Goodreads, Backloggd) ya
+    # usaba con `_existing_keys`; solo el importador de IMDb, el más antiguo y
+    # el que recibe los ficheros más grandes, se había quedado con el N+1.
+    #
+    # El mismo set absorbe los external_id vistos en ESTE fichero: SessionLocal
+    # tiene autoflush=False, así que los db.add() de filas anteriores del bucle
+    # no estarían en la BD aunque se consultara. Sin eso, un CSV con la misma
+    # película repetida (p. ej. en "Ratings" y en "Watchlist") crearía un
+    # duplicado por cada repetición en vez de detectarlas entre sí.
+    ya_conocidos: set[str] = {
+        eid for (eid,) in db.query(MediaItem.external_id)
+        .filter(MediaItem.external_id.isnot(None)).all()
+    }
 
     for row in reader:
         # Busca el tipo de título de forma case-insensitive y tolerante a idiomas
@@ -155,14 +166,10 @@ async def import_imdb_csv(
         external_id = f"imdb:{imdb_id}" if imdb_id else None
 
         if external_id:
-            ya_existe = (
-                external_id in vistos_en_este_csv
-                or db.query(MediaItem).filter(MediaItem.external_id == external_id).first() is not None
-            )
-            if ya_existe:
+            if external_id in ya_conocidos:
                 duplicados += 1
                 continue
-            vistos_en_este_csv.add(external_id)
+            ya_conocidos.add(external_id)
 
         year = _parse_optional_int(_get(row, "Year", "Año", "Ano"))
         directors = _get(row, "Directors", "Directores", "Director").strip()
@@ -200,6 +207,11 @@ async def import_imdb_csv(
             updated_at=fecha,
         ))
         creados += 1
+        # Un flush cada 500 filas para no acumular 5 000 objetos en la sesión
+        # antes del único commit final. No abre transacción propia: si algo
+        # falla después, el rollback sigue deshaciendo el fichero entero.
+        if creados % 500 == 0:
+            db.flush()
 
     db.commit()
     sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()

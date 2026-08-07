@@ -84,6 +84,12 @@ each entry below names the id it closes.
   rather than by guessing: six of eight representative queries go from `SCAN` to
   `SEARCH … USING INDEX`, and the catalog's default sort no longer needs a temp
   B-tree. `cover_url` was measured and deliberately left unindexed.
+- **[MC-A2]** The IMDb CSV importer ran one `SELECT` per row to check for
+  duplicates. A "Your Ratings" export can easily be 2 000–5 000 rows, so that
+  was thousands of sequential queries inside a single HTTP request — long enough
+  for a reverse proxy in front to time out. The existing ids are now preloaded
+  once, the same way the Goodreads and Backloggd importers already did it.
+  Measured: 202 read queries for a 200-row file, now 2.
 
 ### Changed
 
