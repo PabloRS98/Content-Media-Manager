@@ -3,7 +3,7 @@ wishlist, actividad reciente, próximamente (estrenos) y sugerencia."""
 from datetime import date
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
@@ -15,12 +15,32 @@ from ..templating import templates
 router = APIRouter(tags=["inicio"], dependencies=[Depends(verify_auth)])
 
 _PRIORITY_RANK = {Priority.ALTA: 0, Priority.MEDIA: 1, Priority.BAJA: 2}
+
+# El mismo criterio que `_PRIORITY_RANK`, expresado para que lo aplique SQLite:
+# así el ORDER BY y el LIMIT ocurren en la base y no hace falta traerse las
+# filas para ordenarlas en Python. `else_` cubre también priority NULL, que es
+# lo que hacía el `.get(..., 1)` del diccionario.
+_ORDEN_PRIORIDAD = case(
+    (MediaItem.priority == Priority.ALTA, 0),
+    (MediaItem.priority == Priority.BAJA, 2),
+    else_=1,
+)
 _FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
 
 
 def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
     """Estrenos futuros: próximos episodios de series que sigues + lanzamientos
-    de la wishlist. Ordenado por fecha ascendente."""
+    de la wishlist. Ordenado por fecha ascendente.
+
+    Con `limit`, el recorte se aplica también a cada una de las dos consultas y
+    no solo al resultado combinado: como las dos vienen ordenadas por fecha
+    ascendente, los `limit` primeros del total están necesariamente entre los
+    `limit` primeros de cada una. Antes se traían TODOS los episodios futuros y
+    TODA la wishlist con fecha para quedarse con seis.
+
+    Sin `limit` (que es como lo llama `/calendario`) sigue trayéndolo todo: esa
+    vista lo necesita, y recortarla ahí sería perder entradas en silencio.
+    """
     hoy = date.today()
     entradas: list[dict] = []
 
@@ -35,6 +55,7 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
             MediaItem.status.in_(_FOLLOWING),
         )
         .order_by(Episode.air_date)
+        .limit(limit)
         .all()
     )
     for ep in eps:
@@ -47,6 +68,7 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
             MediaItem.release_date.isnot(None), MediaItem.release_date >= hoy,
         )
         .order_by(MediaItem.release_date)
+        .limit(limit)
         .all()
     )
     for it in releases:
@@ -66,14 +88,18 @@ def home(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
-    pendientes = (
+    # Ordenar por prioridad (alta→media→baja) y luego por actividad reciente.
+    # El orden lo hace SQL con un CASE, no Python: antes se traían TODOS los
+    # pendientes --cada objeto con todas sus columnas, incluida `overview`, que
+    # es Text-- para quedarse con doce. Con 3 000 pendientes eran 3 000 objetos
+    # ORM materializados para descartar 2 988.
+    proximos = (
         db.query(MediaItem)
         .filter(MediaItem.status == MediaStatus.PENDIENTE)
+        .order_by(_ORDEN_PRIORIDAD, MediaItem.updated_at.desc())
+        .limit(12)
         .all()
     )
-    # Ordenar por prioridad (alta→media→baja) y luego por actividad reciente
-    pendientes.sort(key=lambda i: (_PRIORITY_RANK.get(i.priority, 1), -(i.updated_at.timestamp() if i.updated_at else 0)))
-    proximos = pendientes[:12]
 
     wishlist = (
         db.query(MediaItem)
