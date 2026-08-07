@@ -179,6 +179,12 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **[MC-M2]** `list_catalog` was 210 lines mixing query building, translation
+  and presentation, in the largest file in the project. The duration filter's
+  ranges were hardcoded twice — once to filter and once to label the dropdown,
+  40 lines apart — so changing "< 150 págs" meant editing two places and hoping.
+  Ranges and labels now live together in `catalogo_config.py`, the queries moved
+  to `services/catalogo.py`, and the route is a 60-line orchestrator.
 - **[MC-M3]** Status labels ("Por leer", "Viendo", "Lo quiero ver"…) lived in
   two places: five dictionaries in the catalog router and the same mapping again
   in the card template as a 13-level nested ternary. They had already drifted —

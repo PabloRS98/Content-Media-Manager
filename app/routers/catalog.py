@@ -10,7 +10,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
-from ..catalogo_config import etiquetas_de
+from ..catalogo_config import etiquetas_de, etiquetas_de_duracion
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import (
@@ -24,7 +24,7 @@ from ..models import (
     media_item_tags,
 )
 from ..security import safe_external_url
-from ..services import googlebooks, itunes, metadata, openlibrary, rawg, tmdb
+from ..services import catalogo, googlebooks, itunes, metadata, openlibrary, rawg, tmdb
 from ..templating import templates
 
 logger = logging.getLogger(__name__)
@@ -83,138 +83,25 @@ def list_catalog(
     pagina: int = 1,
     db: Session = Depends(get_db),
 ):
-    query = db.query(MediaItem)
     mt = _enum_or_none(MediaType, tipo)
-    if mt:
-        query = query.filter(MediaItem.media_type == mt)
     ms = _enum_or_none(MediaStatus, estado)
-    if ms:
-        query = query.filter(MediaItem.status == ms)
+    query = catalogo.aplicar_filtros(db, db.query(MediaItem), mt, ms, genero, tiempo)
 
-    # 1. Filtro de Género
-    if genero:
-        # No es inyección SQL (SQLAlchemy parametriza), pero % y _ del usuario
-        # se interpretan como comodines de LIKE si no se escapan: sin esto,
-        # ?genero=% devolvía el catálogo entero y ?genero=_ cualquier género
-        # de un carácter.
-        genero_escapado = genero.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.filter(MediaItem.genres.like(f"%{genero_escapado}%", escape="\\"))
-
-    # 2. Filtro de Tiempo/Duración
-    if tiempo and mt:
-        if mt == MediaType.LIBRO:
-            if tiempo == "corto":
-                query = query.filter(MediaItem.page_count < 150)
-            elif tiempo == "medio":
-                query = query.filter(MediaItem.page_count >= 150, MediaItem.page_count <= 300)
-            elif tiempo == "largo":
-                query = query.filter(MediaItem.page_count > 300, MediaItem.page_count <= 500)
-            elif tiempo == "muy_largo":
-                query = query.filter(MediaItem.page_count > 500)
-        elif mt == MediaType.PELICULA:
-            if tiempo == "corto":
-                query = query.filter(MediaItem.runtime_minutes < 90)
-            elif tiempo == "medio":
-                query = query.filter(MediaItem.runtime_minutes >= 90, MediaItem.runtime_minutes <= 150)
-            elif tiempo == "largo":
-                query = query.filter(MediaItem.runtime_minutes > 150)
-        elif mt == MediaType.SERIE:
-            from sqlalchemy import func
-
-            from ..models import Episode
-            subq = db.query(Episode.item_id, func.count(Episode.id).label("ep_count")).group_by(Episode.item_id).subquery()
-            if tiempo == "corto":
-                query = query.outerjoin(subq, MediaItem.id == subq.c.item_id).filter(func.coalesce(subq.c.ep_count, 0) < 10)
-            elif tiempo == "medio":
-                query = query.outerjoin(subq, MediaItem.id == subq.c.item_id).filter(func.coalesce(subq.c.ep_count, 0) >= 10, func.coalesce(subq.c.ep_count, 0) <= 30)
-            elif tiempo == "largo":
-                query = query.outerjoin(subq, MediaItem.id == subq.c.item_id).filter(func.coalesce(subq.c.ep_count, 0) > 30)
-        elif mt == MediaType.VIDEOJUEGO:
-            if tiempo == "corto":
-                query = query.filter(MediaItem.hltb_hours < 10)
-            elif tiempo == "medio":
-                query = query.filter(MediaItem.hltb_hours >= 10, MediaItem.hltb_hours <= 30)
-            elif tiempo == "largo":
-                query = query.filter(MediaItem.hltb_hours > 30, MediaItem.hltb_hours <= 60)
-            elif tiempo == "muy_largo":
-                query = query.filter(MediaItem.hltb_hours > 60)
-        elif mt == MediaType.PODCAST:
-            if tiempo == "corto":
-                query = query.filter(MediaItem.runtime_minutes < 30)
-            elif tiempo == "medio":
-                query = query.filter(MediaItem.runtime_minutes >= 30, MediaItem.runtime_minutes <= 60)
-            elif tiempo == "largo":
-                query = query.filter(MediaItem.runtime_minutes > 60)
-
-    # Ordenamiento
     orden = orden if orden in ORDERINGS else "recientes"
     query = ORDERINGS[orden][1](query)
 
-    # Paginación
     total = query.count()
     total_paginas = max(1, ceil(total / PER_PAGE))
     pagina = min(max(1, pagina), total_paginas)
     items = query.offset((pagina - 1) * PER_PAGE).limit(PER_PAGE).all()
 
-    # Contado solo del tipo que se está viendo: si no, el botón "Buscar
-    # portadas" de la pestaña de Películas mostraría un número que en
-    # realidad son libros sin portada, sin relación con lo que se ve en pantalla.
-    sin_portada_query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None))
-    if mt:
-        sin_portada_query = sin_portada_query.filter(MediaItem.media_type == mt)
-    sin_portada = sin_portada_query.count()
+    sin_portada = catalogo.contar_sin_portada(db, mt)
+    generos_lista = catalogo.generos_de(db, mt)
 
-    # 3. Obtener géneros únicos para poblar el filtro
-    generos_disponibles = set()
-    if mt:
-        items_generos = db.query(MediaItem.genres).filter(
-            MediaItem.media_type == mt,
-            MediaItem.genres.is_not(None)
-        ).all()
-        for row in items_generos:
-            if row[0]:
-                for g in row[0].split(","):
-                    g_clean = g.strip().capitalize()
-                    if g_clean:
-                        generos_disponibles.add(g_clean)
-    generos_lista = sorted(generos_disponibles)
+    # Opciones del desplegable de duración, de la misma tabla que el filtro.
+    tiempos_disponibles = etiquetas_de_duracion(mt)
 
-    # 4. Obtener opciones de duración/tiempo correspondientes
-    tiempos_disponibles = []
-    if mt == MediaType.LIBRO:
-        tiempos_disponibles = [
-            ("corto", "< 150 págs"),
-            ("medio", "150 - 300 págs"),
-            ("largo", "300 - 500 págs"),
-            ("muy_largo", "> 500 págs")
-        ]
-    elif mt == MediaType.PELICULA:
-        tiempos_disponibles = [
-            ("corto", "< 90 mins"),
-            ("medio", "90 - 150 mins"),
-            ("largo", "> 150 mins")
-        ]
-    elif mt == MediaType.SERIE:
-        tiempos_disponibles = [
-            ("corto", "< 10 caps"),
-            ("medio", "10 - 30 caps"),
-            ("largo", "> 30 caps")
-        ]
-    elif mt == MediaType.VIDEOJUEGO:
-        tiempos_disponibles = [
-            ("corto", "< 10 h (HLTB)"),
-            ("medio", "10 - 30 h (HLTB)"),
-            ("largo", "30 - 60 h (HLTB)"),
-            ("muy_largo", "> 60 h (HLTB)")
-        ]
-    elif mt == MediaType.PODCAST:
-        tiempos_disponibles = [
-            ("corto", "< 30 mins"),
-            ("medio", "30 - 60 mins"),
-            ("largo", "> 60 mins")
-        ]
-
-    # 5. Etiquetas de estado del tipo activo. La tabla vive en
+    # Etiquetas de estado del tipo activo. La tabla vive en
     # catalogo_config.py, compartida con la macro de las tarjetas: estaban
     # duplicadas y ya habían divergido (a la de la plantilla le faltaba
     # wishlist, así que un ítem deseado se veía distinto en cada sitio).
