@@ -62,6 +62,28 @@ def test_avisa_al_arrancar_sin_autenticacion(caplog):
     assert "ENABLE_AUTH" in caplog.text
 
 
+def test_el_aviso_dice_si_el_env_existe(caplog, monkeypatch, tmp_path):
+    """Nombrar la ruta a secas manda a mirar donde no hay nada: dentro del
+    contenedor `/app/.env` no existe --la configuración llega por el env_file
+    del compose-- y el aviso parecía señalar un fichero perdido."""
+    from app import main
+
+    monkeypatch.setattr(main, "ENV_FILE", tmp_path / "no-existe" / ".env")
+    with caplog.at_level("WARNING"):
+        main.avisar_si_no_hay_autenticacion(enable_auth=False)
+    assert "NO existe" in caplog.text
+    assert "env_file" in caplog.text
+
+    caplog.clear()
+    presente = tmp_path / ".env"
+    presente.write_text("", encoding="utf-8")
+    monkeypatch.setattr(main, "ENV_FILE", presente)
+    with caplog.at_level("WARNING"):
+        main.avisar_si_no_hay_autenticacion(enable_auth=False)
+    assert "NO existe" not in caplog.text
+    assert "existe" in caplog.text
+
+
 def test_no_avisa_cuando_la_autenticacion_esta_activada(caplog):
     from app.main import avisar_si_no_hay_autenticacion
 
