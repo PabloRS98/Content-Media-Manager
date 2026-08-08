@@ -4,21 +4,59 @@
 traducción y presentación, en el fichero más grande del proyecto. Esto se lleva
 la parte de "hablar con la base de datos"; el router se queda orquestando.
 """
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..catalogo_config import BUCKETS_DURACION, condicion_de_duracion
 from ..models import Episode, MediaItem, MediaStatus, MediaType
 
+# Columnas donde se busca. Son las cuatro cosas que uno recuerda de un ítem:
+# cómo se llama, quién lo hizo, de qué va y a qué saga pertenece.
+_COLUMNAS_DE_BUSQUEDA = (
+    MediaItem.title,
+    MediaItem.creator,
+    MediaItem.genres,
+    MediaItem.saga,
+)
+
+
+def _escapar_comodines(texto: str) -> str:
+    """`%` y `_` son comodines de LIKE: sin escaparlos, buscar "100%" devuelve
+    el catálogo entero. Mismo tratamiento que ya se le daba al filtro de género."""
+    return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def filtrar_por_busqueda(query, texto: str | None):
+    """Filtra por palabras en AND: cada palabra tiene que aparecer en alguna de
+    las columnas, pero no necesariamente en la misma.
+
+    Así "sanderson nieblas" encuentra un libro cuyo autor es Sanderson y cuyo
+    título lleva "nieblas", que es como se busca de verdad cuando uno recuerda
+    la mitad de cada cosa. Es el criterio que `projects-dashboard` ya tenía
+    resuelto, aquí llevado a SQL para no traerse el catálogo entero a memoria.
+    """
+    if not texto or not texto.strip():
+        return query
+    for palabra in texto.lower().split():
+        patron = "%%%s%%" % _escapar_comodines(palabra)
+        query = query.filter(
+            or_(*[
+                func.lower(columna).like(patron, escape="\\")
+                for columna in _COLUMNAS_DE_BUSQUEDA
+            ])
+        )
+    return query
+
 
 def aplicar_filtros(db: Session, query, media_type: MediaType | None,
                     estado: MediaStatus | None, genero: str | None,
-                    tiempo: str | None):
+                    tiempo: str | None, busqueda: str | None = None):
     """Aplica a `query` los filtros del catálogo que estén puestos."""
     if media_type:
         query = query.filter(MediaItem.media_type == media_type)
     if estado:
         query = query.filter(MediaItem.status == estado)
+    query = filtrar_por_busqueda(query, busqueda)
     if genero:
         # No es inyección SQL (SQLAlchemy parametriza), pero % y _ del usuario
         # se interpretan como comodines de LIKE si no se escapan: sin esto,

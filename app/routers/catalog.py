@@ -72,6 +72,22 @@ def _enum_or_none(enum_cls, value):
         return None
 
 
+def _opciones_de_filtro(mt: MediaType | None, tiempo: str | None, orden: str) -> dict:
+    """Lo que necesitan los desplegables de filtro: las opciones y la etiqueta
+    de la selección actual, para no repetir la búsqueda en la plantilla."""
+    tiempos = etiquetas_de_duracion(mt)
+    return {
+        # Las etiquetas de estado salen de la tabla de catalogo_config.py, la
+        # misma que usa la macro de las tarjetas: estaban duplicadas y ya
+        # habían divergido (a la de la plantilla le faltaba wishlist, así que
+        # un ítem deseado se veía distinto en cada sitio).
+        "status_labels": {s.value: label for s, label in etiquetas_de(mt).items()},
+        "tiempos_disponibles": tiempos,
+        "tiempo_label": next((label for val, label in tiempos if val == tiempo), None),
+        "orden_label": ORDERINGS[orden][0],
+    }
+
+
 @router.get("/catalogo")
 def list_catalog(
     request: Request,
@@ -81,11 +97,14 @@ def list_catalog(
     tiempo: str | None = None,
     orden: str = "recientes",
     pagina: int = 1,
+    # El buscador del catálogo. Ojo, no confundir con el `q` de `/buscar`, que
+    # consulta las APIs externas para AÑADIR: este busca en lo que ya tienes.
+    buscar: str | None = None,
     db: Session = Depends(get_db),
 ):
     mt = _enum_or_none(MediaType, tipo)
     ms = _enum_or_none(MediaStatus, estado)
-    query = catalogo.aplicar_filtros(db, db.query(MediaItem), mt, ms, genero, tiempo)
+    query = catalogo.aplicar_filtros(db, db.query(MediaItem), mt, ms, genero, tiempo, buscar)
 
     orden = orden if orden in ORDERINGS else "recientes"
     query = ORDERINGS[orden][1](query)
@@ -98,21 +117,8 @@ def list_catalog(
     sin_portada = catalogo.contar_sin_portada(db, mt)
     generos_lista = catalogo.generos_de(db, mt)
 
-    # Opciones del desplegable de duración, de la misma tabla que el filtro.
-    tiempos_disponibles = etiquetas_de_duracion(mt)
-
-    # Etiquetas de estado del tipo activo. La tabla vive en
-    # catalogo_config.py, compartida con la macro de las tarjetas: estaban
-    # duplicadas y ya habían divergido (a la de la plantilla le faltaba
-    # wishlist, así que un ítem deseado se veía distinto en cada sitio).
-    status_labels = {s.value: label for s, label in etiquetas_de(mt).items()}
-
-    # Solo para mostrar la selección actual en el desplegable de filtro sin
-    # repetir esta búsqueda en la plantilla.
-    tiempo_label = next((label for val, label in tiempos_disponibles if val == tiempo), None)
-    orden_label = ORDERINGS[orden][0]
-
     return templates.TemplateResponse(request, "catalog.html", {
+        **_opciones_de_filtro(mt, tiempo, orden),
         "items": items,
         "media_types": list(MediaType),
         "statuses": list(MediaStatus),
@@ -121,6 +127,7 @@ def list_catalog(
         "estado_filtro": ms.value if ms else None,
         "genero_filtro": genero,
         "tiempo_filtro": tiempo,
+        "buscar": buscar or "",
         "orden": orden,
         "ordenes": [(k, v[0]) for k, v in ORDERINGS.items()],
         "pagina": pagina,
@@ -128,10 +135,6 @@ def list_catalog(
         "total": total,
         "sin_portada": sin_portada,
         "generos_disponibles": generos_lista,
-        "tiempos_disponibles": tiempos_disponibles,
-        "status_labels": status_labels,
-        "tiempo_label": tiempo_label,
-        "orden_label": orden_label,
     })
 
 

@@ -34,6 +34,28 @@
     <div class="rowline" style="margin-bottom:.8rem; flex-wrap: wrap;">
         <div style="display: flex; gap: .55rem; align-items: center; flex-wrap: wrap;">
             <h3 style="margin:0">{{ icon("library-big") }} Mi catálogo <span class="tag accent">{{ total }}</span></h3>
+            {# Buscar en lo que YA tienes, no en las APIs de arriba. Es un
+               <form> GET normal a propósito: sin JavaScript sigue funcionando,
+               y la búsqueda queda en la URL, así que se puede compartir o
+               guardar en marcadores. Los filtros activos viajan como campos
+               ocultos para no perderse al buscar. #}
+            <form method="get" action="/catalogo" class="buscador-catalogo">
+                {% if tipo_filtro %}<input type="hidden" name="tipo" value="{{ tipo_filtro }}">{% endif %}
+                {% if estado_filtro %}<input type="hidden" name="estado" value="{{ estado_filtro }}">{% endif %}
+                {% if genero_filtro %}<input type="hidden" name="genero" value="{{ genero_filtro }}">{% endif %}
+                {% if tiempo_filtro %}<input type="hidden" name="tiempo" value="{{ tiempo_filtro }}">{% endif %}
+                <input type="hidden" name="orden" value="{{ orden }}">
+                <label class="buscador-catalogo-campo">
+                    {{ icon("search", 14) }}
+                    <input type="search" name="buscar" value="{{ buscar }}"
+                           placeholder="Buscar en mi catálogo: título, autor, género, saga…"
+                           autocomplete="off">
+                </label>
+                {% if buscar %}
+                <a class="btn ghost small" href="/catalogo{{ build_qs(request, buscar=None) }}"
+                   title="Quitar la búsqueda">{{ icon("x", 13) }}</a>
+                {% endif %}
+            </form>
             {% if sin_portada > 0 %}
             <form method="post" action="/catalogo/completar-portadas" style="display:inline" data-noload>
                 <button type="submit" class="btn small ghost warning" style="color: var(--warning); border-color: color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent);" title="Busca portadas automáticamente para {{ sin_portada }} ítems en segundo plano">

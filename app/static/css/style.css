@@ -365,6 +365,31 @@ button.ghost.is-loading::after, button.danger.is-loading::after {
    ocupaban demasiada pantalla, sobre todo con géneros. <details> nativo
    (sin JS) abre/cierra cada panel; el script de este template solo se
    encarga de cerrar los demás al abrir uno y de cerrar al clicar fuera. */
+/* Buscador del propio catálogo. Va junto al título, no en la barra de filtros:
+   es lo primero que uno busca cuando entra sabiendo lo que quiere. */
+.buscador-catalogo { display: flex; align-items: center; gap: .4rem; }
+.buscador-catalogo-campo {
+    display: inline-flex; align-items: center; gap: .45rem;
+    padding: .34rem .7rem; border-radius: var(--r-sm);
+    border: 1px solid var(--border-2); background: var(--card-2);
+    color: var(--text-3);
+}
+.buscador-catalogo-campo:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    color: var(--accent-soft);
+}
+.buscador-catalogo-campo input {
+    border: 0; background: none; padding: 0; margin: 0;
+    color: var(--text); font-size: .84rem; min-width: 15rem;
+}
+.buscador-catalogo-campo input:focus { outline: none; box-shadow: none; }
+
+@media (max-width: 640px) {
+    .buscador-catalogo { width: 100%; }
+    .buscador-catalogo-campo { flex: 1; }
+    .buscador-catalogo-campo input { min-width: 0; width: 100%; }
+}
+
 .filter-groups { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; position: relative; }
 .filter-dd { position: relative; }
 .filter-dd > summary {
