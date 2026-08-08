@@ -10,6 +10,23 @@ each entry below names the id it closes.
 
 ### Added
 
+- **Accounts.** More than one person lives in the house, and until now they all
+  shared one catalog: your partner's half-finished series sat in your "in
+  progress", their ratings skewed your stats, and marking an episode watched was
+  ambiguous about who watched it. Each account now has its own catalog —
+  items, lists, stats, calendar, recommendations and imports are all scoped to
+  whoever is signed in, and nothing is shared between accounts except the tag
+  vocabulary, which is deliberate: tags are a shared language for the same
+  library, not personal data. A password is optional, because the common case at
+  home is entering with one click; when an account has one, it is genuinely
+  required — choosing that account in the selector without the password does not
+  open it, and no page reveals anything of its contents. Passwords are stored
+  as `scrypt` hashes with a per-account salt and compared in constant time,
+  never in the clear. The selector itself is the only page that doesn't need an
+  account, and it shows names and padlocks only — never how many items anyone
+  has. Existing installations keep everything they had: the migration creates a
+  first account ("Yo", renameable in its settings) and assigns the whole
+  existing catalog to it, so nothing disappears and nothing needs re-importing.
 - **[N3]** "Because you liked…" on the home page. The app already knew what
   you'd finished, how you rated it, and which sagas, creators and genres it
   belonged to — it just never used any of it. Pending items are now ranked by

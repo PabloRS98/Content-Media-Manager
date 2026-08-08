@@ -46,6 +46,9 @@ SQLite file. No account, no cloud, no paid API required.
   Backloggd or a generic CSV (games) — with batch cover-art enrichment afterward.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
 - **Automatic daily backups** of the SQLite database, with rotation.
+- **One account per person in the house**, each with its own catalog, lists and
+  stats. A password is optional — without one you enter with a click; with one,
+  the account can't be opened or its catalog seen without it.
 - **Optional HTTP Basic auth**, for when you expose it beyond your LAN (e.g. via Tailscale).
 
 ## Why
@@ -99,6 +102,7 @@ source; everything else keeps working.
 | `GOOGLE_BOOKS_API_KEY` | Higher-quota book search fallback | Optional — works keyless at low volume; key at [console.cloud.google.com](https://console.cloud.google.com/) (enable "Books API") |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Episode/release notifications | Create a bot via [@BotFather](https://t.me/BotFather), then message it and check `api.telegram.org/bot<TOKEN>/getUpdates` for your chat id |
 | `ENABLE_AUTH`, `AUTH_USERNAME`, `AUTH_PASSWORD` | HTTP Basic auth | — |
+| `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
 | `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
 
 Books via **Open Library** and podcasts via **iTunes Search** need no key at

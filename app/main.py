@@ -6,11 +6,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, Response
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
 from .config import ENV_FILE, settings
 from .csrf import CSRFProtectionMiddleware
+from .cuentas import asegurar_cuenta_inicial, secreto_de_sesion
 from .database import (
     CLAVE_BACKFILL_V2,
     SessionLocal,
@@ -19,7 +22,9 @@ from .database import (
     leer_meta,
     revision_pendiente,
 )
-from .routers import catalog, estado, home, imdb_import, lists
+from .errores import SinCuenta
+from .models import Usuario
+from .routers import catalog, cuentas as router_cuentas, estado, home, imdb_import, lists
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -143,10 +148,20 @@ async def lifespan(app: FastAPI):
         backfill_v2_columns()
     except Exception:
         logger.exception("Fallo en el backfill de columnas v2: se reintentará al arrancar")
+    # El orden importa: primero la cuenta, porque las listas automáticas son de
+    # alguien. Una instalación nueva necesita al menos una o el selector saldría
+    # vacío y no habría forma de entrar; en una que venga de antes, la migración
+    # ya creó "Yo" con todo el catálogo dentro.
+    try:
+        asegurar_cuenta_inicial()
+    except Exception:
+        logger.exception("Fallo al asegurar la cuenta inicial: el selector puede salir vacío")
+
     try:
         db = SessionLocal()
         try:
-            lists.seed_smart_lists(db)
+            for usuario in db.query(Usuario).all():
+                lists.seed_smart_lists(db, usuario.id)
         finally:
             db.close()
     except Exception:
@@ -167,6 +182,21 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
 
 app.add_middleware(CSRFProtectionMiddleware)
+
+
+
+@app.middleware("http")
+async def cuenta_en_la_plantilla(request: Request, call_next):
+    """Deja `request.state.cuenta_abierta` siempre definido, para que la barra
+    superior pueda preguntar por él sin condicionales raros.
+
+    Aquí solo se pone a None: quien lo rellena es la dependencia
+    `usuario_actual`, que ya tiene la cuenta y la sesión de base de datos de la
+    petición. Así no se paga una consulta extra por página ni se abre una
+    segunda sesión -- y `/cuentas`, la única vista sin cuenta, se pinta igual.
+    """
+    request.state.cuenta_abierta = None
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -200,11 +230,30 @@ async def cabeceras_de_seguridad(request: Request, call_next):
     )
     return response
 
+# SessionMiddleware va el ÚLTIMO a propósito. En Starlette el último
+# middleware añadido es el más externo, y los dos de arriba leen
+# `request.session`: si se registrara antes, quedaría por dentro y
+# reventarían con "SessionMiddleware must be installed".
+# La sesión guarda qué cuenta está abierta, firmada con una clave que se genera
+# sola la primera vez (ver `cuentas.secreto_de_sesion`). `https_only=False`
+# porque esto se sirve casi siempre por HTTP en la red de casa; con un proxy
+# inverso con TLS delante, la cookie viaja igual dentro del túnel.
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=secreto_de_sesion(),
+    session_cookie="media_catalog_sesion",
+    same_site="lax",
+    https_only=False,
+    max_age=60 * 60 * 24 * 365,  # un año: es la tele de casa, no un banco
+)
+
+
 app.include_router(home.router)
 app.include_router(catalog.router)
 app.include_router(lists.router)
 app.include_router(imdb_import.router)
 app.include_router(estado.router)
+app.include_router(router_cuentas.router)
 
 # `.resolve()` igual que en templating.py: la ruta no depende del cwd y aguanta
 # que el proyecto esté detrás de un enlace simbólico.
@@ -236,6 +285,17 @@ def _problemas_para_servir(db: Session) -> list[str]:
         logger.exception("Healthcheck: la consulta de prueba falló")
         problemas.append("consulta de prueba fallida")
     return problemas
+
+
+@app.exception_handler(SinCuenta)
+async def sin_cuenta(request: Request, exc: SinCuenta):
+    """Sin cuenta abierta no se sirve nada: al selector.
+
+    303 y no 401: no es que falten credenciales, es que aún no se ha dicho
+    quién eres. Y así el navegador sigue la redirección con un GET aunque la
+    petición original fuera un POST.
+    """
+    return RedirectResponse("/cuentas", status_code=303)
 
 
 @app.get("/salud")

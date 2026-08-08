@@ -35,6 +35,14 @@
         <a href="/importar" class="{{ 'active' if path.startswith('/importar') else '' }}">{{ icon("upload") }}<span>Importar</span></a>
         <a href="/estado" class="{{ 'active' if path.startswith('/estado') else '' }}">{{ icon("activity") }}<span>Estado</span></a>
     </nav>
+    {# Quién está usando la app. Lo pone un middleware en `request.state`, para
+       que no tenga que pasarlo cada vista una por una; en el selector de
+       cuentas es None, que es la única página sin cuenta abierta. #}
+    {% if request.state.cuenta_abierta %}
+    <a href="/cuentas/ajustes" class="cuenta-actual-nav ghost icon-btn" title="Tu cuenta: {{ request.state.cuenta_abierta.nombre }}">
+        {{ icon("user", 17) }}<span>{{ request.state.cuenta_abierta.nombre }}</span>
+    </a>
+    {% endif %}
     <button type="button" id="theme-toggle" class="ghost icon-btn" title="Cambiar entre oscuro y claro" aria-label="Cambiar entre oscuro y claro">
         {{ icon("sun", 17, cls="theme-icon-sun") }}
         {{ icon("moon", 17, cls="theme-icon-moon") }}

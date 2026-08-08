@@ -95,10 +95,10 @@ class TestHuecosEnLosDatos:
         crear_item(title="Con portada", cover_url="https://ejemplo.test/a.jpg")
         assert "Ítems sin portada" in client.get("/estado").text
 
-    def test_cuenta_las_series_sin_episodios(self, client, db):
-        db.add(MediaItem(title="Serie vacía", media_type=MediaType.SERIE,
+    def test_cuenta_las_series_sin_episodios(self, usuario, client, db):
+        db.add(MediaItem(usuario_id=usuario.id, title="Serie vacía", media_type=MediaType.SERIE,
                          status=MediaStatus.PENDIENTE))
-        con = MediaItem(title="Serie con episodios", media_type=MediaType.SERIE,
+        con = MediaItem(usuario_id=usuario.id, title="Serie con episodios", media_type=MediaType.SERIE,
                         status=MediaStatus.EN_PROGRESO)
         con.episodes.append(Episode(season_number=1, episode_number=1))
         db.add(con)

@@ -138,7 +138,13 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
 
 
 def enrich_missing_covers(db: Session) -> dict:
-    """Procesa hasta BATCH_SIZE ítems sin portada. Devuelve contadores para la UI."""
+    """Procesa hasta BATCH_SIZE ítems sin portada. Devuelve contadores para la UI.
+
+    Recorre los de TODAS las cuentas a propósito: es un trabajo de
+    mantenimiento del servidor, no una vista. Nadie ve datos de otro por esto
+    -- solo se rellenan portadas que faltan-- y limitarlo a una cuenta dejaría
+    las demás sin completar salvo que cada persona pulsara el botón.
+    """
     query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).order_by(MediaItem.id)
     total_missing = query.count()
     batch = query.limit(BATCH_SIZE).all()

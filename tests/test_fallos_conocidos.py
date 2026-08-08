@@ -50,14 +50,14 @@ def test_el_importador_de_imdb_no_duplica_dentro_del_mismo_csv(client, db):
     assert db.query(MediaItem).filter(MediaItem.title == "Peli repetida").count() == 1
 
 
-def test_el_contador_de_portadas_pendientes_dice_la_verdad(db, monkeypatch):
+def test_el_contador_de_portadas_pendientes_dice_la_verdad(usuario, db, monkeypatch):
     """Si no se encontró ninguna portada, siguen faltando todas."""
     from app.services import enrich
 
     monkeypatch.setattr(enrich, "_search_for", lambda item: [])
     monkeypatch.setattr(enrich, "SLEEP_BETWEEN", 0)
     for i in range(5):
-        db.add(MediaItem(media_type=MediaType.LIBRO, title=f"Sin portada {i}"))
+        db.add(MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title=f"Sin portada {i}"))
     db.commit()
 
     resultado = enrich.enrich_missing_covers(db)
@@ -135,7 +135,7 @@ def test_el_contador_de_portadas_respeta_el_tipo_que_estas_viendo(client, crear_
     assert "Buscar portadas" not in html
 
 
-def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
+def test_enriquecer_una_portada_no_cambia_el_titulo(usuario, db, monkeypatch):
     """`_pick_match` acepta por subcadena, así que 'Harry Potter y el cáliz de
     fuego' casa con un volumen genérico 'Harry Potter' y el ítem acaba
     renombrado. Con varios libros de la misma saga quedan filas indistinguibles."""
@@ -146,7 +146,7 @@ def test_enriquecer_una_portada_no_cambia_el_titulo(db, monkeypatch):
         "title": "Harry Potter",
         "cover_url": "https://ejemplo/portada.jpg",
     }])
-    libro = MediaItem(media_type=MediaType.LIBRO,
+    libro = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO,
                       title="Harry Potter y el cáliz de fuego")
     db.add(libro)
     db.commit()

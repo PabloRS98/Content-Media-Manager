@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}¿Quién eres? · Catálogo{% endblock %}
+{% block content %}
+
+{# Esta pantalla no enseña NADA de ninguna cuenta: solo el nombre y si lleva
+   candado. Ni cuántos ítems tiene ni qué hay dentro. Es la única página a la
+   que se llega sin cuenta abierta, así que es la que vería alguien que
+   entrara sin permiso. #}
+<section class="card">
+    <h3>{{ icon("users") }} ¿Quién eres?</h3>
+    <div class="cuentas">
+        {% for u in usuarios %}
+        <form method="post" action="/cuentas/entrar/{{ u.id }}" class="cuenta{% if actual and actual.id == u.id %} cuenta-actual{% endif %}">
+            <div class="cuenta-avatar">{{ u.nombre[0]|upper }}</div>
+            <div class="cuenta-datos">
+                <strong>{{ u.nombre }}</strong>
+                {% if u.tiene_password %}
+                <label class="cuenta-password">
+                    {{ icon("lock", 12) }}
+                    <input type="password" name="password" placeholder="Contraseña" autocomplete="current-password" required>
+                </label>
+                {% else %}
+                <span class="subtle">Entra sin contraseña</span>
+                {% endif %}
+            </div>
+            <button type="submit" class="small">
+                {% if actual and actual.id == u.id %}Seguir{% else %}Entrar{% endif %}
+            </button>
+        </form>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="card">
+    <h3>{{ icon("user-plus") }} Nueva cuenta</h3>
+    <p class="subtle">Cada cuenta tiene su propio catálogo: nadie ve ni toca lo de los demás.</p>
+    <form method="post" action="/cuentas" class="toolbar">
+        <input type="text" name="nombre" placeholder="Nombre" class="grow" required maxlength="60">
+        <input type="password" name="password" placeholder="Contraseña (opcional)" autocomplete="new-password">
+        <button type="submit">{{ icon("plus", 14) }} Crear</button>
+    </form>
+    <p class="subtle">
+        Sin contraseña se entra de un clic, que es lo cómodo en casa. Con ella,
+        nadie puede abrir tu cuenta ni ver tu catálogo sin saberla.
+    </p>
+</section>
+
+{% endblock %}

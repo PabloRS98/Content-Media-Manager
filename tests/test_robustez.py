@@ -102,7 +102,7 @@ class TestEnriquecimientoEnSegundoPlano:
         # flash, que redirect_flash siempre deja).
         assert "marcha" in r.cookies.get("flash", "")
 
-    def test_enrich_missing_covers_en_segundo_plano_usa_su_propia_sesion(self, db):
+    def test_enrich_missing_covers_en_segundo_plano_usa_su_propia_sesion(self, usuario, db):
         """Simula lo que hace BackgroundTasks: pasa una factoría de sesión, no
         la `db` de la request (que ya estaría cerrada para cuando esto corra)."""
         from app.services import enrich
@@ -110,7 +110,7 @@ class TestEnriquecimientoEnSegundoPlano:
         enrich._estado_lote["corriendo"] = False
         enrich._estado_lote["resultado"] = None
 
-        db.add(MediaItem(media_type=MediaType.LIBRO, title="x", cover_url="ya tiene"))
+        db.add(MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="x", cover_url="ya tiene"))
         db.commit()
 
         enrich.enrich_missing_covers_en_segundo_plano(lambda: db)

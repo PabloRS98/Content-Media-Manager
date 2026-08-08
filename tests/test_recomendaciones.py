@@ -31,115 +31,115 @@ def titulos(recomendaciones):
 
 
 class TestDeDondeSaleLaAfinidad:
-    def test_recomienda_por_saga(self, db, completar, pendiente):
+    def test_recomienda_por_saga(self, usuario, db, completar, pendiente):
         completar("El imperio final", saga="Nacidos de la bruma", rating=9)
         pendiente("El pozo de la ascensión", saga="Nacidos de la bruma")
         pendiente("Otro cualquiera")
 
-        recs = recomendar(db)
+        recs = recomendar(db, usuario)
         assert titulos(recs) == ["El pozo de la ascensión"]
         assert "El imperio final" in recs[0].motivos[0]
 
-    def test_recomienda_por_creador(self, db, completar, pendiente):
+    def test_recomienda_por_creador(self, usuario, db, completar, pendiente):
         completar("Dune", creator="Frank Herbert", rating=10)
         pendiente("Mesías de Dune", creator="Frank Herbert")
         pendiente("Nada que ver", creator="Otra persona")
 
-        assert titulos(recomendar(db)) == ["Mesías de Dune"]
+        assert titulos(recomendar(db, usuario)) == ["Mesías de Dune"]
 
-    def test_recomienda_por_genero(self, db, completar, pendiente):
+    def test_recomienda_por_genero(self, usuario, db, completar, pendiente):
         completar("Peli 1", genres="Ciencia ficción", media_type=MediaType.PELICULA)
         completar("Peli 2", genres="Ciencia ficción", media_type=MediaType.PELICULA)
         pendiente("Peli 3", genres="Ciencia ficción", media_type=MediaType.PELICULA)
         pendiente("Peli 4", genres="Comedia romántica", media_type=MediaType.PELICULA)
 
-        assert titulos(recomendar(db)) == ["Peli 3"]
+        assert titulos(recomendar(db, usuario)) == ["Peli 3"]
 
-    def test_la_wishlist_tambien_entra(self, db, completar, crear_item):
+    def test_la_wishlist_tambien_entra(self, usuario, db, completar, crear_item):
         completar("Dune", creator="Frank Herbert", rating=9)
         crear_item(title="Mesías de Dune", creator="Frank Herbert",
                    status=MediaStatus.WISHLIST)
 
-        assert titulos(recomendar(db)) == ["Mesías de Dune"]
+        assert titulos(recomendar(db, usuario)) == ["Mesías de Dune"]
 
 
 class TestElOrden:
-    def test_la_saga_pesa_mas_que_el_creador(self, db, completar, pendiente):
+    def test_la_saga_pesa_mas_que_el_creador(self, usuario, db, completar, pendiente):
         """Que te gustara un libro de una saga dice más del siguiente de esa
         saga que del siguiente libro del mismo autor."""
         completar("Base", saga="Mi saga", creator="Autora", rating=9)
         pendiente("Por saga", saga="Mi saga", creator="Otra persona")
         pendiente("Por autora", saga=None, creator="Autora")
 
-        assert titulos(recomendar(db))[0] == "Por saga"
+        assert titulos(recomendar(db, usuario))[0] == "Por saga"
 
-    def test_una_nota_alta_pesa_mas_que_solo_haberlo_terminado(self, db, completar, pendiente):
+    def test_una_nota_alta_pesa_mas_que_solo_haberlo_terminado(self, usuario, db, completar, pendiente):
         completar("Me encantó", creator="Autora A", rating=10)
         completar("Lo terminé", creator="Autora B", rating=None)
         pendiente("De la que me encantó", creator="Autora A")
         pendiente("De la que solo terminé", creator="Autora B")
 
-        assert titulos(recomendar(db))[0] == "De la que me encantó"
+        assert titulos(recomendar(db, usuario))[0] == "De la que me encantó"
 
-    def test_la_prioridad_alta_suma(self, db, completar, pendiente):
+    def test_la_prioridad_alta_suma(self, usuario, db, completar, pendiente):
         """Una prioridad puesta a mano es una señal explícita del usuario."""
         completar("Base", creator="Autora", rating=9)
         pendiente("Normal", creator="Autora")
         pendiente("Prioritario", creator="Autora", priority=Priority.ALTA)
 
-        assert titulos(recomendar(db))[0] == "Prioritario"
+        assert titulos(recomendar(db, usuario))[0] == "Prioritario"
 
-    def test_se_respeta_el_limite(self, db, completar, pendiente):
+    def test_se_respeta_el_limite(self, usuario, db, completar, pendiente):
         completar("Base", genres="Fantasía", rating=9)
         for n in range(10):
             pendiente("Pendiente %02d" % n, genres="Fantasía")
 
-        assert len(recomendar(db, limite=3)) == 3
+        assert len(recomendar(db, usuario, limite=3)) == 3
 
 
 class TestElPorque:
-    def test_cada_recomendacion_dice_su_motivo(self, db, completar, pendiente):
+    def test_cada_recomendacion_dice_su_motivo(self, usuario, db, completar, pendiente):
         completar("El imperio final", saga="Nacidos de la bruma", rating=9)
         pendiente("El pozo de la ascensión", saga="Nacidos de la bruma")
 
-        rec = recomendar(db)[0]
+        rec = recomendar(db, usuario)[0]
         assert rec.motivos
         assert all(m.strip() for m in rec.motivos)
 
-    def test_un_item_con_varias_afinidades_las_acumula(self, db, completar, pendiente):
+    def test_un_item_con_varias_afinidades_las_acumula(self, usuario, db, completar, pendiente):
         completar("Base", saga="Mi saga", creator="Autora", genres="Fantasía", rating=10)
         pendiente("Todo a la vez", saga="Mi saga", creator="Autora", genres="Fantasía")
 
-        rec = recomendar(db)[0]
+        rec = recomendar(db, usuario)[0]
         assert len(rec.motivos) == 3
 
 
 class TestCuandoNoHayNadaQueDecir:
-    def test_sin_nada_completado_no_recomienda(self, db, pendiente):
+    def test_sin_nada_completado_no_recomienda(self, usuario, db, pendiente):
         """Mejor no enseñar la sección que inventarse afinidades."""
         pendiente("Solo pendientes")
-        assert recomendar(db) == []
+        assert recomendar(db, usuario) == []
 
-    def test_un_catalogo_vacio_no_rompe(self, db):
-        assert recomendar(db) == []
+    def test_un_catalogo_vacio_no_rompe(self, usuario, db):
+        assert recomendar(db, usuario) == []
 
-    def test_sin_afinidad_no_se_recomienda_nada(self, db, completar, pendiente):
+    def test_sin_afinidad_no_se_recomienda_nada(self, usuario, db, completar, pendiente):
         completar("Un libro", creator="Autora A", genres="Fantasía", rating=9)
         pendiente("Nada que ver", creator="Autora B", genres="Ensayo")
 
-        assert recomendar(db) == []
+        assert recomendar(db, usuario) == []
 
-    def test_no_se_recomienda_lo_ya_completado(self, db, completar):
+    def test_no_se_recomienda_lo_ya_completado(self, usuario, db, completar):
         completar("Uno", saga="Mi saga", rating=9)
         completar("Dos", saga="Mi saga", rating=9)
 
-        assert recomendar(db) == []
+        assert recomendar(db, usuario) == []
 
-    def test_los_campos_nulos_no_rompen(self, db, completar, pendiente):
+    def test_los_campos_nulos_no_rompen(self, usuario, db, completar, pendiente):
         completar("Sin nada", creator=None, saga=None, genres=None, rating=9)
         pendiente("Tampoco", creator=None, saga=None, genres=None)
 
-        assert recomendar(db) == []
+        assert recomendar(db, usuario) == []
 
 
 class TestEnLaPortada:

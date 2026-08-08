@@ -32,7 +32,7 @@ def _detalles_tmdb_falsos(**overrides):
 
 
 class TestBackfillDeDuracionParaImportsDeImdb:
-    def test_una_pelicula_de_imdb_recibe_duracion_al_encontrar_portada(self, db, monkeypatch):
+    def test_una_pelicula_de_imdb_recibe_duracion_al_encontrar_portada(self, usuario, db, monkeypatch):
         monkeypatch.setattr(enrich, "SLEEP_BETWEEN", 0)
         monkeypatch.setattr(enrich.tmdb, "search_movies", lambda *a, **k: [{
             "external_id": "78", "title": "Blade Runner", "cover_url": "https://ejemplo/portada.jpg",
@@ -41,7 +41,7 @@ class TestBackfillDeDuracionParaImportsDeImdb:
         monkeypatch.setattr("app.services.metadata.tmdb.get_movie_details",
                             lambda tmdb_id: _detalles_tmdb_falsos())
 
-        item = MediaItem(media_type=MediaType.PELICULA, title="Blade Runner",
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.PELICULA, title="Blade Runner",
                           external_source="imdb", external_id="imdb:tt0083658",
                           status=MediaStatus.COMPLETADO)
         db.add(item)
@@ -55,7 +55,7 @@ class TestBackfillDeDuracionParaImportsDeImdb:
         assert item.external_source == "tmdb"
         assert item.external_id == "78"
 
-    def test_una_serie_de_imdb_recibe_episodios_al_encontrar_portada(self, db, monkeypatch):
+    def test_una_serie_de_imdb_recibe_episodios_al_encontrar_portada(self, usuario, db, monkeypatch):
         monkeypatch.setattr(enrich, "SLEEP_BETWEEN", 0)
         monkeypatch.setattr(enrich.tmdb, "search_tv", lambda *a, **k: [{
             "external_id": "1396", "title": "Breaking Bad", "cover_url": "https://ejemplo/portada.jpg",
@@ -71,7 +71,7 @@ class TestBackfillDeDuracionParaImportsDeImdb:
              "overview": "", "air_date": "2008-01-20", "runtime_minutes": 58},
         ])
 
-        item = MediaItem(media_type=MediaType.SERIE, title="Breaking Bad",
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.SERIE, title="Breaking Bad",
                           external_source="imdb", external_id="imdb:tt0903747",
                           status=MediaStatus.COMPLETADO)
         db.add(item)
@@ -84,7 +84,7 @@ class TestBackfillDeDuracionParaImportsDeImdb:
         assert len(item.episodes) == 1
         assert item.episodes[0].name == "Piloto"
 
-    def test_un_libro_de_imdb_no_se_promociona_a_tmdb(self, db, monkeypatch):
+    def test_un_libro_de_imdb_no_se_promociona_a_tmdb(self, usuario, db, monkeypatch):
         """El backfill de duración es solo para pelis/series (TMDB); un libro
         emparejado por Google Books no debe tocar external_source/external_id."""
         monkeypatch.setattr(enrich, "SLEEP_BETWEEN", 0)
@@ -93,7 +93,7 @@ class TestBackfillDeDuracionParaImportsDeImdb:
             "external_id": "abc123", "overview": "", "genres": None, "year": 1965,
         }])
 
-        item = MediaItem(media_type=MediaType.LIBRO, title="Dune",
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Dune",
                           external_source="goodreads")
         db.add(item)
         db.commit()
