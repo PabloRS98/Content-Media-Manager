@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..config import settings
 from ..database import SessionLocal
-from ..models import EPISODIC_TYPES, Episode, MediaItem, MediaStatus
+from ..models import TIPOS_EPISODICOS, Episode, MediaItem, MediaStatus
 from . import metadata, telegram, tmdb
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def refresh_following_episodes(db: Session, session_factory=SessionLocal) -> Non
         return
     ids = [
         fila[0] for fila in db.query(MediaItem.id).filter(
-            MediaItem.media_type.in_(EPISODIC_TYPES),
+            MediaItem.media_type.in_(TIPOS_EPISODICOS),
             MediaItem.status.in_(FOLLOWING),
             MediaItem.external_source == "tmdb",
             MediaItem.external_id.isnot(None),

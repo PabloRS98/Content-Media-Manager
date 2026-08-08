@@ -10,7 +10,7 @@ from ..auth import verify_auth
 from ..cuentas import items_de, listas_de, usuario_actual
 from ..database import get_db
 from ..models import (
-    EPISODIC_TYPES,
+    TIPOS_EPISODICOS,
     Episode,
     Lista,
     MediaItem,
@@ -19,7 +19,7 @@ from ..models import (
     Priority,
     Usuario,
 )
-from ..services import metadata, recomendaciones
+from ..services import episodios, metadata, recomendaciones
 from ..templating import templates
 
 router = APIRouter(tags=["inicio"], dependencies=[Depends(verify_auth)])
@@ -61,7 +61,7 @@ def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[d
             # TMDB usa la temporada 0 para especiales/recaps, que a menudo se
             # "estrenan" el mismo día que el episodio real y lo duplican aquí.
             Episode.season_number != 0,
-            MediaItem.media_type.in_(EPISODIC_TYPES),
+            MediaItem.media_type.in_(TIPOS_EPISODICOS),
             MediaItem.status.in_(_FOLLOWING),
             MediaItem.usuario_id == usuario.id,
         )
@@ -142,6 +142,10 @@ def home(request: Request, db: Session = Depends(get_db), usuario: Usuario = Dep
         "wishlist": por_estado.get(MediaStatus.WISHLIST, 0),
     }
 
+    # Cuatro carruseles de tarjetas: los recuentos de episodios de todas ellas
+    # se piden juntos en vez de uno por tarjeta (MC-X2).
+    episodios.precalcular(db, [*en_progreso, *proximos, *wishlist, *recientes])
+
     proximamente = _upcoming(db, usuario, limit=6)
 
     # Destino real (pestaña Listas) de los 4 accesos rápidos de abajo: ver
@@ -177,7 +181,12 @@ def calendario(request: Request, db: Session = Depends(get_db), usuario: Usuario
 
 
 @router.get("/tengo-tiempo")
-def time_fit(request: Request, minutos: int = 60, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def time_fit(
+    request: Request,
+    minutos: int = 60,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Sugiere qué pendiente/en curso cabe en el tiempo disponible (fragmento HTMX)."""
     minutos = max(5, min(minutos, 1000))
     candidatos = (
@@ -185,6 +194,11 @@ def time_fit(request: Request, minutos: int = 60, db: Session = Depends(get_db),
         .filter(MediaItem.status.in_([MediaStatus.PENDIENTE, MediaStatus.EN_PROGRESO]))
         .all()
     )
+    # `estimated_minutes` pregunta por el próximo episodio de cada serie, así
+    # que sin esto son tantas consultas como series pendientes tengas -- y aquí
+    # no hay paginación que lo acote: se recorre el catálogo entero (MC-X2).
+    episodios.precalcular(db, candidatos)
+
     encajan = []
     for item in candidatos:
         est = metadata.estimated_minutes(item)

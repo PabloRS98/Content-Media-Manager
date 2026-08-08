@@ -136,6 +136,82 @@ def test_proximamente_no_trae_todos_los_episodios(usuario, db, contador_de_filas
     )
 
 
+class TestTarjetasEpisodicas:
+    """[MC-X2] Cada tarjeta de serie o podcast llamaba a `episode_stats()`, que
+    lee la relación `episodes`. Como es perezosa, pintar una página de catálogo
+    con 24 series eran 24 consultas más, una por tarjeta, y crecían con lo que
+    tuvieras: el caso malo no es el catálogo de prueba, es el de verdad."""
+
+    @staticmethod
+    def _consultas_de_episodios(sentencias: list[str]) -> list[str]:
+        return [s for s in sentencias if " FROM episodes" in s]
+
+    @pytest.fixture
+    def series(self, usuario, db):
+        def _crear(n, episodios=5):
+            for i in range(n):
+                serie = MediaItem(usuario_id=usuario.id, title="Serie %02d" % i,
+                                  media_type=MediaType.SERIE,
+                                  status=MediaStatus.EN_PROGRESO)
+                for e in range(1, episodios + 1):
+                    serie.episodes.append(Episode(season_number=1, episode_number=e,
+                                                  name="Ep %d" % e, watched=e <= 2))
+                db.add(serie)
+            db.commit()
+        return _crear
+
+    def test_el_catalogo_no_consulta_una_vez_por_tarjeta(self, client, series, contador_de_filas):
+        """El número de consultas no puede depender de cuántas series haya."""
+        series(12)
+        contador_de_filas.clear()
+
+        assert client.get("/catalogo?tipo=serie").status_code == 200
+
+        consultas = self._consultas_de_episodios(contador_de_filas)
+        assert len(consultas) <= 2, (
+            "%d consultas a episodes para 12 tarjetas:\n%s"
+            % (len(consultas), "\n".join(s[:120] for s in consultas))
+        )
+
+    def test_los_recuentos_los_hace_la_base(self, client, series, contador_de_filas):
+        """Arreglarlo con un `selectinload` quitaría el N+1, pero seguiría
+        trayendo los 480 episodios de las 12 series para contar dos números por
+        tarjeta. Los recuentos se piden agregados; de la tabla solo salen las
+        filas de los 'próximos', una por serie como mucho."""
+        series(12, episodios=40)
+        contador_de_filas.clear()
+
+        client.get("/catalogo?tipo=serie")
+
+        consultas = self._consultas_de_episodios(contador_de_filas)
+        assert any("count(" in s for s in consultas), (
+            "ninguna consulta agrega: los episodios se están contando en Python\n%s"
+            % "\n".join(s[:160] for s in consultas)
+        )
+
+    def test_las_tarjetas_siguen_diciendo_lo_mismo(self, client, series):
+        """El dato pintado no cambia: 2 de 5 vistos y el próximo es el S01E03."""
+        series(1)
+
+        html = client.get("/catalogo?tipo=serie").text
+
+        assert "2/5 ep" in html
+        assert "próx. S01E03" in html
+
+    def test_tambien_en_la_portada_y_en_las_listas(self, client, series, contador_de_filas):
+        """La portada pinta tarjetas igual que el catálogo, y las listas
+        automáticas también: arreglarlo en un sitio y no en los otros deja el
+        problema donde estaba."""
+        series(10)
+        for ruta in ("/", "/listas"):
+            contador_de_filas.clear()
+            assert client.get(ruta).status_code == 200
+            consultas = self._consultas_de_episodios(contador_de_filas)
+            assert len(consultas) <= 3, (
+                "%s: %d consultas a episodes" % (ruta, len(consultas))
+            )
+
+
 def test_el_calendario_sigue_trayendolo_todo(usuario, client, db):
     """`/calendario` sí necesita el listado completo: el LIMIT es solo de la
     portada, y meterlo aquí recortaría la vista en silencio."""
