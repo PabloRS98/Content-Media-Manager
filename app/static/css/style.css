@@ -365,6 +365,31 @@ button.ghost.is-loading::after, button.danger.is-loading::after {
    ocupaban demasiada pantalla, sobre todo con géneros. <details> nativo
    (sin JS) abre/cierra cada panel; el script de este template solo se
    encarga de cerrar los demás al abrir uno y de cerrar al clicar fuera. */
+/* Recomendaciones: fichas anchas, no tarjetas de portada. El motivo ("de la
+   misma saga que X") es lo que da valor aquí, así que necesita sitio para
+   leerse; una rejilla de portadas lo dejaría en dos líneas cortadas. */
+.recomendaciones {
+    display: grid; gap: .6rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.recomendacion {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .6rem; text-decoration: none;
+}
+.reco-portada {
+    flex: 0 0 46px; height: 66px; border-radius: var(--r-sm);
+    overflow: hidden; background: var(--card-2);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-3);
+}
+.reco-portada img { width: 100%; height: 100%; object-fit: cover; }
+.reco-texto { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.reco-texto strong {
+    color: var(--text); font-size: .88rem; line-height: 1.25;
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.reco-texto .subtle { font-size: .76rem; }
+
 /* Buscador del propio catálogo. Va junto al título, no en la barra de filtros:
    es lo primero que uno busca cuando entra sabiendo lo que quiere. */
 .buscador-catalogo { display: flex; align-items: center; gap: .4rem; }
