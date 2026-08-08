@@ -31,7 +31,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 # que es la forma correcta de preguntar por algo opcional.
 templates.env.undefined = StrictUndefined
 
-_FILTER_PARAMS = ("tipo", "estado", "genero", "tiempo", "orden")
+_FILTER_PARAMS = ("tipo", "estado", "genero", "tiempo", "orden", "buscar")
 
 
 def build_qs(request: Request, **overrides: str | int | None) -> str:

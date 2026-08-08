@@ -10,6 +10,14 @@ each entry below names the id it closes.
 
 ### Added
 
+- **[N1]** Search inside your own catalog. Until now the only search box asked
+  external APIs so you could *add* things — there was no way to find what you
+  already had, which with a few thousand imported items meant paging through
+  filters. The new field searches title, creator, genre and saga, matching each
+  word anywhere among them, so "sanderson pozo" finds the book whose author is
+  one and whose title is the other. It combines with every existing filter and
+  survives paging, and it's a plain GET form, so it works without JavaScript and
+  the search stays in the URL.
 - **[MC-M12]** A `/estado` panel. "The episode alerts aren't arriving" could
   mean TMDB is down, the key is invalid, the Telegram token was revoked, the
   chat id is wrong, the job died, or there simply are no new episodes — and the
