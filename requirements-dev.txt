@@ -1,7 +1,7 @@
 # Dependencias solo para desarrollo y CI (no van en la imagen de Docker).
 -r requirements.txt
 
-pytest==8.3.3
+pytest==9.1.1
 ruff==0.7.4
 # Para leer docker-compose.yml en los tests: el endurecimiento del contenedor
 # se comprueba por estructura (una lista de capacidades exacta), no buscando
