@@ -11,8 +11,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Re
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
+from ..cuentas import items_de, usuario_actual
 from ..database import SessionLocal, get_db
-from ..models import MediaItem, MediaStatus, MediaType
+from ..models import MediaItem, MediaStatus, MediaType, Usuario
 from ..services.enrich import (
     enrich_missing_covers_en_segundo_plano,
     estado_actual,
@@ -115,8 +116,8 @@ def _parse_date(value: str | None) -> datetime | None:
 
 
 @router.get("/importar")
-def import_form(request: Request, db: Session = Depends(get_db)):
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+def import_form(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import.html", {"sin_portada": sin_portada})
 
 
@@ -124,6 +125,7 @@ def import_form(request: Request, db: Session = Depends(get_db)):
 async def import_imdb_csv(
     request: Request,
     archivo: UploadFile = File(...),
+    usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
     contenido = await _leer_csv_limitado(archivo)
@@ -151,7 +153,8 @@ async def import_imdb_csv(
     # película repetida (p. ej. en "Ratings" y en "Watchlist") crearía un
     # duplicado por cada repetición en vez de detectarlas entre sí.
     ya_conocidos: set[str] = {
-        eid for (eid,) in db.query(MediaItem.external_id)
+        eid for (eid,) in items_de(db, usuario)
+        .with_entities(MediaItem.external_id)
         .filter(MediaItem.external_id.isnot(None)).all()
     }
 
@@ -195,6 +198,7 @@ async def import_imdb_csv(
             notas.append(f"Rating IMDb: {imdb_rating}{sufijo_votos}.")
 
         db.add(MediaItem(
+            usuario_id=usuario.id,
             media_type=media_type,
             title=title,
             external_id=external_id,
@@ -218,7 +222,7 @@ async def import_imdb_csv(
             db.flush()
 
     db.commit()
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {
         "creados": creados,
         "omitidos": omitidos,
@@ -228,20 +232,20 @@ async def import_imdb_csv(
 
 
 @router.post("/importar/libros")
-async def import_books(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
+async def import_books(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Importa libros desde un CSV de Goodreads o StoryGraph."""
     text = await _leer_csv_limitado(archivo)
-    res = import_books_csv(db, text)
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+    res = import_books_csv(db, text, usuario.id)
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
 
 
 @router.post("/importar/juegos")
-async def import_games(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db)):
+async def import_games(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Importa juegos desde un CSV de Backloggd o genérico."""
     text = await _leer_csv_limitado(archivo)
-    res = import_games_csv(db, text)
-    sin_portada = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).count()
+    res = import_games_csv(db, text, usuario.id)
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
 
 

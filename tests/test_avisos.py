@@ -40,9 +40,10 @@ def envios(monkeypatch):
 
 
 @pytest.fixture
-def serie_con_episodio_emitido(db):
+def serie_con_episodio_emitido(usuario, db):
     def _crear(titulo="Marley & Me", nombre_ep="Chapter <one>"):
         serie = MediaItem(
+            usuario_id=usuario.id,
             title=titulo, media_type=MediaType.SERIE, status=MediaStatus.EN_PROGRESO
         )
         serie.episodes.append(
@@ -74,8 +75,9 @@ class TestEscapadoDelTexto:
         scheduler.check_new_episodes(db)
         assert "Chapter &lt;one&gt;" in envios.enviados[0]
 
-    def test_el_aviso_de_estreno_escapa_el_titulo(self, db, envios):
+    def test_el_aviso_de_estreno_escapa_el_titulo(self, usuario, db, envios):
         db.add(MediaItem(
+            usuario_id=usuario.id,
             title="Dungeons & Dragons", media_type=MediaType.PELICULA,
             status=MediaStatus.WISHLIST, release_date=AYER, release_notified=False,
         ))
@@ -113,9 +115,10 @@ class TestMarcadoCondicional:
         db.refresh(serie)
         assert serie.episodes[0].notified is True
 
-    def test_el_estreno_no_se_marca_si_el_envio_falla(self, db, envios):
+    def test_el_estreno_no_se_marca_si_el_envio_falla(self, usuario, db, envios):
         envios.exito = False
         item = MediaItem(
+            usuario_id=usuario.id,
             title="Peli pendiente", media_type=MediaType.PELICULA,
             status=MediaStatus.WISHLIST, release_date=AYER, release_notified=False,
         )
@@ -138,7 +141,7 @@ class TestMarcadoCondicional:
         assert scheduler.check_new_episodes(db) == 1
 
 
-def test_avisar_de_episodios_no_hace_n_mas_uno(db, envios):
+def test_avisar_de_episodios_no_hace_n_mas_uno(usuario, db, envios):
     """El `join(MediaItem)` sirve para filtrar, pero no CARGA la relación:
     cada `ep.item.title` del bucle disparaba un SELECT adicional. Tras un fin
     de semana sin correr el job, con 40 episodios pendientes, eran 40 consultas
@@ -147,6 +150,7 @@ def test_avisar_de_episodios_no_hace_n_mas_uno(db, envios):
 
     for n in range(20):
         serie = MediaItem(
+            usuario_id=usuario.id,
             title="Serie %02d" % n, media_type=MediaType.SERIE,
             status=MediaStatus.EN_PROGRESO,
         )

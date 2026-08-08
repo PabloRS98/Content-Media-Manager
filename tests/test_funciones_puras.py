@@ -85,16 +85,16 @@ class TestDuracionDePodcast:
 
 
 class TestMinutosEstimados:
-    def test_pelicula_usa_su_duracion(self):
-        item = MediaItem(media_type=MediaType.PELICULA, title="x", runtime_minutes=120)
+    def test_pelicula_usa_su_duracion(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.PELICULA, title="x", runtime_minutes=120)
         assert estimated_minutes(item) == 120
 
-    def test_libro_estima_a_partir_de_las_paginas(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="x", page_count=200)
+    def test_libro_estima_a_partir_de_las_paginas(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="x", page_count=200)
         assert estimated_minutes(item) == 300  # 200 * 1.5
 
-    def test_juego_convierte_las_horas_de_hltb(self):
-        item = MediaItem(media_type=MediaType.VIDEOJUEGO, title="x", hltb_hours=2.5)
+    def test_juego_convierte_las_horas_de_hltb(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.VIDEOJUEGO, title="x", hltb_hours=2.5)
         assert estimated_minutes(item) == 150
 
     def test_serie_cae_a_45_minutos_si_no_hay_dato(self, crear_serie):
@@ -107,8 +107,8 @@ class TestMinutosEstimados:
         (MediaType.LIBRO, "page_count"),
         (MediaType.VIDEOJUEGO, "hltb_hours"),
     ])
-    def test_devuelve_none_cuando_falta_el_dato(self, tipo, campo):
-        item = MediaItem(media_type=tipo, title="x", **{campo: None})
+    def test_devuelve_none_cuando_falta_el_dato(self, usuario, tipo, campo):
+        item = MediaItem(usuario_id=usuario.id, media_type=tipo, title="x", **{campo: None})
         assert estimated_minutes(item) is None
 
 
@@ -116,32 +116,32 @@ class TestSeleccionDeCoincidencia:
     def _resultado(self, titulo, **extra):
         return {"title": titulo, "cover_url": "https://ejemplo/portada.jpg", **extra}
 
-    def test_descarta_los_resultados_sin_portada(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="Duna")
+    def test_descarta_los_resultados_sin_portada(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Duna")
         assert _pick_match(item, [{"title": "Duna", "cover_url": None}]) is None
 
-    def test_devuelve_none_si_ningun_titulo_encaja(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="Duna")
+    def test_devuelve_none_si_ningun_titulo_encaja(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Duna")
         assert _pick_match(item, [self._resultado("Los Pilares de la Tierra")]) is None
 
-    def test_ignora_mayusculas_y_puntuacion(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="El Señor de los Anillos")
+    def test_ignora_mayusculas_y_puntuacion(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="El Señor de los Anillos")
         elegido = _pick_match(item, [self._resultado("el señor de los anillos")])
         assert elegido is not None
 
-    def test_en_libros_prefiere_la_edicion_en_espanol(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="Dune")
+    def test_en_libros_prefiere_la_edicion_en_espanol(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Dune")
         elegido = _pick_match(item, [
             self._resultado("Dune", language="en"),
             self._resultado("Dune", language="es"),
         ])
         assert elegido["language"] == "es"
 
-    def test_con_año_conocido_desempata_entre_compatibles(self):
+    def test_con_año_conocido_desempata_entre_compatibles(self, usuario):
         """Reproduce el caso real de 'Seda' de Alessandro Baricco: varios
         resultados contienen 'seda' como subcadena (una guía de lectura, un
         libro sin relación...), pero solo uno tiene el año real de la edición."""
-        item = MediaItem(media_type=MediaType.LIBRO, title="Seda", year=1997)
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Seda", year=1997)
         elegido = _pick_match(item, [
             self._resultado("Seda de Alessandro Baricco (Guía de lectura)", language="es", year=2016),
             self._resultado("Entre jaguares de lana y dragones de seda", language="es", year=2023),
@@ -149,18 +149,18 @@ class TestSeleccionDeCoincidencia:
         ])
         assert elegido["year"] == 1997
 
-    def test_sin_ningun_compatible_en_el_año_cae_al_primero(self):
+    def test_sin_ningun_compatible_en_el_año_cae_al_primero(self, usuario):
         """El año desempata, pero no es un filtro duro: si ninguno coincide,
         sigue devolviendo el primer compatible en vez de nada."""
-        item = MediaItem(media_type=MediaType.LIBRO, title="Duna", year=1965)
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Duna", year=1965)
         elegido = _pick_match(item, [
             self._resultado("Duna", language="es", year=2001),
             self._resultado("Duna", language="es", year=2010),
         ])
         assert elegido["year"] == 2001
 
-    def test_sin_año_en_el_item_no_desempata(self):
-        item = MediaItem(media_type=MediaType.LIBRO, title="Duna", year=None)
+    def test_sin_año_en_el_item_no_desempata(self, usuario):
+        item = MediaItem(usuario_id=usuario.id, media_type=MediaType.LIBRO, title="Duna", year=None)
         elegido = _pick_match(item, [
             self._resultado("Duna", language="es", year=2001),
             self._resultado("Duna", language="es", year=2010),

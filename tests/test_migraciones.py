@@ -16,11 +16,12 @@ from alembic import command
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from app import models  # noqa: F401  registra los modelos en Base
 from app.database import INDICES, REVISION_INICIAL, Base, _config_alembic, init_db
-from app.models import MediaItem, MediaStatus, MediaType
+from app.models import Lista, MediaItem, MediaStatus, MediaType, Usuario
 
 TABLAS_DEL_MODELO = sorted(Base.metadata.tables)
 
@@ -46,6 +47,10 @@ def _revision_head(engine) -> str:
 
 def _columnas(engine, tabla: str) -> set[str]:
     return {c["name"] for c in inspect(engine).get_columns(tabla)}
+
+
+def _nulabilidad(engine, tabla: str) -> dict[str, bool]:
+    return {c["name"]: c["nullable"] for c in inspect(engine).get_columns(tabla)}
 
 
 def _indices(engine, tabla: str) -> set[str]:
@@ -98,7 +103,7 @@ def test_tras_migrar_no_falta_ninguna_columna_del_modelo(engine_temporal, tabla)
     assert del_modelo - _columnas(engine_temporal, tabla) == set()
 
 
-def test_se_puede_consultar_tras_migrar(engine_temporal):
+def test_se_puede_consultar_tras_migrar(usuario, engine_temporal):
     """Sin la reconciliación esto lanzaba
     OperationalError("no such column: media_items.saga")."""
     _base_anterior_a_alembic(engine_temporal)
@@ -106,7 +111,7 @@ def test_se_puede_consultar_tras_migrar(engine_temporal):
 
     sesion = sessionmaker(bind=engine_temporal)()
     try:
-        sesion.add(MediaItem(title="Duna", media_type=MediaType.LIBRO,
+        sesion.add(MediaItem(usuario_id=usuario.id, title="Duna", media_type=MediaType.LIBRO,
                              status=MediaStatus.PENDIENTE))
         sesion.commit()
         assert [i.saga for i in sesion.query(MediaItem).all()] == [None]
@@ -159,10 +164,28 @@ class TestPrimeraMigracionReal:
         assert _revision_actual(engine_temporal) == _revision_head(engine_temporal)
 
 
+def _unicos(engine, tabla: str) -> set[tuple[str, ...]]:
+    """Restricciones UNIQUE por columnas, no por nombre: SQLite refleja sin
+    nombre las que se declararon en línea (`UNIQUE (name)`), así que comparar
+    nombres no distinguiría nada."""
+    inspector = inspect(engine)
+    unicos = {tuple(u["column_names"]) for u in inspector.get_unique_constraints(tabla)}
+    # Un índice UNIQUE hace el mismo trabajo que la restricción y SQLAlchemy
+    # emite uno u otro según cómo se declare, así que cuentan igual.
+    unicos |= {
+        tuple(i["column_names"]) for i in inspector.get_indexes(tabla) if i.get("unique")
+    }
+    return unicos
+
+
 def test_el_esquema_de_las_migraciones_coincide_con_los_modelos(engine_temporal, tmp_path):
     """`alembic upgrade head` sobre una base vacía tiene que dar el mismo
     esquema que `create_all()`. Si divergen, los tests (que usan `create_all`)
-    dejarían de probar lo que corre en producción."""
+    dejarían de probar lo que corre en producción.
+
+    Se comparan también índices, restricciones UNIQUE y nulabilidad, no solo los
+    nombres de las columnas: nada de eso da error al arrancar ni al consultar,
+    solo al escribir la fila que lo viola, que es la peor forma de enterarse."""
     init_db(bind=engine_temporal)
     migrado = inspect(engine_temporal)
 
@@ -176,5 +199,74 @@ def test_el_esquema_de_las_migraciones_coincide_con_los_modelos(engine_temporal,
         )
         for tabla in reflejado.get_table_names():
             assert _columnas(engine_temporal, tabla) == _columnas(desde_modelos, tabla), tabla
+            assert _unicos(engine_temporal, tabla) == _unicos(desde_modelos, tabla), tabla
+            assert _indices(engine_temporal, tabla) == _indices(desde_modelos, tabla), tabla
+            assert _nulabilidad(engine_temporal, tabla) == _nulabilidad(desde_modelos, tabla), tabla
     finally:
         desde_modelos.dispose()
+
+
+class TestUnicidadDeListasPorCuenta:
+    """`listas.name` era único globalmente. Con cuentas eso significa que la
+    primera persona que crea "Pendientes" se la quita a todas las demás -- y no
+    es un caso raro: las cuatro listas automáticas se siembran con nombres
+    fijos, así que la segunda cuenta ni siquiera se puede crear."""
+
+    def _dos_cuentas(self, engine):
+        """Dos cuentas nuevas. Se buscan por nombre porque la migración ya deja
+        creada la cuenta inicial ("Yo") con todo el catálogo que hubiera."""
+        sesion = sessionmaker(bind=engine)()
+        try:
+            sesion.add_all([Usuario(nombre="Una"), Usuario(nombre="Otra")])
+            sesion.commit()
+            return sesion, [
+                sesion.query(Usuario).filter_by(nombre=n).one() for n in ("Una", "Otra")
+            ]
+        except Exception:
+            sesion.close()
+            raise
+
+    def test_dos_cuentas_pueden_tener_una_lista_con_el_mismo_nombre(self, engine_temporal):
+        init_db(bind=engine_temporal)
+        sesion, (una, otra) = self._dos_cuentas(engine_temporal)
+        try:
+            sesion.add_all([
+                Lista(usuario_id=una.id, name="Pendientes"),
+                Lista(usuario_id=otra.id, name="Pendientes"),
+            ])
+            sesion.commit()
+
+            assert sesion.query(Lista).count() == 2
+        finally:
+            sesion.close()
+
+    def test_la_misma_cuenta_no_puede_repetir_nombre(self, engine_temporal):
+        """La restricción no desaparece, se acota: dentro de una cuenta sigue."""
+        init_db(bind=engine_temporal)
+        sesion, (una, _) = self._dos_cuentas(engine_temporal)
+        try:
+            sesion.add_all([
+                Lista(usuario_id=una.id, name="Pendientes"),
+                Lista(usuario_id=una.id, name="Pendientes"),
+            ])
+            with pytest.raises(IntegrityError):
+                sesion.commit()
+        finally:
+            sesion.close()
+
+    def test_tambien_en_una_base_anterior_a_alembic(self, engine_temporal):
+        """El camino que recorre la instalación que ya está en marcha: su tabla
+        `listas` viene con el UNIQUE global puesto."""
+        _base_anterior_a_alembic(engine_temporal)
+        init_db(bind=engine_temporal)
+        sesion, (una, otra) = self._dos_cuentas(engine_temporal)
+        try:
+            sesion.add_all([
+                Lista(usuario_id=una.id, name="Completados"),
+                Lista(usuario_id=otra.id, name="Completados"),
+            ])
+            sesion.commit()
+
+            assert sesion.query(Lista).count() == 2
+        finally:
+            sesion.close()

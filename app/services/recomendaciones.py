@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from ..models import MediaItem, MediaStatus
+from ..models import MediaItem, MediaStatus, Usuario
 
 # Qué se considera "candidato": lo que aún no has consumido.
 CANDIDATOS = (MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
@@ -52,7 +52,7 @@ def _generos_de_cadena(cadena: str | None) -> list[str]:
     return [g.strip().lower() for g in cadena.split(",") if g.strip()]
 
 
-def _gustos(db: Session) -> tuple[dict, dict, Counter]:
+def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
     """Lo que se sabe de los gustos, a partir de lo ya completado.
 
     Devuelve (sagas, creadores, géneros). Los dos primeros guardan además el
@@ -65,7 +65,10 @@ def _gustos(db: Session) -> tuple[dict, dict, Counter]:
     filas = db.query(
         MediaItem.title, MediaItem.rating, MediaItem.saga,
         MediaItem.creator, MediaItem.genres,
-    ).filter(MediaItem.status == MediaStatus.COMPLETADO).all()
+    ).filter(
+        MediaItem.status == MediaStatus.COMPLETADO,
+        MediaItem.usuario_id == usuario.id,
+    ).all()
 
     sagas: dict[str, tuple[str, int]] = {}
     creadores: dict[str, tuple[str, int]] = {}
@@ -89,14 +92,14 @@ def _gustos(db: Session) -> tuple[dict, dict, Counter]:
     return sagas, creadores, generos
 
 
-def recomendar(db: Session, limite: int = 6) -> list[Recomendacion]:
+def recomendar(db: Session, usuario: Usuario, limite: int = 6) -> list[Recomendacion]:
     """Pendientes ordenados por afinidad, con el porqué de cada uno.
 
     Devuelve lista vacía si no hay de dónde deducir nada (catálogo recién
     estrenado, o nada completado todavía): en ese caso la interfaz no promete
     lo que no puede cumplir y enseña la sugerencia aleatoria de siempre.
     """
-    sagas, creadores, generos = _gustos(db)
+    sagas, creadores, generos = _gustos(db, usuario)
     if not sagas and not creadores and not generos:
         return []
 
@@ -108,7 +111,10 @@ def recomendar(db: Session, limite: int = 6) -> list[Recomendacion]:
     candidatos = db.query(
         MediaItem.id, MediaItem.saga, MediaItem.creator,
         MediaItem.genres, MediaItem.priority, MediaItem.updated_at,
-    ).filter(MediaItem.status.in_(CANDIDATOS)).all()
+    ).filter(
+        MediaItem.status.in_(CANDIDATOS),
+        MediaItem.usuario_id == usuario.id,
+    ).all()
 
     puntuados = []
     for id_item, saga, creador, cadena_generos, prioridad, actualizado in candidatos:
@@ -152,7 +158,8 @@ def recomendar(db: Session, limite: int = 6) -> list[Recomendacion]:
     items = {
         item.id: item
         for item in db.query(MediaItem).filter(
-            MediaItem.id.in_([p[2] for p in elegidos])
+            MediaItem.id.in_([p[2] for p in elegidos]),
+            MediaItem.usuario_id == usuario.id,
         ).limit(len(elegidos)).all()
     }
     return [

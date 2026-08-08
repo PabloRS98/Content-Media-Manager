@@ -9,23 +9,23 @@ from app.routers.lists import seed_smart_lists
 
 
 class TestSembradoDeVistasAutomaticas:
-    def test_crea_las_4_vistas(self, db):
-        seed_smart_lists(db)
+    def test_crea_las_4_vistas(self, usuario, db):
+        seed_smart_lists(db, usuario.id)
         dinamicas = db.query(Lista).filter(Lista.filtro_estado.isnot(None)).all()
         assert {x.filtro_estado for x in dinamicas} == {
             "en_progreso", "pendiente", "completado", "wishlist",
         }
 
-    def test_es_idempotente(self, db):
-        seed_smart_lists(db)
-        seed_smart_lists(db)
+    def test_es_idempotente(self, usuario, db):
+        seed_smart_lists(db, usuario.id)
+        seed_smart_lists(db, usuario.id)
         assert db.query(Lista).filter(Lista.filtro_estado.isnot(None)).count() == 4
 
-    def test_evita_chocar_con_el_nombre_de_una_lista_manual(self, db):
-        db.add(Lista(name="Wishlist"))  # el usuario ya tenía una lista manual con ese nombre
+    def test_evita_chocar_con_el_nombre_de_una_lista_manual(self, usuario, db):
+        db.add(Lista(usuario_id=usuario.id, name="Wishlist"))  # el usuario ya tenía una lista manual con ese nombre
         db.commit()
 
-        seed_smart_lists(db)
+        seed_smart_lists(db, usuario.id)
 
         manual = db.query(Lista).filter(Lista.name == "Wishlist").one()
         assert manual.filtro_estado is None

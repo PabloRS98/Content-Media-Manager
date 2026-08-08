@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
 from ..catalogo_config import etiquetas_de, etiquetas_de_duracion
+from ..cuentas import item_de, items_de, listas_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import (
@@ -21,6 +22,7 @@ from ..models import (
     MediaType,
     Priority,
     Tag,
+    Usuario,
     media_item_tags,
 )
 from ..security import safe_external_url
@@ -100,11 +102,12 @@ def list_catalog(
     # El buscador del catálogo. Ojo, no confundir con el `q` de `/buscar`, que
     # consulta las APIs externas para AÑADIR: este busca en lo que ya tienes.
     buscar: str | None = None,
+    usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
     mt = _enum_or_none(MediaType, tipo)
     ms = _enum_or_none(MediaStatus, estado)
-    query = catalogo.aplicar_filtros(db, db.query(MediaItem), mt, ms, genero, tiempo, buscar)
+    query = catalogo.aplicar_filtros(db, items_de(db, usuario), mt, ms, genero, tiempo, buscar)
 
     orden = orden if orden in ORDERINGS else "recientes"
     query = ORDERINGS[orden][1](query)
@@ -114,8 +117,8 @@ def list_catalog(
     pagina = min(max(1, pagina), total_paginas)
     items = query.offset((pagina - 1) * PER_PAGE).limit(PER_PAGE).all()
 
-    sin_portada = catalogo.contar_sin_portada(db, mt)
-    generos_lista = catalogo.generos_de(db, mt)
+    sin_portada = catalogo.contar_sin_portada(db, usuario, mt)
+    generos_lista = catalogo.generos_de(db, usuario, mt)
 
     return templates.TemplateResponse(request, "catalog.html", {
         **_opciones_de_filtro(mt, tiempo, orden),
@@ -163,6 +166,9 @@ def enriquecer_en_segundo_plano(item_id: int) -> None:
     """
     db = SessionLocal()
     try:
+        # Aquí sí se busca por id a secas: el ítem lo acaba de crear esta misma
+        # petición, así que no hay nada que acotar -- y no hay usuario en
+        # sesión, porque esto corre después de que la respuesta se haya ido.
         item = db.get(MediaItem, item_id)
         if item:
             metadata.enrich_item(db, item)
@@ -174,7 +180,7 @@ def enriquecer_en_segundo_plano(item_id: int) -> None:
 
 
 @router.post("/catalogo/completar-portadas")
-def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     # BATCH_SIZE=30 ítems x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de
     # 2 minutos con las APIs lentas: hecho dentro de la propia petición HTTP,
     # cualquier proxy inverso delante corta por timeout antes de que termine.
@@ -203,7 +209,7 @@ def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db:
 
 
 @router.get("/buscar")
-def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es", db: Session = Depends(get_db)):
+def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es", db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     idioma = idioma if idioma in ("es", "en") else "es"
     results = []
     source = None
@@ -237,9 +243,9 @@ def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es"
 
 
 @router.get("/sugerencia")
-def suggest_random(request: Request, tipo: str | None = None, db: Session = Depends(get_db)):
+def suggest_random(request: Request, tipo: str | None = None, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Un ítem pendiente al azar (fragmento HTMX para el panel de sugerencia)."""
-    query = db.query(MediaItem).filter(MediaItem.status == MediaStatus.PENDIENTE)
+    query = items_de(db, usuario).filter(MediaItem.status == MediaStatus.PENDIENTE)
     mt = _enum_or_none(MediaType, tipo)
     if mt:
         query = query.filter(MediaItem.media_type == mt)
@@ -262,9 +268,11 @@ def add_item(
     genres: str = Form(""),
     page_count: str = Form(""),
     release_date: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
     item = MediaItem(
+        usuario_id=usuario.id,
         media_type=media_type,
         title=title,
         status=status,
@@ -301,8 +309,8 @@ def add_item(
 
 
 @router.get("/item/{item_id}")
-def item_detail(item_id: int, request: Request, db: Session = Depends(get_db)):
-    item = db.get(MediaItem, item_id)
+def item_detail(item_id: int, request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    item = item_de(db, usuario, item_id)
     if not item:
         return redirect_flash("/catalogo", "El ítem ya no existe", "error")
 
@@ -328,13 +336,13 @@ def item_detail(item_id: int, request: Request, db: Session = Depends(get_db)):
         conds.append(MediaItem.saga == item.saga)
     if conds:
         related = (
-            db.query(MediaItem)
+            items_de(db, usuario)
             .filter(or_(*conds), MediaItem.id != item.id)
             .order_by(MediaItem.year)
             .all()
         )
 
-    all_lists = db.query(Lista).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
+    all_lists = listas_de(db, usuario).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
     item_lists = [lista for lista in all_lists if item in lista.items]
 
     return templates.TemplateResponse(request, "detail.html", {
@@ -369,9 +377,10 @@ def update_item(
     page_count: str = Form(""),
     hltb_hours: str = Form(""),
     tags: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
-    item = db.get(MediaItem, item_id)
+    item = item_de(db, usuario, item_id)
     if not item:
         return redirect_flash("/catalogo", "El ítem ya no existe", "error")
 
@@ -414,8 +423,8 @@ def update_item(
 
 
 @router.post("/item/{item_id}/eliminar")
-def delete_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.get(MediaItem, item_id)
+def delete_item(item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    item = item_de(db, usuario, item_id)
     if item:
         db.delete(item)
         db.commit()
@@ -423,8 +432,8 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/item/{item_id}/episodio/{ep_id}/toggle")
-def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db)):
-    item = db.get(MediaItem, item_id)
+def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    item = item_de(db, usuario, item_id)
     ep = db.get(Episode, ep_id)
     if item and ep and ep.item_id == item.id:
         metadata.toggle_episode(item, ep)
@@ -434,8 +443,8 @@ def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/item/{item_id}/marcar-hasta/{ep_id}")
-def mark_through_episode(item_id: int, ep_id: int, db: Session = Depends(get_db)):
-    item = db.get(MediaItem, item_id)
+def mark_through_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    item = item_de(db, usuario, item_id)
     ep = db.get(Episode, ep_id)
     if item and ep and ep.item_id == item.id:
         metadata.mark_through(item, ep)
@@ -446,10 +455,10 @@ def mark_through_episode(item_id: int, ep_id: int, db: Session = Depends(get_db)
 
 
 @router.get("/estadisticas")
-def stats(request: Request, db: Session = Depends(get_db)):
+def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     year_now = date.today().year
 
-    total = db.query(MediaItem).count()
+    total = items_de(db, usuario).count()
     por_estado = dict(
         db.query(MediaItem.status, func.count(MediaItem.id)).group_by(MediaItem.status).all()
     )
@@ -458,7 +467,7 @@ def stats(request: Request, db: Session = Depends(get_db)):
     )
 
     completados_este_año = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.completed_at.isnot(None), extract("year", MediaItem.completed_at) == year_now)
         .count()
     )
@@ -531,12 +540,12 @@ def stats(request: Request, db: Session = Depends(get_db)):
 
     # "Año en cifras": comparación con el año anterior + mejores del año
     completados_prev = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.completed_at.isnot(None), extract("year", MediaItem.completed_at) == year_now - 1)
         .count()
     )
     mejores = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(
             MediaItem.completed_at.isnot(None), extract("year", MediaItem.completed_at) == year_now,
             MediaItem.rating.isnot(None),

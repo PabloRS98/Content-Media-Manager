@@ -15,7 +15,7 @@ from app.models import MediaItem, MediaStatus, MediaType
 
 
 @pytest.fixture
-def base_limpia():
+def base_limpia(usuario):
     """Base real del test (conftest apunta DB_PATH a un temporal) sin la marca."""
     init_db()
     with engine.begin() as conn:
@@ -43,10 +43,11 @@ def consultas_del_backfill():
         event.remove(engine, "before_cursor_execute", _antes)
 
 
-def item_pendiente_de_migrar():
+def item_pendiente_de_migrar(usuario_id):
     """Un ítem como los que dejaba la v1: completado sin `completed_at` y con
     el género escondido en las notas de una importación de IMDb."""
     return MediaItem(
+        usuario_id=usuario_id,
         media_type=MediaType.PELICULA,
         title="Importada en la v1",
         status=MediaStatus.COMPLETADO,
@@ -56,10 +57,10 @@ def item_pendiente_de_migrar():
     )
 
 
-def test_el_backfill_sigue_funcionando_en_una_base_v1(base_limpia):
+def test_el_backfill_sigue_funcionando_en_una_base_v1(usuario, base_limpia):
     db = SessionLocal()
     try:
-        db.add(item_pendiente_de_migrar())
+        db.add(item_pendiente_de_migrar(usuario.id))
         db.commit()
     finally:
         db.close()
@@ -76,10 +77,10 @@ def test_el_backfill_sigue_funcionando_en_una_base_v1(base_limpia):
         db.close()
 
 
-def test_el_backfill_solo_corre_una_vez(base_limpia, consultas_del_backfill):
+def test_el_backfill_solo_corre_una_vez(usuario, base_limpia, consultas_del_backfill):
     db = SessionLocal()
     try:
-        db.add(item_pendiente_de_migrar())
+        db.add(item_pendiente_de_migrar(usuario.id))
         db.commit()
     finally:
         db.close()
@@ -102,13 +103,13 @@ def test_la_marca_se_escribe_al_terminar(base_limpia):
     assert leer_meta(CLAVE_BACKFILL_V2) is not None
 
 
-def test_una_base_ya_marcada_no_toca_los_datos(base_limpia):
+def test_una_base_ya_marcada_no_toca_los_datos(usuario, base_limpia):
     """Si alguien recrea el caso de la v1 después de la marca, el backfill ya
     no lo arregla -- y debe ser así: es una migración puntual, no una regla."""
     escribir_meta(CLAVE_BACKFILL_V2, "2026-01-01")
     db = SessionLocal()
     try:
-        db.add(item_pendiente_de_migrar())
+        db.add(item_pendiente_de_migrar(usuario.id))
         db.commit()
     finally:
         db.close()

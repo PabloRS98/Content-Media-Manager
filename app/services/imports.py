@@ -81,18 +81,21 @@ _GAME_STATUS = {
 }
 
 
-def _existing_keys(db: Session, media_type: MediaType) -> set:
+def _existing_keys(db: Session, media_type: MediaType, usuario_id: int) -> set:
     return {
         (i.title.lower(), (i.creator or "").lower())
-        for i in db.query(MediaItem).filter(MediaItem.media_type == media_type).all()
+        for i in db.query(MediaItem).filter(
+            MediaItem.media_type == media_type,
+            MediaItem.usuario_id == usuario_id,
+        ).all()
     }
 
 
-def import_books_csv(db: Session, text: str) -> dict:
+def import_books_csv(db: Session, text: str, usuario_id: int) -> dict:
     reader = csv.DictReader(io.StringIO(text))
     fields = " ".join(reader.fieldnames or []).lower()
     source = "storygraph" if "read status" in fields else "goodreads"
-    existing = _existing_keys(db, MediaType.LIBRO)
+    existing = _existing_keys(db, MediaType.LIBRO, usuario_id)
 
     creados = duplicados = omitidos = 0
     for row in reader:
@@ -109,6 +112,7 @@ def import_books_csv(db: Session, text: str) -> dict:
         status = _BOOK_STATUS.get(_get(row, "Exclusive Shelf", "Read Status", "Status").lower(), MediaStatus.PENDIENTE)
         fecha = _parse_date(_get(row, "Date Read", "Last Date Read", "Dates Read"))
         db.add(MediaItem(
+            usuario_id=usuario_id,
             media_type=MediaType.LIBRO,
             title=title,
             creator=author,
@@ -125,9 +129,9 @@ def import_books_csv(db: Session, text: str) -> dict:
     return {"creados": creados, "duplicados": duplicados, "omitidos": omitidos}
 
 
-def import_games_csv(db: Session, text: str) -> dict:
+def import_games_csv(db: Session, text: str, usuario_id: int) -> dict:
     reader = csv.DictReader(io.StringIO(text))
-    existing = _existing_keys(db, MediaType.VIDEOJUEGO)
+    existing = _existing_keys(db, MediaType.VIDEOJUEGO, usuario_id)
 
     creados = duplicados = omitidos = 0
     for row in reader:
@@ -148,6 +152,7 @@ def import_games_csv(db: Session, text: str) -> dict:
             hltb = None
         fecha = _parse_date(_get(row, "Date", "Completed", "Date Completed"))
         db.add(MediaItem(
+            usuario_id=usuario_id,
             media_type=MediaType.VIDEOJUEGO,
             title=title,
             creator=_get(row, "Developer", "Studio", "Platforms", "Platform") or None,

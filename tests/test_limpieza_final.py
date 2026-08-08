@@ -51,9 +51,9 @@ class TestEnriquecimientoRobusto:
     """[MC-M13] Un solo commit al final de un lote de 30."""
 
     @pytest.fixture
-    def cinco_sin_portada(self, db):
+    def cinco_sin_portada(self, usuario, db):
         for n in range(5):
-            db.add(MediaItem(title="Sin portada %d" % n, media_type=MediaType.LIBRO,
+            db.add(MediaItem(usuario_id=usuario.id, title="Sin portada %d" % n, media_type=MediaType.LIBRO,
                              status=MediaStatus.PENDIENTE, cover_url=None))
         db.commit()
 

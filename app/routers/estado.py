@@ -13,13 +13,13 @@ justo lo que uno acaba enseñando en una captura para pedir ayuda.
 import os
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
 from ..config import settings
+from ..cuentas import items_de, usuario_actual
 from ..database import get_db, revision_pendiente
-from ..models import EPISODIC_TYPES, Episode, MediaItem
+from ..models import EPISODIC_TYPES, Episode, MediaItem, Usuario
 from ..services import telegram
 from ..services.scheduler import JOB_STATUS
 from ..templating import templates
@@ -71,23 +71,27 @@ def _ultimo_backup() -> dict | None:
     }
 
 
-def _huecos_en_los_datos(db: Session) -> list[dict]:
-    """Lo que la app no puede completar sola y explica cosas que se ven raras."""
-    sin_portada = db.query(func.count(MediaItem.id)).filter(
-        MediaItem.cover_url.is_(None)
-    ).scalar()
+def _huecos_en_los_datos(db: Session, usuario: Usuario) -> list[dict]:
+    """Lo que la app no puede completar sola y explica cosas que se ven raras.
 
-    series_sin_episodios = db.query(func.count(MediaItem.id)).filter(
+    Solo del catálogo de quien mira. Aunque sean números y no títulos, decir
+    "hay 40 ítems sin portada" contando los de otra persona es contar algo que
+    no es suyo -- y le haría pulsar un botón que no le corresponde."""
+    mios = items_de(db, usuario)
+
+    sin_portada = mios.filter(MediaItem.cover_url.is_(None)).count()
+
+    series_sin_episodios = mios.filter(
         MediaItem.media_type.in_(EPISODIC_TYPES),
         ~MediaItem.id.in_(db.query(Episode.item_id).distinct()),
-    ).scalar()
+    ).count()
 
     # Un ítem con fuente declarada pero sin id no se puede enriquecer nunca:
     # metadata.enrich_item lo ignora en silencio.
-    fuente_sin_id = db.query(func.count(MediaItem.id)).filter(
+    fuente_sin_id = mios.filter(
         MediaItem.external_source.isnot(None),
         MediaItem.external_id.is_(None),
-    ).scalar()
+    ).count()
 
     return [
         {"que": "Ítems sin portada", "cuantos": sin_portada,
@@ -100,7 +104,8 @@ def _huecos_en_los_datos(db: Session) -> list[dict]:
 
 
 @router.get("/estado")
-def estado(request: Request, db: Session = Depends(get_db)):
+def estado(request: Request, db: Session = Depends(get_db),
+           usuario: Usuario = Depends(usuario_actual)):
     jobs = []
     for job_id, (nombre, descripcion) in JOBS.items():
         ultima = JOB_STATUS.get(job_id)
@@ -121,7 +126,7 @@ def estado(request: Request, db: Session = Depends(get_db)):
         "telegram_configurado": telegram.is_configured(),
         "autenticacion": settings.enable_auth,
         "backup": _ultimo_backup(),
-        "huecos": _huecos_en_los_datos(db),
+        "huecos": _huecos_en_los_datos(db, usuario),
         "revision_actual": revision_actual,
         "revision_head": revision_head,
     })

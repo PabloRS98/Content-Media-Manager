@@ -37,10 +37,11 @@ def filas_leidas(db):
 
 
 @pytest.fixture
-def catalogo_por_decadas(db):
+def catalogo_por_decadas(usuario, db):
     """60 ítems repartidos en 3 décadas."""
     for i in range(60):
         db.add(MediaItem(
+            usuario_id=usuario.id,
             title="Peli %02d" % i,
             media_type=MediaType.PELICULA,
             year=1990 + (i % 3) * 10 + (i % 5),
@@ -66,17 +67,17 @@ def test_las_decadas_salen_bien_agrupadas(client, db, catalogo_por_decadas):
         assert str(decada) in html
 
 
-def test_un_catalogo_sin_anos_no_rompe_la_grafica(client, db):
-    db.add(MediaItem(title="Sin año", media_type=MediaType.LIBRO, year=None))
+def test_un_catalogo_sin_anos_no_rompe_la_grafica(usuario, client, db):
+    db.add(MediaItem(usuario_id=usuario.id, title="Sin año", media_type=MediaType.LIBRO, year=None))
     db.commit()
     assert client.get("/estadisticas").status_code == 200
 
 
-def test_los_generos_siguen_contandose(client, db):
+def test_los_generos_siguen_contandose(usuario, client, db):
     """Los géneros no se pueden agregar en SQL mientras sean una cadena: este
     test fija que la parte que NO cambia sigue funcionando."""
     for n in range(3):
-        db.add(MediaItem(title="Con género %d" % n, media_type=MediaType.PELICULA,
+        db.add(MediaItem(usuario_id=usuario.id, title="Con género %d" % n, media_type=MediaType.PELICULA,
                          genres="Drama, Crimen"))
     db.commit()
     html = client.get("/estadisticas").text

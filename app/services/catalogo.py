@@ -8,7 +8,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..catalogo_config import BUCKETS_DURACION, condicion_de_duracion
-from ..models import Episode, MediaItem, MediaStatus, MediaType
+from ..models import Episode, MediaItem, MediaStatus, MediaType, Usuario
 
 # Columnas donde se busca. Son las cuatro cosas que uno recuerda de un ítem:
 # cómo se llama, quién lo hizo, de qué va y a qué saga pertenece.
@@ -90,7 +90,7 @@ def _filtrar_por_duracion(db: Session, query, media_type: MediaType, tiempo: str
     return query.filter(condicion) if condicion is not None else query
 
 
-def generos_de(db: Session, media_type: MediaType | None) -> list[str]:
+def generos_de(db: Session, usuario: Usuario, media_type: MediaType | None) -> list[str]:
     """Géneros distintos presentes en el catálogo, para poblar el filtro.
 
     Se agrupan en Python porque `genres` es una cadena separada por comas y no
@@ -103,6 +103,7 @@ def generos_de(db: Session, media_type: MediaType | None) -> list[str]:
     filas = db.query(MediaItem.genres).filter(
         MediaItem.media_type == media_type,
         MediaItem.genres.is_not(None),
+        MediaItem.usuario_id == usuario.id,
     ).all()
     for (cadena,) in filas:
         if not cadena:
@@ -114,11 +115,13 @@ def generos_de(db: Session, media_type: MediaType | None) -> list[str]:
     return sorted(encontrados)
 
 
-def contar_sin_portada(db: Session, media_type: MediaType | None) -> int:
+def contar_sin_portada(db: Session, usuario: Usuario, media_type: MediaType | None) -> int:
     """Solo del tipo que se está viendo: si no, el botón "Buscar portadas" de
     la pestaña de Películas mostraría un número que en realidad son libros sin
     portada, sin relación con lo que se ve en pantalla."""
-    query = db.query(func.count(MediaItem.id)).filter(MediaItem.cover_url.is_(None))
+    query = db.query(func.count(MediaItem.id)).filter(
+        MediaItem.cover_url.is_(None), MediaItem.usuario_id == usuario.id
+    )
     if media_type:
         query = query.filter(MediaItem.media_type == media_type)
     return query.scalar()

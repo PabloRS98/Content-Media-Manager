@@ -31,7 +31,7 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.database import Base, _config_alembic, get_db  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType  # noqa: E402
+from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType, Usuario  # noqa: E402
 
 
 class RedProhibida(RuntimeError):
@@ -82,7 +82,31 @@ def db(tmp_path):
 
 
 @pytest.fixture
-def client(db):
+def usuario(db):
+    """La cuenta con la que corren los tests.
+
+    Casi todo el catálogo es de alguien desde que hay cuentas, así que tener
+    una por defecto evita repetir el alta en cada test. Los que van sobre el
+    aislamiento entre cuentas crean la segunda a mano."""
+    u = Usuario(nombre="Titular")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+@pytest.fixture
+def otro_usuario(db):
+    """La cuenta de al lado, para comprobar que no ve nada de la primera."""
+    u = Usuario(nombre="La otra persona")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
+@pytest.fixture
+def client(db, usuario):
     """Cliente HTTP contra la app real, con la BD del test inyectada.
 
     No se usa `with TestClient(app)` a propósito: eso dispararía el lifespan,
@@ -94,7 +118,13 @@ def client(db):
     quiere probar. Los tests que sí van sobre el origen la retiran a mano
     (ver `test_csrf.py::limpiar`).
     """
+    from app.cuentas import usuario_actual
+
     app.dependency_overrides[get_db] = lambda: db
+    # La cuenta se inyecta en vez de simular el paso por el selector: lo que
+    # los tests quieren probar es el catálogo, no el login. `test_cuentas.py`
+    # sí recorre el camino real, sin este atajo.
+    app.dependency_overrides[usuario_actual] = lambda: usuario
     try:
         yield TestClient(app, headers={"origin": "http://testserver"})
     finally:
@@ -102,12 +132,13 @@ def client(db):
 
 
 @pytest.fixture
-def crear_item(db):
+def crear_item(db, usuario):
     """Alta directa de un ítem, saltándose la capa HTTP."""
     def _crear(**campos):
         campos.setdefault("media_type", MediaType.LIBRO)
         campos.setdefault("title", "Titulo de prueba")
         campos.setdefault("status", MediaStatus.PENDIENTE)
+        campos.setdefault("usuario_id", usuario.id)
         item = MediaItem(**campos)
         db.add(item)
         db.commit()
@@ -117,21 +148,22 @@ def crear_item(db):
 
 
 @pytest.fixture
-def listas_dinamicas(db):
+def listas_dinamicas(db, usuario):
     """Siembra las 4 vistas automáticas por estado, como hace el lifespan
     real en producción, y las devuelve indexadas por `filtro_estado`."""
     from app.routers.lists import seed_smart_lists
-    seed_smart_lists(db)
+    seed_smart_lists(db, usuario.id)
     return {x.filtro_estado: x for x in db.query(Lista).filter(Lista.filtro_estado.isnot(None))}
 
 
 @pytest.fixture
-def crear_serie(db):
+def crear_serie(db, usuario):
     """Serie con episodios, para los tests de progreso y de 'próximamente'."""
     def _crear(temporadas=2, por_temporada=3, vistos=0, **campos):
         campos.setdefault("media_type", MediaType.SERIE)
         campos.setdefault("title", "Serie de prueba")
         campos.setdefault("status", MediaStatus.EN_PROGRESO)
+        campos.setdefault("usuario_id", usuario.id)
         serie = MediaItem(**campos)
         restantes = vistos
         for t in range(1, temporadas + 1):

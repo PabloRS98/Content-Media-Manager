@@ -28,11 +28,12 @@ def contador_de_filas(db):
 
 
 @pytest.fixture
-def muchos_pendientes(db):
+def muchos_pendientes(usuario, db):
     def _crear(n=200, estado=MediaStatus.PENDIENTE):
         prioridades = [Priority.BAJA, Priority.MEDIA, Priority.ALTA]
         for i in range(n):
             db.add(MediaItem(
+                usuario_id=usuario.id,
                 title="Pendiente %03d" % i,
                 media_type=MediaType.LIBRO,
                 status=estado,
@@ -103,7 +104,7 @@ def test_la_portada_sigue_mostrando_doce_pendientes(client, muchos_pendientes):
     assert html.count('class="card media-card"') >= 12
 
 
-def test_proximamente_no_trae_todos_los_episodios(db, contador_de_filas):
+def test_proximamente_no_trae_todos_los_episodios(usuario, db, contador_de_filas):
     """`_upcoming` juntaba TODOS los episodios futuros y TODA la wishlist con
     fecha para quedarse con 6.
 
@@ -117,7 +118,7 @@ def test_proximamente_no_trae_todos_los_episodios(db, contador_de_filas):
 
     manana = date.today() + timedelta(days=1)
     for n in range(40):
-        serie = MediaItem(title="Serie %02d" % n, media_type=MediaType.SERIE,
+        serie = MediaItem(usuario_id=usuario.id, title="Serie %02d" % n, media_type=MediaType.SERIE,
                           status=MediaStatus.EN_PROGRESO)
         serie.episodes.append(Episode(season_number=1, episode_number=1,
                                       air_date=manana + timedelta(days=n)))
@@ -125,7 +126,7 @@ def test_proximamente_no_trae_todos_los_episodios(db, contador_de_filas):
     db.commit()
     contador_de_filas.clear()
 
-    entradas = _upcoming(db, limit=6)
+    entradas = _upcoming(db, usuario, limit=6)
     assert len(entradas) == 6
 
     sin_limite = selects_sin_limite(contador_de_filas, "episodes")
@@ -135,14 +136,14 @@ def test_proximamente_no_trae_todos_los_episodios(db, contador_de_filas):
     )
 
 
-def test_el_calendario_sigue_trayendolo_todo(client, db):
+def test_el_calendario_sigue_trayendolo_todo(usuario, client, db):
     """`/calendario` sí necesita el listado completo: el LIMIT es solo de la
     portada, y meterlo aquí recortaría la vista en silencio."""
     from datetime import date, timedelta
 
     manana = date.today() + timedelta(days=1)
     for n in range(20):
-        serie = MediaItem(title="Serie cal %02d" % n, media_type=MediaType.SERIE,
+        serie = MediaItem(usuario_id=usuario.id, title="Serie cal %02d" % n, media_type=MediaType.SERIE,
                           status=MediaStatus.EN_PROGRESO)
         serie.episodes.append(Episode(season_number=1, episode_number=1,
                                       air_date=manana + timedelta(days=n)))

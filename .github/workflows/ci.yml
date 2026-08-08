@@ -151,12 +151,33 @@ jobs:
       - name: Comprobar que los datos siguen ahí y las rutas responden
         run: |
           .github/comprobar-rutas.sh 8000
-          docker exec viejo python -c "
+          docker exec -i viejo python - <<'PY'
           import sqlite3
-          c = sqlite3.connect('/data/media.db')
-          n = list(c.execute('select count(*) from media_items'))[0][0]
-          assert n == 1, 'se perdieron datos al migrar: %d filas' % n
-          rev = list(c.execute('select version_num from alembic_version'))
-          print('filas intactas:', n, '| revision:', rev)
-          "
+          c = sqlite3.connect("/data/media.db")
+          n = list(c.execute("select count(*) from media_items"))[0][0]
+          assert n == 1, "se perdieron datos al migrar: %d filas" % n
+
+          # El catálogo que ya estaba tiene que acabar en la cuenta inicial. Si
+          # se quedara sin cuenta, seguiría en la base pero no lo vería nadie.
+          huerfanos = list(c.execute("select count(*) from media_items where usuario_id is null"))[0][0]
+          assert huerfanos == 0, "%d ítems sin cuenta tras migrar" % huerfanos
+          cuentas = list(c.execute("select id, nombre from usuarios"))
+          assert len(cuentas) == 1, "cuentas tras migrar: %r" % (cuentas,)
+
+          # `listas.name` era único globalmente en la 1.0.0 (ver el DDL de
+          # arriba). Si la migración no cambia esa restricción, la segunda
+          # persona de la casa no puede ni crearse la cuenta, porque las listas
+          # automáticas se siembran con nombres fijos.
+          c.execute("insert into usuarios (nombre, created_at) values ('Otra', '2026-01-01')")
+          otra = list(c.execute("select id from usuarios where nombre='Otra'"))[0][0]
+          for uid in (cuentas[0][0], otra):
+              c.execute(
+                  "insert into listas (usuario_id, name, created_at) values (?, 'Con la pareja', '2026-01-01')",
+                  (uid,),
+              )
+          c.rollback()
+
+          rev = list(c.execute("select version_num from alembic_version"))
+          print("filas intactas:", n, "| cuenta inicial:", cuentas, "| revision:", rev)
+          PY
           docker stop viejo

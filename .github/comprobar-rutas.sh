@@ -6,9 +6,32 @@
 # respondiendo, pero devuelve 500 en cada vista, y eso solo se ve pidiéndolas.
 #
 # REGLA: cuando se añada una ruta GET nueva a la app, se añade aquí.
+#
+# Desde que hay cuentas, casi todas redirigen a /cuentas si no hay ninguna
+# abierta, así que lo primero es abrir una: pedir las páginas sin sesión
+# comprobaría solo que el selector redirige, que no es lo que interesa aquí.
 set -euo pipefail
 
 puerto="$1"
+base="http://localhost:$puerto"
+galletas=$(mktemp)
+trap 'rm -f "$galletas"' EXIT
+
+# El id de la primera cuenta se saca del propio selector en vez de darlo por
+# hecho: la crea la migración, y no tiene por qué ser siempre el 1.
+cuenta=$(curl -s "$base/cuentas" | grep -o '/cuentas/entrar/[0-9]*' | head -1)
+if [ -z "$cuenta" ]; then
+    echo "el selector no ofrece ninguna cuenta: la migración no creó la inicial"
+    exit 1
+fi
+# Origin: lo exige la protección CSRF en toda petición que escribe.
+codigo=$(curl -s -o /dev/null -w '%{http_code}' -c "$galletas" -X POST \
+    -H "Origin: $base" "$base$cuenta")
+if [ "$codigo" != "303" ]; then
+    echo "no se pudo abrir la cuenta ($cuenta): $codigo"
+    exit 1
+fi
+
 rutas=(
     /
     /catalogo
@@ -22,6 +45,8 @@ rutas=(
     /calendario
     /importar
     /importar/estado-portadas
+    /cuentas
+    /cuentas/ajustes
     /estado
     /sugerencia
     /tengo-tiempo
@@ -30,7 +55,7 @@ rutas=(
 
 fallos=0
 for ruta in "${rutas[@]}"; do
-    codigo=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$puerto$ruta")
+    codigo=$(curl -s -o /dev/null -w '%{http_code}' -b "$galletas" "$base$ruta")
     if [ "$codigo" = "200" ]; then
         printf '  %-30s %s\n' "$ruta" "$codigo"
     else

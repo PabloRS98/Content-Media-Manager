@@ -7,8 +7,18 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
+from ..cuentas import items_de, listas_de, usuario_actual
 from ..database import get_db
-from ..models import EPISODIC_TYPES, Episode, Lista, MediaItem, MediaStatus, MediaType, Priority
+from ..models import (
+    EPISODIC_TYPES,
+    Episode,
+    Lista,
+    MediaItem,
+    MediaStatus,
+    MediaType,
+    Priority,
+    Usuario,
+)
 from ..services import metadata, recomendaciones
 from ..templating import templates
 
@@ -28,7 +38,7 @@ _ORDEN_PRIORIDAD = case(
 _FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
 
 
-def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
+def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[dict]:
     """Estrenos futuros: próximos episodios de series que sigues + lanzamientos
     de la wishlist. Ordenado por fecha ascendente.
 
@@ -53,6 +63,7 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
             Episode.season_number != 0,
             MediaItem.media_type.in_(EPISODIC_TYPES),
             MediaItem.status.in_(_FOLLOWING),
+            MediaItem.usuario_id == usuario.id,
         )
         .order_by(Episode.air_date)
         .limit(limit)
@@ -62,10 +73,11 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
         entradas.append({"fecha": ep.air_date, "item": ep.item, "tipo": "episodio", "episodio": ep})
 
     releases = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(
             MediaItem.status == MediaStatus.WISHLIST,
             MediaItem.release_date.isnot(None), MediaItem.release_date >= hoy,
+            MediaItem.usuario_id == usuario.id,
         )
         .order_by(MediaItem.release_date)
         .limit(limit)
@@ -79,9 +91,9 @@ def _upcoming(db: Session, limit: int | None = None) -> list[dict]:
 
 
 @router.get("/")
-def home(request: Request, db: Session = Depends(get_db)):
+def home(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     en_progreso = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.status == MediaStatus.EN_PROGRESO)
         .order_by(MediaItem.updated_at.desc())
         .limit(12)
@@ -94,7 +106,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     # es Text-- para quedarse con doce. Con 3 000 pendientes eran 3 000 objetos
     # ORM materializados para descartar 2 988.
     proximos = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.status == MediaStatus.PENDIENTE)
         .order_by(_ORDEN_PRIORIDAD, MediaItem.updated_at.desc())
         .limit(12)
@@ -102,7 +114,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     )
 
     wishlist = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.status == MediaStatus.WISHLIST)
         .order_by(MediaItem.updated_at.desc())
         .limit(8)
@@ -110,7 +122,7 @@ def home(request: Request, db: Session = Depends(get_db)):
     )
 
     recientes = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.completed_at.isnot(None))
         .order_by(MediaItem.completed_at.desc(), MediaItem.updated_at.desc())
         .limit(8)
@@ -118,28 +130,30 @@ def home(request: Request, db: Session = Depends(get_db)):
     )
 
     por_estado = dict(
-        db.query(MediaItem.status, func.count(MediaItem.id)).group_by(MediaItem.status).all()
+        items_de(db, usuario)
+        .with_entities(MediaItem.status, func.count(MediaItem.id))
+        .group_by(MediaItem.status).all()
     )
     resumen = {
-        "total": db.query(MediaItem).count(),
+        "total": items_de(db, usuario).count(),
         "en_progreso": por_estado.get(MediaStatus.EN_PROGRESO, 0),
         "pendientes": por_estado.get(MediaStatus.PENDIENTE, 0),
         "completados": por_estado.get(MediaStatus.COMPLETADO, 0),
         "wishlist": por_estado.get(MediaStatus.WISHLIST, 0),
     }
 
-    proximamente = _upcoming(db, limit=6)
+    proximamente = _upcoming(db, usuario, limit=6)
 
     # Destino real (pestaña Listas) de los 4 accesos rápidos de abajo: ver
     # seed_smart_lists() en routers/lists.py.
     listas_dinamicas = {
         x.filtro_estado: x.id
-        for x in db.query(Lista).filter(Lista.filtro_estado.isnot(None)).all()
+        for x in listas_de(db, usuario).filter(Lista.filtro_estado.isnot(None)).all()
     }
 
     return templates.TemplateResponse(request, "home.html", {
         "en_progreso": en_progreso,
-        "recomendaciones": recomendaciones.recomendar(db, limite=6),
+        "recomendaciones": recomendaciones.recomendar(db, usuario, limite=6),
         "proximos": proximos,
         "wishlist": wishlist,
         "recientes": recientes,
@@ -152,9 +166,9 @@ def home(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/calendario")
-def calendario(request: Request, db: Session = Depends(get_db)):
+def calendario(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Todos los estrenos futuros agrupados por fecha."""
-    entradas = _upcoming(db)
+    entradas = _upcoming(db, usuario)
     por_fecha: dict = {}
     for e in entradas:
         por_fecha.setdefault(e["fecha"], []).append(e)
@@ -163,11 +177,11 @@ def calendario(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/tengo-tiempo")
-def time_fit(request: Request, minutos: int = 60, db: Session = Depends(get_db)):
+def time_fit(request: Request, minutos: int = 60, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     """Sugiere qué pendiente/en curso cabe en el tiempo disponible (fragmento HTMX)."""
     minutos = max(5, min(minutos, 1000))
     candidatos = (
-        db.query(MediaItem)
+        items_de(db, usuario)
         .filter(MediaItem.status.in_([MediaStatus.PENDIENTE, MediaStatus.EN_PROGRESO]))
         .all()
     )

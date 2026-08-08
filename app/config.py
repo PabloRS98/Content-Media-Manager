@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 
+    # Clave con la que se firma la cookie de sesion (que cuenta esta abierta).
+    # Vacia = se genera una sola vez y se guarda en la base, para no obligar a
+    # configurar nada: el README promete que todo es opcional. Ponerla aqui
+    # solo hace falta si algun dia hay varios procesos sirviendo la misma base.
+    secret_key: str = ""
+
     # Hosts extra admitidos como origen de las peticiones que escriben (ver
     # csrf.py). Solo hace falta si se accede por un nombre distinto al del
     # proxy inverso; separados por comas.

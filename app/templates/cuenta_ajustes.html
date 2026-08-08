@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Tu cuenta · Catálogo{% endblock %}
+{% block content %}
+
+<section class="card">
+    <h3>{{ icon("user") }} Tu cuenta</h3>
+    <form method="post" action="/cuentas/ajustes/nombre" class="toolbar">
+        <input type="text" name="nombre" value="{{ usuario.nombre }}" class="grow" required maxlength="60">
+        <button type="submit">{{ icon("check", 14) }} Guardar nombre</button>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("lock") }} Contraseña</h3>
+    {% if usuario.tiene_password %}
+    <p class="subtle">Tu cuenta está protegida: nadie entra sin la contraseña.</p>
+    {% else %}
+    <p class="subtle">Tu cuenta entra de un clic. Ponle una contraseña si quieres que nadie más pueda abrirla.</p>
+    {% endif %}
+    <form method="post" action="/cuentas/ajustes/password">
+        {% if usuario.tiene_password %}
+        {# Para cambiarla o quitarla hay que saber la que hay: si no, alguien que
+           pillara la sesión abierta podría dejar la cuenta sin protección. #}
+        <div class="toolbar">
+            <input type="password" name="actual" placeholder="Contraseña actual" autocomplete="current-password" required class="grow">
+        </div>
+        {% endif %}
+        <div class="toolbar">
+            <input type="password" name="nueva" placeholder="Contraseña nueva (vacío = quitarla)" autocomplete="new-password" class="grow">
+            <button type="submit">{{ icon("check", 14) }} Guardar</button>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("users") }} Cambiar de persona</h3>
+    <p class="subtle">Vuelve al selector para entrar con otra cuenta.</p>
+    <form method="post" action="/cuentas/salir">
+        <button type="submit" class="ghost">{{ icon("log-out", 14) }} Salir de «{{ usuario.nombre }}»</button>
+    </form>
+</section>
+
+{% endblock %}

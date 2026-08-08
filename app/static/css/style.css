@@ -365,6 +365,30 @@ button.ghost.is-loading::after, button.danger.is-loading::after {
    ocupaban demasiada pantalla, sobre todo con géneros. <details> nativo
    (sin JS) abre/cierra cada panel; el script de este template solo se
    encarga de cerrar los demás al abrir uno y de cerrar al clicar fuera. */
+/* Selector de cuenta: fichas grandes, estilo "quién está viendo". Las cuentas
+   con contraseña llevan el campo dentro de su propia ficha, para que no haya
+   duda de a cuál se está entrando. */
+.cuentas { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.cuenta {
+    display: flex; align-items: center; gap: .8rem;
+    padding: .75rem; border-radius: var(--r);
+    border: 1px solid var(--border-2); background: var(--card-2);
+}
+.cuenta-actual { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.cuenta-avatar {
+    flex: 0 0 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    color: var(--accent-soft); font-weight: 650; font-size: 1.1rem;
+}
+.cuenta-datos { display: flex; flex-direction: column; gap: .25rem; min-width: 0; flex: 1; }
+.cuenta-datos strong { color: var(--text); }
+.cuenta-password { display: inline-flex; align-items: center; gap: .35rem; color: var(--text-3); }
+.cuenta-password input { padding: .25rem .4rem; font-size: .8rem; width: 100%; }
+
+/* Quién está usando la app, en la barra de navegación. */
+.cuenta-actual-nav { display: inline-flex; align-items: center; gap: .35rem; }
+
 /* Recomendaciones: fichas anchas, no tarjetas de portada. El motivo ("de la
    misma saga que X") es lo que da valor aquí, así que necesita sitio para
    leerse; una rejilla de portadas lo dejaría en dos líneas cortadas. */
