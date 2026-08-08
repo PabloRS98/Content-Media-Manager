@@ -180,6 +180,43 @@ class TestListadoDelCatalogo:
         assert client.get("/catalogo?tipo=libro&orden=inventado").status_code == 200
 
 
+class TestClavesDeOrden:
+    """[MC-B7] Las claves van en la URL y mezclaban acentuadas con sin acentuar
+    (`añadido` y `año` frente a `alfabetico`). Se unifican en ASCII, que es lo
+    que no hay que percent-encodear, pero las viejas no pueden dejar de
+    funcionar: están en los marcadores de quien ya usa la app."""
+
+    def test_todas_las_claves_son_ascii(self):
+        from app.routers.catalog import ORDERINGS
+
+        no_ascii = [k for k in ORDERINGS if not k.isascii()]
+        assert no_ascii == [], "claves que hay que percent-encodear: %s" % no_ascii
+
+    def test_las_claves_nuevas_ordenan(self, client, crear_item):
+        crear_item(title="Vieja", year=1980)
+        crear_item(title="Nueva", year=2024)
+
+        html = client.get("/catalogo?tipo=libro&orden=anio").text
+        assert html.index("Nueva") < html.index("Vieja")
+
+    def test_una_url_guardada_con_la_clave_vieja_sigue_ordenando_igual(self, client, crear_item):
+        """`?orden=año` estaba en cualquier marcador: no puede caer al orden por
+        defecto en silencio, que es lo que haría sin el alias."""
+        crear_item(title="Vieja", year=1980)
+        crear_item(title="Nueva", year=2024)
+
+        html = client.get("/catalogo?tipo=libro&orden=a%C3%B1o").text
+        assert html.index("Nueva") < html.index("Vieja")
+        # Y el botón tiene que quedar marcado como activo, no huérfano.
+        assert 'orden=anio" class="active"' in html
+
+    def test_el_alias_de_anadido_tambien(self, client, crear_item):
+        assert client.get("/catalogo?tipo=libro&orden=a%C3%B1adido").status_code == 200
+        assert 'orden=anadido" class="active"' in client.get(
+            "/catalogo?tipo=libro&orden=a%C3%B1adido"
+        ).text
+
+
 class TestFiltroDeDuracion:
     def test_filtra_libros_por_numero_de_paginas(self, client, crear_item):
         crear_item(title="Cortito", page_count=100)

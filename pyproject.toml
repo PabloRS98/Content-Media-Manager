@@ -30,7 +30,11 @@ select = [
     "C4",   # comprehensions
 ]
 ignore = [
-    "E501",   # el largo de línea ya lo cubre line-length; no queremos ruido en las plantillas
+    # E501 estuvo aquí ignorada con el motivo "no queremos ruido en las
+    # plantillas", que no se sostenía: ruff no mira las plantillas. Lo que
+    # tapaba eran 17 líneas largas de verdad, casi todas firmas de rutas con
+    # cuatro dependencias seguidas. Se partieron y el aviso vuelve a estar
+    # activo con line-length = 120. [MC-B11]
     "B008",   # Depends()/Form() en argumentos por defecto es el patrón de FastAPI
     "UP031",  # el proyecto usa formato con % de forma consistente; migrarlo es un
               # cambio de estilo transversal, no algo que deba bloquear el CI

@@ -15,6 +15,7 @@ from ..cuentas import item_de, items_de, lista_de, listas_de, usuario_actual
 from ..database import get_db
 from ..flash import redirect_flash
 from ..models import Lista, MediaItem, MediaStatus, Usuario
+from ..services import episodios
 from ..templating import templates
 
 router = APIRouter(tags=["listas"], dependencies=[Depends(verify_auth)])
@@ -85,7 +86,12 @@ def create_list(name: str = Form(...), db: Session = Depends(get_db), usuario: U
 
 
 @router.get("/listas/{list_id}")
-def list_detail(list_id: int, request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def list_detail(
+    list_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     lista = lista_de(db, usuario, list_id)
     if not lista:
         return redirect_flash("/listas", "La lista ya no existe", "error")
@@ -98,6 +104,9 @@ def list_detail(list_id: int, request: Request, db: Session = Depends(get_db), u
         )
     else:
         items = lista.items
+    # Una lista no está paginada: se pinta entera, así que el N+1 de las
+    # tarjetas se notaba aquí más que en ningún otro sitio (MC-X2).
+    episodios.precalcular(db, items)
     return templates.TemplateResponse(request, "lista_detail.html", {
         "lista": lista, "items": items, "es_dinamica": bool(lista.filtro_estado),
     })
@@ -115,7 +124,12 @@ def delete_list(list_id: int, db: Session = Depends(get_db), usuario: Usuario = 
 
 
 @router.post("/listas/{list_id}/quitar/{item_id}")
-def remove_from_list(list_id: int, item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def remove_from_list(
+    list_id: int,
+    item_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     lista = lista_de(db, usuario, list_id)
     item = item_de(db, usuario, item_id)
     if lista and item and item in lista.items:
@@ -125,7 +139,13 @@ def remove_from_list(list_id: int, item_id: int, db: Session = Depends(get_db), 
 
 
 @router.post("/item/{item_id}/anadir-lista")
-def add_to_list(item_id: int, list_id: str = Form(""), nueva: str = Form(""), db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def add_to_list(
+    item_id: int,
+    list_id: str = Form(""),
+    nueva: str = Form(""),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Añade el ítem a una lista existente o a una nueva creada al vuelo."""
     item = item_de(db, usuario, item_id)
     if not item:

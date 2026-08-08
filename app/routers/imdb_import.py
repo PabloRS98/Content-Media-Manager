@@ -232,7 +232,12 @@ async def import_imdb_csv(
 
 
 @router.post("/importar/libros")
-async def import_books(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+async def import_books(
+    request: Request,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Importa libros desde un CSV de Goodreads o StoryGraph."""
     text = await _leer_csv_limitado(archivo)
     res = import_books_csv(db, text, usuario.id)
@@ -241,7 +246,12 @@ async def import_books(request: Request, archivo: UploadFile = File(...), db: Se
 
 
 @router.post("/importar/juegos")
-async def import_games(request: Request, archivo: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+async def import_games(
+    request: Request,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Importa juegos desde un CSV de Backloggd o genérico."""
     text = await _leer_csv_limitado(archivo)
     res = import_games_csv(db, text, usuario.id)

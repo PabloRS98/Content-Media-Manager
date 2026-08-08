@@ -26,7 +26,16 @@ from ..models import (
     media_item_tags,
 )
 from ..security import safe_external_url
-from ..services import catalogo, googlebooks, itunes, metadata, openlibrary, rawg, tmdb
+from ..services import (
+    catalogo,
+    episodios,
+    googlebooks,
+    itunes,
+    metadata,
+    openlibrary,
+    rawg,
+    tmdb,
+)
 from ..templating import templates
 
 logger = logging.getLogger(__name__)
@@ -35,13 +44,22 @@ router = APIRouter(tags=["catalogo"], dependencies=[Depends(verify_auth)])
 
 PER_PAGE = 24
 
+# Las claves VAN EN LA URL, así que son ASCII: mezclaban acentuadas con sin
+# acentuar (`añadido` y `año` junto a `alfabetico`), y una clave acentuada hay
+# que percent-encodearla --`?orden=a%C3%B1o`-- para escribirla a mano o
+# copiarla. Las etiquetas visibles sí llevan tilde: es lo que se lee. [MC-B7]
 ORDERINGS = {
     "recientes": ("Actividad reciente", lambda q: q.order_by(MediaItem.updated_at.desc())),
-    "añadido": ("Fecha de añadido", lambda q: q.order_by(MediaItem.created_at.desc())),
+    "anadido": ("Fecha de añadido", lambda q: q.order_by(MediaItem.created_at.desc())),
     "alfabetico": ("Alfabético", lambda q: q.order_by(func.lower(MediaItem.title))),
     "rating": ("Mejor valorados", lambda q: q.order_by(MediaItem.rating.is_(None), MediaItem.rating.desc())),
-    "año": ("Año", lambda q: q.order_by(MediaItem.year.is_(None), MediaItem.year.desc())),
+    "anio": ("Año", lambda q: q.order_by(MediaItem.year.is_(None), MediaItem.year.desc())),
 }
+
+# Las claves viejas están en los marcadores de quien ya usa la app. Sin esto,
+# `?orden=año` no sería un orden conocido y caería al de por defecto EN
+# SILENCIO: el usuario vería otra cosa sin entender por qué.
+ALIAS_DE_ORDEN = {"añadido": "anadido", "año": "anio"}
 
 
 def _utcnow() -> datetime:
@@ -109,6 +127,7 @@ def list_catalog(
     ms = _enum_or_none(MediaStatus, estado)
     query = catalogo.aplicar_filtros(db, items_de(db, usuario), mt, ms, genero, tiempo, buscar)
 
+    orden = ALIAS_DE_ORDEN.get(orden, orden)
     orden = orden if orden in ORDERINGS else "recientes"
     query = ORDERINGS[orden][1](query)
 
@@ -116,6 +135,9 @@ def list_catalog(
     total_paginas = max(1, ceil(total / PER_PAGE))
     pagina = min(max(1, pagina), total_paginas)
     items = query.offset((pagina - 1) * PER_PAGE).limit(PER_PAGE).all()
+    # Los recuentos de episodios de toda la página, de una vez: cada tarjeta
+    # los pedía por su cuenta y eran una consulta por serie (MC-X2).
+    episodios.precalcular(db, items)
 
     sin_portada = catalogo.contar_sin_portada(db, usuario, mt)
     generos_lista = catalogo.generos_de(db, usuario, mt)
@@ -180,7 +202,12 @@ def enriquecer_en_segundo_plano(item_id: int) -> None:
 
 
 @router.post("/catalogo/completar-portadas")
-def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def catalog_fill_covers(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     # BATCH_SIZE=30 ítems x SLEEP_BETWEEN=0.7s son ya 21s mínimo, y hasta más de
     # 2 minutos con las APIs lentas: hecho dentro de la propia petición HTTP,
     # cualquier proxy inverso delante corta por timeout antes de que termine.
@@ -209,7 +236,14 @@ def catalog_fill_covers(request: Request, background_tasks: BackgroundTasks, db:
 
 
 @router.get("/buscar")
-def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es", db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def search_external(
+    tipo: str,
+    request: Request,
+    q: str = "",
+    idioma: str = "es",
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     idioma = idioma if idioma in ("es", "en") else "es"
     results = []
     source = None
@@ -243,7 +277,12 @@ def search_external(tipo: str, request: Request, q: str = "", idioma: str = "es"
 
 
 @router.get("/sugerencia")
-def suggest_random(request: Request, tipo: str | None = None, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def suggest_random(
+    request: Request,
+    tipo: str | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Un ítem pendiente al azar (fragmento HTMX para el panel de sugerencia)."""
     query = items_de(db, usuario).filter(MediaItem.status == MediaStatus.PENDIENTE)
     mt = _enum_or_none(MediaType, tipo)
@@ -309,7 +348,12 @@ def add_item(
 
 
 @router.get("/item/{item_id}")
-def item_detail(item_id: int, request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def item_detail(
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     item = item_de(db, usuario, item_id)
     if not item:
         return redirect_flash("/catalogo", "El ítem ya no existe", "error")
@@ -341,6 +385,8 @@ def item_detail(item_id: int, request: Request, db: Session = Depends(get_db), u
             .order_by(MediaItem.year)
             .all()
         )
+        # La saga se pinta con las mismas tarjetas que el catálogo (MC-X2).
+        episodios.precalcular(db, related)
 
     all_lists = listas_de(db, usuario).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
     item_lists = [lista for lista in all_lists if item in lista.items]
@@ -443,7 +489,12 @@ def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usua
 
 
 @router.post("/item/{item_id}/marcar-hasta/{ep_id}")
-def mark_through_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+def mark_through_episode(
+    item_id: int,
+    ep_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
     item = item_de(db, usuario, item_id)
     ep = db.get(Episode, ep_id)
     if item and ep and ep.item_id == item.id:

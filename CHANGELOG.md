@@ -60,6 +60,15 @@ each entry below names the id it closes.
 
 ### Fixed
 
+- **[MC-X2]** Every series or podcast card asked the database for its own
+  episodes to print "12/180". Because that relationship is lazy, a catalog page
+  with 24 series was 24 extra queries — and each one loaded *all* of that
+  series' episodes to count two numbers. Measured on 24 series of 100 episodes:
+  **24 queries and 2 400 rows, 29.7 ms → 2 queries and 24 rows, 8.1 ms**, with
+  identical output. The counts are now aggregated in SQL and the "next episode"
+  of every card comes out of a single window-function query. The worst case
+  wasn't the catalog, which at least pages: it was a list view or "what fits in
+  an hour", which walk the whole thing.
 - **[MC-C1]** The `.env` file was read by a path relative to the process's
   working directory. Started from anywhere other than the repository root,
   pydantic-settings silently found nothing and the app came up with every
@@ -224,6 +233,23 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **[MC-B7]** The catalog's sort keys go in the URL and mixed accented with
+  unaccented (`añadido` and `año` next to `alfabetico`), so half of them had to
+  be percent-encoded to be typed or copied. They're all ASCII now (`anadido`,
+  `anio`). Old links keep working and keep sorting the same: the previous keys
+  are aliased rather than dropped, because a bookmark with `?orden=año` would
+  otherwise fall back to the default sort silently, which looks like the app
+  ignoring you.
+- **[MC-B11]** Ruff had `E501` disabled entirely with the reason "we don't want
+  noise from the templates" — but ruff never looks at templates. What it was
+  really hiding was 17 genuinely long lines, most of them route signatures with
+  four dependencies in a row. Those are wrapped and the check is back on.
+- **[MC-B6]** `EPISODIC_TYPES` renamed to `TIPOS_EPISODICOS`: it was the one
+  domain constant left in English.
+- **[MC-B9]** The entrypoint's `chown -R /data` on every start is O(number of
+  files). It's a handful today, so it stays — with a note about when it stops
+  being cheap and what to do then, so the next person doesn't have to rediscover
+  the reasoning.
 - **[MC-M13]** Cover enrichment committed once at the end of a batch that takes
   anywhere from 21 seconds to several minutes, so a restart halfway through
   discarded the 29 covers already found — along with the API quota spent finding

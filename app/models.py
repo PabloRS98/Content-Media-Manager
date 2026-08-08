@@ -42,7 +42,13 @@ class MediaType(enum.Enum):
 
 
 # Tipos que se siguen por episodios (temporada + episodio)
-EPISODIC_TYPES = (MediaType.SERIE, MediaType.PODCAST)
+TIPOS_EPISODICOS = (MediaType.SERIE, MediaType.PODCAST)
+
+# Hueco donde `services/episodios.precalcular` deja los recuentos ya hechos
+# (MC-X2). No es una columna ni un atributo mapeado: vive en el `__dict__` de la
+# instancia y solo dura lo que dure el objeto. El nombre está aquí y no allí
+# porque quien lo lee es `episode_stats()`, unas líneas más abajo.
+ATRIBUTO_STATS = "_stats_episodios"
 
 
 class MediaStatus(enum.Enum):
@@ -197,7 +203,8 @@ class MediaItem(Base):
     hltb_hours: Mapped[float | None] = mapped_column(Float, nullable=True)        # juegos (HowLongToBeat)
 
     # index: lo filtran la portada y cuatro consultas de estadísticas.
-    completed_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)  # fecha de completado (estadísticas)
+    # Fecha de completado; la usan las estadísticas.
+    completed_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     genres: Mapped[str | None] = mapped_column(String(255), nullable=True)  # géneros separados por coma
 
     # Saga/franquicia: nombre editable (manual) + id de colección de TMDB (automático)
@@ -230,10 +237,22 @@ class MediaItem(Base):
 
     @property
     def is_episodic(self) -> bool:
-        return self.media_type in EPISODIC_TYPES
+        return self.media_type in TIPOS_EPISODICOS
 
     def episode_stats(self) -> dict:
-        """Cuenta de episodios vistos/totales y el próximo por ver (para series/podcasts)."""
+        """Cuenta de episodios vistos/totales y el próximo por ver (para series/podcasts).
+
+        Leer `self.episodes` es una consulta por ficha, y trae todos los
+        episodios para contar dos números. Para una ficha está bien; para una
+        página de tarjetas no, así que `services/episodios.precalcular` deja el
+        resultado hecho por lotes y aquí se usa si está (ver MC-X2). Si no está
+        --nadie lo precalculó, o un commit expiró el objeto-- se calcula como
+        siempre: el resultado es el mismo, cambia lo que cuesta.
+        """
+        precalculado = self.__dict__.get(ATRIBUTO_STATS)
+        if precalculado is not None:
+            return precalculado
+
         eps = self.episodes
         total = len(eps)
         watched = sum(1 for e in eps if e.watched)

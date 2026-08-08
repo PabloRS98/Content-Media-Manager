@@ -9,6 +9,13 @@
 # chown de aquí corrige eso en cada arranque -- barato, son unos pocos
 # ficheros -- tanto en instalaciones nuevas como en actualizaciones.
 #
+# El coste es O(n) en número de ficheros de /data, y hoy son unos pocos: la
+# base, sus dos ficheros de WAL y un backup por día con rotación. Si algún día
+# /data guarda algo que crezca por elemento --portadas descargadas, por
+# ejemplo--, este chown pasa a recorrer miles de ficheros en cada arranque y
+# habría que acotarlo (solo el nivel de arriba, o solo si el dueño no cuadra ya)
+# en vez de dejarlo crecer sin que nadie mire. [MC-B9]
+#
 # Aquí se aplican también las migraciones, antes de arrancar uvicorn. Hacerlo
 # dentro del lifespan de FastAPI podía quedarse esperando un lock de SQLite y
 # dejaba el arranque colgado sin explicar por qué; en este punto no hay

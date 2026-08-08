@@ -161,7 +161,8 @@ class TestEndpointDeBusqueda:
     def test_por_defecto_busca_en_espanol(self, client, monkeypatch):
         recibido = {}
         monkeypatch.setattr("app.routers.catalog.googlebooks.search_books",
-                            lambda query, limit=8, year=None, idioma=None: (recibido.setdefault("idioma", idioma), [])[1])
+                            lambda query, limit=8, year=None, idioma=None:
+                            (recibido.setdefault("idioma", idioma), [])[1])
         monkeypatch.setattr("app.routers.catalog.openlibrary.search_books",
                             lambda *a, **k: [])
 
@@ -171,7 +172,8 @@ class TestEndpointDeBusqueda:
     def test_un_idioma_desconocido_cae_a_espanol(self, client, monkeypatch):
         recibido = {}
         monkeypatch.setattr("app.routers.catalog.googlebooks.search_books",
-                            lambda query, limit=8, year=None, idioma=None: (recibido.setdefault("idioma", idioma), [])[1])
+                            lambda query, limit=8, year=None, idioma=None:
+                            (recibido.setdefault("idioma", idioma), [])[1])
         monkeypatch.setattr("app.routers.catalog.openlibrary.search_books",
                             lambda *a, **k: [])
 
@@ -183,7 +185,8 @@ class TestEndpointDeBusqueda:
         monkeypatch.setattr("app.routers.catalog.googlebooks.search_books",
                             lambda *a, **k: [])  # Google Books sin resultados
         monkeypatch.setattr("app.routers.catalog.openlibrary.search_books",
-                            lambda query, limit=8, year=None, idioma=None: (recibido.setdefault("idioma", idioma), [])[1])
+                            lambda query, limit=8, year=None, idioma=None:
+                            (recibido.setdefault("idioma", idioma), [])[1])
 
         client.get("/buscar?tipo=libro&q=duna&idioma=en")
         assert recibido["idioma"] == "en"

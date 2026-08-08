@@ -19,7 +19,7 @@ from ..auth import verify_auth
 from ..config import settings
 from ..cuentas import items_de, usuario_actual
 from ..database import get_db, revision_pendiente
-from ..models import EPISODIC_TYPES, Episode, MediaItem, Usuario
+from ..models import TIPOS_EPISODICOS, Episode, MediaItem, Usuario
 from ..services import telegram
 from ..services.scheduler import JOB_STATUS
 from ..templating import templates
@@ -82,7 +82,7 @@ def _huecos_en_los_datos(db: Session, usuario: Usuario) -> list[dict]:
     sin_portada = mios.filter(MediaItem.cover_url.is_(None)).count()
 
     series_sin_episodios = mios.filter(
-        MediaItem.media_type.in_(EPISODIC_TYPES),
+        MediaItem.media_type.in_(TIPOS_EPISODICOS),
         ~MediaItem.id.in_(db.query(Episode.item_id).distinct()),
     ).count()
 
