@@ -61,10 +61,49 @@ jobs:
       - name: Comprobar que el contenedor arranca y responde
         run: |
           chmod +x .github/*.sh
-          docker run -d --name smoke -p 8000:8000 media-catalog:ci
+          # Las mismas opciones de endurecimiento que declara el compose
+          # (MC-B8/N8). Arrancar aquí sin ellas dejaría el job en verde con una
+          # configuración que en casa no arranca, que es peor que no probarlo.
+          docker run -d --name smoke -p 8000:8000 \
+            --read-only --tmpfs /tmp \
+            --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+            --security-opt no-new-privileges \
+            media-catalog:ci
           .github/esperar-salud.sh smoke 8000
           .github/comprobar-rutas.sh 8000
           docker stop smoke
+
+      - name: Comprobar que se puede importar un CSV con el disco en solo lectura
+        run: |
+          # Por encima de 1 MB la subida se vuelca a un fichero temporal. Sin
+          # /tmp escribible esto devuelve 400 "There was an error parsing the
+          # body" sin dejar traza en el log, así que el smoke de arriba no lo
+          # vería: hay que subir un CSV de verdad.
+          python - <<'PY'
+          import csv
+          with open("grande.csv", "w", newline="", encoding="utf-8") as f:
+              w = csv.writer(f)
+              w.writerow(["Const", "Title", "Title Type", "Year", "Your Rating",
+                          "Date Rated", "Genres", "Directors", "Runtime (mins)"])
+              for i in range(30000):
+                  w.writerow(["tt%07d" % i, "Pelicula %05d" % i, "movie", 2020, 8,
+                              "2026-01-01", "Drama", "Alguien", 100])
+          PY
+          docker run -d --name subida -p 8001:8000 \
+            --read-only --tmpfs /tmp \
+            --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+            --security-opt no-new-privileges \
+            media-catalog:ci
+          .github/esperar-salud.sh subida 8001
+          base=http://localhost:8001
+          cuenta=$(curl -s $base/cuentas | grep -o '/cuentas/entrar/[0-9]*' | head -1)
+          curl -s -o /dev/null -c galletas.txt -X POST -H "Origin: $base" "$base$cuenta"
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' -b galletas.txt -X POST \
+            -H "Origin: $base" -F "archivo=@grande.csv" "$base/importar")
+          docker logs subida
+          docker stop subida
+          [ "$codigo" = "200" ] || { echo "la importación devolvió $codigo"; exit 1; }
+          echo "importación de 2,3 MB con el disco en solo lectura: $codigo"
 
   # Los fallos que este job caza no están en el código, así que ningún test
   # unitario los ve: son de despliegue. El caso concreto es una base de datos
@@ -141,7 +180,14 @@ jobs:
       - name: Arrancar contra esa base y exigir que se ponga al día
         run: |
           chmod +x .github/*.sh
-          docker run -d --name viejo -p 8000:8000 -v datos-viejos:/data media-catalog:ci
+          # Con el endurecimiento puesto y sobre el caso difícil: la base de
+          # este volumen la creó un contenedor como root, así que el chown del
+          # entrypoint tiene trabajo que hacer con las capacidades recortadas.
+          docker run -d --name viejo -p 8000:8000 -v datos-viejos:/data \
+            --read-only --tmpfs /tmp \
+            --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID \
+            --security-opt no-new-privileges \
+            media-catalog:ci
           # El healthcheck de Docker pide /salud, que desde MC-M4 devuelve 503
           # si el esquema no está al día: llegar a "healthy" ES la comprobación
           # de que la migración corrió.
@@ -151,7 +197,11 @@ jobs:
       - name: Comprobar que los datos siguen ahí y las rutas responden
         run: |
           .github/comprobar-rutas.sh 8000
-          docker exec -i viejo python - <<'PY'
+          # `-u appuser`: dentro del contenedor endurecido, root ya no tiene
+          # DAC_OVERRIDE, así que no puede escribir en una base que pertenece a
+          # appuser ("attempt to write a readonly database"). Comprobarlo como
+          # el usuario que corre la app es además lo fiel.
+          docker exec -u appuser -i viejo python - <<'PY'
           import sqlite3
           c = sqlite3.connect("/data/media.db")
           n = list(c.execute("select count(*) from media_items"))[0][0]

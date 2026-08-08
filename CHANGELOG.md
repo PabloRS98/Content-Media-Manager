@@ -198,13 +198,25 @@ each entry below names the id it closes.
   existed, which is how the app ended up shipping 19 known vulnerabilities
   without anyone noticing.
 - **[MC-B10]** The container smoke test only curled `/salud`. It now waits for
-  Docker's own healthcheck to report healthy and then requests all 16 GET
+  Docker's own healthcheck to report healthy and then requests all 18 GET
   routes, failing on anything that isn't a 200 — a missing column leaves the
   process alive and answering while every page returns 500, and only asking for
   the pages catches that. A test keeps the route list in step with the app.
 
 ### Security
 
+- **[MC-B8/N8]** The container ran with a writable filesystem and the default
+  capability set. It now runs `read_only`, with every capability dropped and
+  `no-new-privileges`, so code execution inside it can't leave anything behind
+  in the image. Three capabilities are kept, and each is there for a reason:
+  `CHOWN`, `SETUID` and `SETGID`, which the entrypoint needs to fix ownership of
+  `/data` and drop privileges before starting the app — with `cap_drop: [ALL]`
+  alone the container doesn't start at all. `/tmp` is a tmpfs, and that one is
+  load-bearing rather than decorative: uploads above 1 MB spill to a temporary
+  file, so without a writable `/tmp` importing a 2.3 MB CSV returns a bare 400
+  and leaves nothing in the log to explain it. CI now starts the container with
+  these same options — including the awkward path, a volume whose database
+  belongs to root from when the image ran as root — and uploads a real CSV.
 - **[MC-X3]** Updated dependencies carrying **19 known vulnerabilities**: Jinja2
   3.1.4, python-multipart 0.0.12 and Starlette 0.38.6 (pulled in by FastAPI
   0.115.0). Found by running `pip-audit` for the first time. `pip-audit` now

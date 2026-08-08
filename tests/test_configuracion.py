@@ -140,3 +140,38 @@ class TestBindingDelPuerto:
         # El ejemplo tiene que avisar de que la app se niega a arrancar con la
         # contraseña de fábrica; si no, el fallo aparece por sorpresa.
         assert "changeme" in ejemplo and "refuses to start" in ejemplo.lower()
+
+
+class TestEndurecimientoDelContenedor:
+    """[MC-B8/N8]. Nada de esto se puede probar sin Docker, así que lo que se
+    fija aquí es la declaración: que nadie la quite al editar el compose por
+    otro motivo. Que además funciona está comprobado a mano y en el job
+    `docker` de CI, que arranca el contenedor con estas mismas opciones."""
+
+    @staticmethod
+    def _compose() -> dict:
+        import yaml
+
+        texto = (RAIZ / "docker-compose.yml").read_text(encoding="utf-8")
+        return yaml.safe_load(texto)["services"]["media-catalog"]
+
+    def test_el_sistema_de_ficheros_va_en_solo_lectura(self):
+        servicio = self._compose()
+        assert servicio["read_only"] is True
+        # /data es un volumen, así que sigue siendo escribible: la base y los
+        # backups no se ven afectados.
+        assert "media_data:/data" in servicio["volumes"]
+
+    def test_hay_un_tmp_escribible(self):
+        """Sin él, importar un CSV de más de 1 MB devuelve 400 sin explicar
+        nada: el SpooledTemporaryFile de la subida no puede volcarse a disco."""
+        assert "/tmp" in self._compose()["tmpfs"]
+
+    def test_se_sueltan_todas_las_capacidades_menos_las_del_arranque(self):
+        servicio = self._compose()
+        assert servicio["cap_drop"] == ["ALL"]
+        # Exactamente estas tres, y por un motivo cada una: el entrypoint hace
+        # chown de /data y baja privilegios con gosu. Si esta lista crece,
+        # conviene preguntarse quién pidió la capacidad nueva.
+        assert sorted(servicio["cap_add"]) == ["CHOWN", "SETGID", "SETUID"]
+        assert "no-new-privileges:true" in servicio["security_opt"]

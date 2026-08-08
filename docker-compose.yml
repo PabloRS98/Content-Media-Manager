@@ -25,6 +25,32 @@ services:
         required: false
     volumes:
       - media_data:/data
+    # Endurecido [MC-B8/N8]. La app solo escribe en /data, así que el resto del
+    # sistema de ficheros puede ir en solo lectura: si algún día se cuela una
+    # ejecución de código, no puede dejar nada escrito en la imagen.
+    read_only: true
+    tmpfs:
+      # NO es decorativo, y esto está medido: las subidas de CSV llegan como
+      # SpooledTemporaryFile, que a partir de 1 MB se vuelca a disco en el
+      # directorio temporal. Sin un /tmp escribible, importar un CSV de 2,3 MB
+      # devuelve 400 "There was an error parsing the body" y no deja ni una
+      # traza en el log -- imposible de diagnosticar meses después.
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Las tres que quedan son las que necesita docker-entrypoint.sh para
+    # arreglar el dueño de /data y bajar privilegios con gosu antes de arrancar
+    # la app (CHOWN para el chown, SETUID/SETGID para el cambio de usuario).
+    # Con `cap_drop: [ALL]` a secas el contenedor no arranca: se queda en
+    # "chown: changing ownership of '/data': Operation not permitted".
+    # Comprobado que bastan estas tres, también en el caso difícil: un volumen
+    # de la versión que corría como root, con la base a nombre de root y en 600.
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
     healthcheck:
       # La suite definía el healthcheck por fuera; al independizarse hay que
       # declararlo aquí o el contenedor pasaría a no tener ninguno.
