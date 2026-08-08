@@ -197,7 +197,11 @@ jobs:
       - name: Comprobar que los datos siguen ahí y las rutas responden
         run: |
           .github/comprobar-rutas.sh 8000
-          docker exec -i viejo python - <<'PY'
+          # `-u appuser`: dentro del contenedor endurecido, root ya no tiene
+          # DAC_OVERRIDE, así que no puede escribir en una base que pertenece a
+          # appuser ("attempt to write a readonly database"). Comprobarlo como
+          # el usuario que corre la app es además lo fiel.
+          docker exec -u appuser -i viejo python - <<'PY'
           import sqlite3
           c = sqlite3.connect("/data/media.db")
           n = list(c.execute("select count(*) from media_items"))[0][0]
