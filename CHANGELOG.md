@@ -10,6 +10,14 @@ each entry below names the id it closes.
 
 ### Added
 
+- **[N3]** "Because you liked…" on the home page. The app already knew what
+  you'd finished, how you rated it, and which sagas, creators and genres it
+  belonged to — it just never used any of it. Pending items are now ranked by
+  affinity with what you've completed and shown with the reason ("from the same
+  saga as «X»"), which is what makes the catalog useful for deciding what to do
+  tonight rather than only for recording what you did. No APIs and no model: it
+  reads what's already there. If there's nothing finished to infer from, the
+  section doesn't appear rather than inventing affinities.
 - **[N1]** Search inside your own catalog. Until now the only search box asked
   external APIs so you could *add* things — there was no way to find what you
   already had, which with a few thousand imported items meant paging through

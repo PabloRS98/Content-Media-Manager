@@ -43,9 +43,26 @@ def muchos_pendientes(db):
 
 
 def selects_sin_limite(sentencias: list[str], tabla: str) -> list[str]:
+    """SELECT de FILAS COMPLETAS sin LIMIT sobre `tabla`, que es lo que MC-M5
+    prohíbe en la portada.
+
+    Se excluyen dos cosas a propósito:
+
+    - Los `count(*)`: los recuentos del resumen recorren la tabla entera y
+      deben hacerlo.
+    - Las proyecciones de unas pocas columnas. El problema de MC-M5 era
+      materializar objetos ORM completos --con `overview`, que es Text-- para
+      descartar casi todos; leer cuatro columnas cortas de todas las filas para
+      agregarlas es otra cosa, y es lo que hace el perfil de gustos de las
+      recomendaciones. Se detecta por `overview`, que es la columna cara y solo
+      aparece cuando se piden filas enteras.
+    """
     return [
         s for s in sentencias
-        if " FROM %s" % tabla in s and "LIMIT" not in s.upper() and "count(" not in s
+        if " FROM %s" % tabla in s
+        and "LIMIT" not in s.upper()
+        and "count(" not in s
+        and "%s.overview" % tabla in s
     ]
 
 

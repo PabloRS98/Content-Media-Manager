@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import verify_auth
 from ..database import get_db
 from ..models import EPISODIC_TYPES, Episode, Lista, MediaItem, MediaStatus, MediaType, Priority
-from ..services import metadata
+from ..services import metadata, recomendaciones
 from ..templating import templates
 
 router = APIRouter(tags=["inicio"], dependencies=[Depends(verify_auth)])
@@ -139,6 +139,7 @@ def home(request: Request, db: Session = Depends(get_db)):
 
     return templates.TemplateResponse(request, "home.html", {
         "en_progreso": en_progreso,
+        "recomendaciones": recomendaciones.recomendar(db, limite=6),
         "proximos": proximos,
         "wishlist": wishlist,
         "recientes": recientes,
