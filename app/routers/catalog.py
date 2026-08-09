@@ -521,12 +521,22 @@ def mark_through_episode(
 def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     year_now = date.today().year
 
+    # TODAS las consultas de esta página acotan por cuenta. Los agregados son la
+    # parte fácil de olvidar --no enseñan ningún título, así que un vistazo no
+    # delata nada-- pero un gráfico de géneros con los de tu pareja dice de ella
+    # tanto como una lista de títulos. `de_esta_cuenta` existe para que añadir un
+    # agregado nuevo sin acotarlo cueste más que hacerlo bien.
+    def de_esta_cuenta(*columnas):
+        return db.query(*columnas).filter(MediaItem.usuario_id == usuario.id)
+
     total = items_de(db, usuario).count()
     por_estado = dict(
-        db.query(MediaItem.status, func.count(MediaItem.id)).group_by(MediaItem.status).all()
+        de_esta_cuenta(MediaItem.status, func.count(MediaItem.id))
+        .group_by(MediaItem.status).all()
     )
     por_tipo = dict(
-        db.query(MediaItem.media_type, func.count(MediaItem.id)).group_by(MediaItem.media_type).all()
+        de_esta_cuenta(MediaItem.media_type, func.count(MediaItem.id))
+        .group_by(MediaItem.media_type).all()
     )
 
     completados_este_año = (
@@ -537,7 +547,7 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
 
     por_mes = [0] * 12
     rows = (
-        db.query(extract("month", MediaItem.completed_at), func.count(MediaItem.id))
+        de_esta_cuenta(extract("month", MediaItem.completed_at), func.count(MediaItem.id))
         .filter(MediaItem.completed_at.isnot(None), extract("year", MediaItem.completed_at) == year_now)
         .group_by(extract("month", MediaItem.completed_at))
         .all()
@@ -546,14 +556,16 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
         por_mes[int(month) - 1] = count
 
     genre_counts: dict[str, int] = {}
-    for (genres_str,) in db.query(MediaItem.genres).filter(MediaItem.genres.isnot(None)).all():
+    for (genres_str,) in de_esta_cuenta(MediaItem.genres).filter(
+        MediaItem.genres.isnot(None)
+    ).all():
         for g in [x.strip() for x in genres_str.split(",") if x.strip()]:
             genre_counts[g] = genre_counts.get(g, 0) + 1
     top_generos = sorted(genre_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]
 
     ratings = [0] * 10
     for rating, count in (
-        db.query(MediaItem.rating, func.count(MediaItem.id))
+        de_esta_cuenta(MediaItem.rating, func.count(MediaItem.id))
         .filter(MediaItem.rating.isnot(None))
         .group_by(MediaItem.rating)
         .all()
@@ -567,13 +579,13 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     # necesita los objetos (usa ep.item.runtime_minutes de fallback), pero con
     # joinedload en la misma consulta en vez de un SELECT por episodio (N+1):
     # con 30 series x 10 episodios vistos eran ~44 sentencias SQL; con esto, ~14.
-    minutos_pelis = db.query(func.sum(MediaItem.runtime_minutes)).filter(
+    minutos_pelis = de_esta_cuenta(func.sum(MediaItem.runtime_minutes)).filter(
         MediaItem.media_type == MediaType.PELICULA, MediaItem.status == MediaStatus.COMPLETADO
     ).scalar() or 0
-    horas_juegos = db.query(func.sum(MediaItem.hltb_hours)).filter(
+    horas_juegos = de_esta_cuenta(func.sum(MediaItem.hltb_hours)).filter(
         MediaItem.media_type == MediaType.VIDEOJUEGO, MediaItem.status == MediaStatus.COMPLETADO
     ).scalar() or 0
-    paginas_libros = db.query(func.sum(MediaItem.page_count)).filter(
+    paginas_libros = de_esta_cuenta(func.sum(MediaItem.page_count)).filter(
         MediaItem.media_type == MediaType.LIBRO, MediaItem.status == MediaStatus.COMPLETADO
     ).scalar() or 0
 
@@ -581,7 +593,7 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     episodios_vistos = (
         db.query(Episode).join(MediaItem)
         .options(joinedload(Episode.item))
-        .filter(Episode.watched.is_(True))
+        .filter(Episode.watched.is_(True), MediaItem.usuario_id == usuario.id)
     )
     for ep in episodios_vistos:
         tiempo_min += ep.runtime_minutes or ep.item.runtime_minutes or 45
@@ -595,7 +607,7 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     decada = (MediaItem.year / 10 * 10).label("decada")
     por_decada = sorted(
         (int(d), n) for d, n in
-        db.query(decada, func.count(MediaItem.id))
+        de_esta_cuenta(decada, func.count(MediaItem.id))
         .filter(MediaItem.year.isnot(None))
         .group_by(decada)
         .all()

@@ -163,9 +163,15 @@ class TestAislamientoEntreCuentas:
         assert db.get(MediaItem, item_ajeno.id) is not None
 
     def test_las_estadisticas_solo_cuentan_lo_propio(self, client, crear_item, item_ajeno):
+        """Que no salga el título ajeno es lo MÍNIMO, y no basta: los números
+        agregados de esta página no enseñan ningún título y aun así se colaban
+        enteros. Lo que hay que comprobar son las cifras, y eso está en
+        `tests/test_estadisticas_por_cuenta.py`."""
         crear_item(title="Mío", status=MediaStatus.COMPLETADO)
         html = client.get("/estadisticas").text
         assert "Diario de la otra persona" not in html
+        # El total de la cabecera: 1, el propio.
+        assert ">1<" in html
 
     def test_las_listas_son_de_cada_uno(self, client, db, usuario, otro_usuario):
         db.add(Lista(usuario_id=otro_usuario.id, name="Lista ajena"))
