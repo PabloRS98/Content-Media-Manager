@@ -58,9 +58,18 @@ def asignar(db: Session, item: MediaItem, nombres: str | Iterable[str]) -> None:
         item.generos = []
         return
 
+    # Los que ya están en la base, MÁS los que esta misma sesión tiene todavía
+    # sin escribir. Lo segundo no es un detalle: la sesión de la app va con
+    # `autoflush=False`, así que un `Genero` añadido hace tres filas de un CSV
+    # todavía no lo ve ninguna consulta. Sin esto, importar 30 000 películas de
+    # "Drama" intentaba crear 30 000 filas "Drama" y el import entero moría con
+    # "UNIQUE constraint failed: generos.nombre".
     existentes = {
         g.nombre: g for g in db.query(Genero).filter(Genero.nombre.in_(nombres)).all()
     }
+    for pendiente in db.new:
+        if isinstance(pendiente, Genero) and pendiente.nombre in nombres:
+            existentes.setdefault(pendiente.nombre, pendiente)
     finales = []
     for nombre in nombres:
         genero = existentes.get(nombre)

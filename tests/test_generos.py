@@ -100,6 +100,24 @@ class TestElVocabularioNoSeDuplica:
         assert db.query(Genero).filter(Genero.nombre == "Efímero").count() == 0
 
 
+    def test_importar_muchas_filas_con_el_mismo_genero(self, client, db):
+        """El caso que reventó de verdad: la sesión va con `autoflush=False`,
+        así que un `Genero` añadido tres filas antes no lo ve ninguna consulta.
+        Sin mirar también lo pendiente, un CSV de 300 películas de "Drama"
+        intentaba crear 300 filas "Drama" y moría con UNIQUE."""
+        cabecera = "Const,Title,Title Type,Year,Your Rating,Date Rated,Genres,Directors\n"
+        filas = "".join(
+            "tt%07d,Peli %03d,movie,2020,8,2026-01-01,Drama,Alguien\n" % (i, i)
+            for i in range(300)
+        )
+        csv = (cabecera + filas).encode("utf-8")
+
+        respuesta = client.post("/importar", files={"archivo": ("imdb.csv", csv, "text/csv")})
+
+        assert respuesta.status_code == 200
+        assert db.query(Genero).filter(Genero.nombre == "Drama").count() == 1
+
+
 class TestRenombrar:
     """El cuarto problema del informe: con la cadena, "Sci-Fi" y "Ciencia
     ficción" convivían para siempre porque no había dónde renombrar."""
