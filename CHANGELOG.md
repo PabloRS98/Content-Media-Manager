@@ -87,6 +87,17 @@ each entry below names the id it closes.
 
 ### Fixed
 
+- **Statistics leaked across accounts.** When accounts were added,
+  `/estadisticas` was scoped where it *listed* items — and stopped there. The
+  aggregates kept summing everybody's catalog: counts by status and type,
+  completions per month, the genre chart, the ratings histogram, decades, total
+  hours, and watched episodes. Nine queries in one page. Nothing showed another
+  person's titles, which is exactly why it survived: the test that existed only
+  checked that a title didn't appear. A genre chart built from your partner's
+  catalog says as much about them as a list of titles would. Every query on the
+  page now goes through one account-scoped helper, and the tests assert the
+  numbers rather than the absence of a string — with an unfixed build, six of
+  the seven fail, one of them reading 92 hours instead of 2.
 - **[MC-X2]** Every series or podcast card asked the database for its own
   episodes to print "12/180". Because that relationship is lazy, a catalog page
   with 24 series was 24 extra queries — and each one loaded *all* of that
