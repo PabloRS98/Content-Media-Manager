@@ -11,7 +11,7 @@
     {% if grupos %}
     {% for g in grupos %}
     <div class="cal-group">
-        <div class="cal-date">{{ g.fecha.strftime("%A %d %B %Y")|capitalize }}</div>
+        <div class="cal-date">{{ fecha_larga(g.fecha)|capitalize }}</div>
         <ul class="upcoming-list">
             {% for e in g.entradas %}
             <li>

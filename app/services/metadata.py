@@ -127,6 +127,17 @@ def load_episodes(db: Session, item: MediaItem, seasons: list[int]) -> int:
     return added
 
 
+def marcar_comienzo(item: MediaItem) -> None:
+    """Deja la fecha de hoy como comienzo, si no había ninguna.
+
+    Solo la primera vez: volver a guardar algo que empezaste en enero no puede
+    moverlo a hoy, o el diario reescribiría el pasado cada vez que corrigieras
+    una nota. [N5]
+    """
+    if item.started_at is None:
+        item.started_at = date.today()
+
+
 def recompute_status(item: MediaItem) -> None:
     """Ajusta el estado de una serie/podcast según sus episodios vistos.
     No toca wishlist (sigue siendo un deseo aunque no haya episodios)."""
@@ -142,9 +153,16 @@ def recompute_status(item: MediaItem) -> None:
         item.status = MediaStatus.COMPLETADO
         if item.completed_at is None:
             item.completed_at = date.today()
+        # También aquí: una serie de un solo episodio se empieza y se termina
+        # en el mismo gesto, y no haberla empezado nunca sería falso. En el
+        # diario sale una sola línea igualmente, la de terminada.
+        marcar_comienzo(item)
     else:
         item.status = MediaStatus.EN_PROGRESO
         item.completed_at = None
+        # Una serie se empieza viendo un episodio, no editando un formulario:
+        # si esto no estuviera aquí, el diario no vería empezar ninguna.
+        marcar_comienzo(item)
 
 
 def toggle_episode(item: MediaItem, episode: Episode) -> None:

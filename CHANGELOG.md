@@ -27,6 +27,23 @@ each entry below names the id it closes.
   has. Existing installations keep everything they had: the migration creates a
   first account ("Yo", renameable in its settings) and assigns the whole
   existing catalog to it, so nothing disappears and nothing needs re-importing.
+- **[N5]** A diary. The yearly stats only mean something in December; this is
+  the same thing during the year — "this week you watched four episodes of X,
+  finished book Y and started game Z" — one month per page, because that's the
+  unit you actually think in ("what did I do in March?"). Episodes watched on
+  the same day of the same series collapse into one line ("5 episodes"): an
+  afternoon of binging is five identical lines otherwise. It reads only dates
+  that record a fact — `completed_at`, `watched_at`, and a new `started_at`
+  — and deliberately not `updated_at`, which also changes when you fix a typo:
+  a diary that says you started a book the day you corrected its title is worth
+  less than one that admits it doesn't know. Nothing is backfilled for the same
+  reason.
+- **Dates in Spanish.** `strftime("%A")` returns whatever the process locale
+  says, and the container's is the default one, so the calendar printed
+  "Thursday 06 August 2026" — the only English text in the whole interface.
+  Now day and month names come from the app rather than from the locale, which
+  also avoids `setlocale`, a process-wide switch that would change how numbers
+  are formatted everywhere else.
 - **[N7]** Where you have each thing: Netflix, Kindle, Steam, the shelf in the
   living room. It answers a question that comes up for real — "what's still
   pending on Netflix before I cancel it?" — which until now you had to answer

@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import StrictUndefined
 
 from .catalogo_config import etiqueta_estado
+from .fechas import dia_y_mes, fecha_larga
 
 # Ruta absoluta (relativa a este fichero), no "app/templates": una ruta
 # relativa al cwd solo funciona si el proceso arranca desde la raíz del repo.
@@ -81,3 +82,9 @@ def minutos_estimados(item) -> int | None:
 
 
 templates.env.globals["minutos_estimados"] = minutos_estimados
+
+# Fechas en español sin tocar el locale del proceso: `strftime("%A")` devuelve
+# "Thursday" con el locale de la imagen, y era el único texto en inglés de toda
+# la interfaz. Ver `fechas.py` para por qué no se arregla con `setlocale`.
+templates.env.globals["dia_y_mes"] = dia_y_mes
+templates.env.globals["fecha_larga"] = fecha_larga

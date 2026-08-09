@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
+{% block title %}Diario · Catálogo{% endblock %}
+{% block content %}
+
+<section class="card">
+    <h3 class="rowline">{{ icon("calendar") }} {{ titulo_mes|capitalize }}
+        <span class="diario-nav">
+            {% if hay_anterior %}<a href="/actividad?mes={{ mes_anterior }}" class="head-link">{{ icon("chevron-left", 13) }} anterior</a>{% endif %}
+            {% if hay_siguiente %}<a href="/actividad?mes={{ mes_siguiente }}" class="head-link">siguiente {{ icon("chevron-right", 13) }}</a>{% endif %}
+        </span>
+    </h3>
+
+    {% if dias %}
+    <p class="subtle diario-resumen">
+        {%- if resumen.episodios %}{{ resumen.episodios }} episodio{{ "s" if resumen.episodios != 1 }}{% endif %}
+        {%- if resumen.episodios and (resumen.terminados or resumen.empezados) %} · {% endif %}
+        {%- if resumen.terminados %}{{ resumen.terminados }} terminado{{ "s" if resumen.terminados != 1 }}{% endif %}
+        {%- if resumen.terminados and resumen.empezados %} · {% endif %}
+        {%- if resumen.empezados %}{{ resumen.empezados }} empezado{{ "s" if resumen.empezados != 1 }}{% endif %}
+    </p>
+
+    {% for dia in dias %}
+    <div class="cal-group">
+        <div class="cal-date">{{ dia_y_mes(dia.fecha)|capitalize }}</div>
+        <ul class="upcoming-list">
+            {% for e in dia.entradas %}
+            <li>
+                <a href="/item/{{ e.item_id }}">{{ media_icon(e.media_type, 14) }} {{ e.titulo }}</a>
+                <span class="subtle">
+                {%- if e.tipo == "episodios" %}{{ e.episodios }} episodio{{ "s" if e.episodios != 1 }}
+                {%- elif e.tipo == "terminado" %}Terminaste
+                {%- else %}Empezaste{% endif %}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    {% else %}
+    {# Un mes sin nada es normal (vacaciones, o antes de empezar a usar la app):
+       se dice y ya, no es un error. #}
+    <div class="empty">{{ icon("calendar", 30) }} Nada este mes. Aquí aparece lo que terminas, lo que empiezas y los episodios que marcas.</div>
+    {% endif %}
+</section>
+
+{% endblock %}

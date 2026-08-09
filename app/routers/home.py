@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..auth import verify_auth
 from ..cuentas import items_de, listas_de, usuario_actual
 from ..database import get_db
+from ..fechas import mes_y_año
 from ..models import (
     TIPOS_EPISODICOS,
     Episode,
@@ -19,7 +20,7 @@ from ..models import (
     Priority,
     Usuario,
 )
-from ..services import episodios, metadata, recomendaciones
+from ..services import actividad, episodios, metadata, recomendaciones
 from ..templating import templates
 
 router = APIRouter(tags=["inicio"], dependencies=[Depends(verify_auth)])
@@ -178,6 +179,32 @@ def calendario(request: Request, db: Session = Depends(get_db), usuario: Usuario
         por_fecha.setdefault(e["fecha"], []).append(e)
     grupos = [{"fecha": f, "entradas": por_fecha[f]} for f in sorted(por_fecha)]
     return templates.TemplateResponse(request, "calendario.html", {"grupos": grupos})
+
+
+@router.get("/actividad")
+def diario(
+    request: Request,
+    mes: str | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
+    """Diario del mes: qué terminaste, qué empezaste y qué episodios viste.
+
+    Un mes por página en vez de un scroll infinito: es la unidad en la que uno
+    piensa ("¿qué hice en marzo?") y acota la consulta sin recortar nada."""
+    desde, hasta = actividad.rango_del_mes(mes)
+    dias = actividad.diario(db, usuario, desde, hasta)
+    return templates.TemplateResponse(request, "actividad.html", {
+        "dias": dias,
+        "resumen": actividad.resumen(dias),
+        "titulo_mes": mes_y_año(desde),
+        "mes_anterior": actividad.mes_anterior(desde),
+        "mes_siguiente": actividad.mes_siguiente(hasta),
+        # No se ofrece ir hacia delante del mes en curso ni hacia atrás de la
+        # primera cosa que hiciste: son enlaces a páginas vacías garantizadas.
+        "hay_siguiente": hasta < date.today(),
+        "hay_anterior": actividad.hay_algo_antes(db, usuario, desde),
+    })
 
 
 @router.get("/tengo-tiempo")

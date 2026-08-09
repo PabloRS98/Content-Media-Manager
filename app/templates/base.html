@@ -31,6 +31,7 @@
         <a href="/catalogo?tipo=videojuego" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'videojuego' else '' }}">{{ icon("gamepad-2") }}<span>Juegos</span></a>
         <a href="/catalogo?tipo=podcast" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'podcast' else '' }}">{{ icon("podcast") }}<span>Podcasts</span></a>
         <a href="/listas" class="{{ 'active' if path.startswith('/listas') else '' }}">{{ icon("list") }}<span>Listas</span></a>
+        <a href="/actividad" class="{{ 'active' if path.startswith('/actividad') else '' }}">{{ icon("calendar") }}<span>Diario</span></a>
         <a href="/estadisticas" class="{{ 'active' if path.startswith('/estadisticas') else '' }}">{{ icon("chart-column") }}<span>Stats</span></a>
         <a href="/importar" class="{{ 'active' if path.startswith('/importar') else '' }}">{{ icon("upload") }}<span>Importar</span></a>
         <a href="/estado" class="{{ 'active' if path.startswith('/estado') else '' }}">{{ icon("activity") }}<span>Estado</span></a>
