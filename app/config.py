@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     rawg_api_key: str = ""
     google_books_api_key: str = ""
 
+    # Steam: para traerse la biblioteca de juegos. La clave es gratuita
+    # (steamcommunity.com/dev/apikey) y el id es el numerico de 17 digitos. Sin
+    # las dos cosas, el bloque de la pagina de importar ni se ofrece.
+    steam_api_key: str = ""
+    steam_id: str = ""
+
     # Zona horaria (para el job de estrenos)
     timezone: str = "UTC"
 

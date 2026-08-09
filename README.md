@@ -5,10 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/PabloRS98/Content-Media-Manager)](https://github.com/PabloRS98/Content-Media-Manager/releases/latest)
 
-A self-hosted, single-user catalog for books, movies, series, video games and
-podcasts — track what you're watching/reading/playing, what's next, and what's
-still on your wishlist. Runs as one small Docker container against a local
-SQLite file. No account, no cloud, no paid API required.
+A self-hosted catalog for books, movies, series, video games and podcasts —
+track what you're watching/reading/playing, what's next, and what's still on
+your wishlist. One account per person in the house, each with its own catalog.
+Runs as one small Docker container against a local SQLite file. No cloud, no
+paid API required.
 
 ![Home](docs/screenshots/home.png)
 
@@ -42,8 +43,11 @@ SQLite file. No account, no cloud, no paid API required.
 - **Sagas/franchises**: grouped automatically via TMDB collections, editable manually.
 - **Stats page** and a "suggest me something" random pick.
 - **Calendar view** for upcoming episodes and release dates.
-- **CSV import**: IMDb (ratings/watchlist), Goodreads/StoryGraph (books), and
-  Backloggd or a generic CSV (games) — with batch cover-art enrichment afterward.
+- **CSV import**: IMDb (ratings/watchlist), Goodreads/StoryGraph (books),
+  Letterboxd (films), Trakt (films and series), and Backloggd or a generic CSV
+  (games) — with batch cover-art enrichment afterward. **Steam** imports
+  straight from its API, with playtime, and tags everything as "Steam" so you
+  can filter by it.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
 - **Automatic daily backups** of the SQLite database, with rotation.
 - **One account per person in the house**, each with its own catalog, lists and
@@ -102,6 +106,7 @@ source; everything else keeps working.
 | `GOOGLE_BOOKS_API_KEY` | Higher-quota book search fallback | Optional — works keyless at low volume; key at [console.cloud.google.com](https://console.cloud.google.com/) (enable "Books API") |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Episode/release notifications | Create a bot via [@BotFather](https://t.me/BotFather), then message it and check `api.telegram.org/bot<TOKEN>/getUpdates` for your chat id |
 | `ENABLE_AUTH`, `AUTH_USERNAME`, `AUTH_PASSWORD` | HTTP Basic auth | — |
+| `STEAM_API_KEY` / `STEAM_ID` | Import your Steam library with playtime | Free key at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey); the id is the 17-digit one, and the profile must be public |
 | `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
 | `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
 
