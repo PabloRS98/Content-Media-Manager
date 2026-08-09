@@ -24,7 +24,15 @@ from .database import (
 )
 from .errores import SinCuenta
 from .models import Usuario
-from .routers import catalog, cuentas as router_cuentas, estado, home, imdb_import, lists
+from .routers import (
+    catalog,
+    cuentas as router_cuentas,
+    estado,
+    generos as router_generos,
+    home,
+    imdb_import,
+    lists,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,6 +82,7 @@ def backfill_v2_columns() -> None:
     a la v2, no una regla permanente: una base ya marcada no se vuelve a tocar.
     """
     from .models import MediaItem, MediaStatus
+    from .services import generos
 
     if leer_meta(CLAVE_BACKFILL_V2):
         return
@@ -86,12 +95,14 @@ def backfill_v2_columns() -> None:
         ).all():
             item.completed_at = item.updated_at.date() if item.updated_at else None
             changed += 1
+        # Desde [N4] los géneros son una relación, así que "no tiene géneros"
+        # se pregunta con `~MediaItem.generos.any()` en vez de `IS NULL`.
         for item in db.query(MediaItem).filter(
-            MediaItem.genres.is_(None), MediaItem.notes.like("%Genero:%")
+            ~MediaItem.generos.any(), MediaItem.notes.like("%Genero:%")
         ).all():
             match = _GENRE_NOTES_RE.search(item.notes)
             if match:
-                item.genres = match.group(1).strip()
+                generos.asignar(db, item, match.group(1))
                 # Limpia la nota para no duplicar información
                 item.notes = _GENRE_NOTES_RE.sub("", item.notes).strip()
                 changed += 1
@@ -254,6 +265,7 @@ app.include_router(lists.router)
 app.include_router(imdb_import.router)
 app.include_router(estado.router)
 app.include_router(router_cuentas.router)
+app.include_router(router_generos.router)
 
 # `.resolve()` igual que en templating.py: la ruta no depende del cwd y aguanta
 # que el proyecto esté detrás de un enlace simbólico.

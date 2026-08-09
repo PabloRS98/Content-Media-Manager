@@ -14,6 +14,7 @@ from ..auth import verify_auth
 from ..cuentas import items_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..models import MediaItem, MediaStatus, MediaType, Usuario
+from ..services import generos
 from ..services.enrich import (
     enrich_missing_covers_en_segundo_plano,
     estado_actual,
@@ -197,7 +198,7 @@ async def import_imdb_csv(
             sufijo_votos = f" ({num_votes} votos)" if num_votes else ""
             notas.append(f"Rating IMDb: {imdb_rating}{sufijo_votos}.")
 
-        db.add(MediaItem(
+        nuevo = MediaItem(
             usuario_id=usuario.id,
             media_type=media_type,
             title=title,
@@ -206,14 +207,17 @@ async def import_imdb_csv(
             year=year,
             creator=directors or None,
             overview="",
-            genres=genres or None,
             status=MediaStatus.COMPLETADO if your_rating is not None else MediaStatus.PENDIENTE,
             rating=your_rating,
             notes=" ".join(notas),
             completed_at=fecha.date() if your_rating is not None else None,
             created_at=fecha,
             updated_at=fecha,
-        ))
+        )
+        db.add(nuevo)
+        # Los géneros son una relación desde [N4]: se asignan tras crear el
+        # ítem, no como argumento del constructor.
+        generos.asignar(db, nuevo, genres)
         creados += 1
         # Un flush cada 500 filas para no acumular 5 000 objetos en la sesión
         # antes del único commit final. No abre transacción propia: si algo

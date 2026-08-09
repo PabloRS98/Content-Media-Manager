@@ -9,7 +9,15 @@ import time
 from sqlalchemy.orm import Session
 
 from ..models import MediaItem, MediaType
-from . import googlebooks, metadata, openlibrary, rawg, tmdb, wikipedia_covers
+from . import (
+    generos,
+    googlebooks,
+    metadata,
+    openlibrary,
+    rawg,
+    tmdb,
+    wikipedia_covers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -187,8 +195,8 @@ def _aplicar_coincidencia(db: Session, item: MediaItem, match: dict | None) -> N
     if match.get("title") and match["title"].strip() and match["title"].strip().lower() != item.title.lower():
         item.title = match["title"].strip()
     item.cover_url = match.get("cover_url")
-    if not item.genres and match.get("genres"):
-        item.genres = match["genres"]
+    if not item.generos and match.get("genres"):
+        generos.asignar(db, item, match["genres"])
     if not item.overview and match.get("overview"):
         item.overview = match["overview"]
     if not item.year and match.get("year"):

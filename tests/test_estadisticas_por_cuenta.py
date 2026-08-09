@@ -15,33 +15,37 @@ import re
 import pytest
 
 from app.models import Episode, MediaItem, MediaStatus, MediaType
+from app.services import generos
 
 
 @pytest.fixture
-def catalogo_ajeno(db, otro_usuario):
+def catalogo_ajeno(db, otro_usuario):  # noqa: C901
     """Cuatro ítems de otra cuenta, uno de cada tipo, con datos que se agregan:
     género, nota, año, duración y un episodio visto."""
     peli = MediaItem(
         usuario_id=otro_usuario.id, title="Peli suya", media_type=MediaType.PELICULA,
-        status=MediaStatus.COMPLETADO, genres="Documental", rating=9, year=1974,
+        status=MediaStatus.COMPLETADO, rating=9, year=1974,
         runtime_minutes=600,
     )
     libro = MediaItem(
         usuario_id=otro_usuario.id, title="Libro suyo", media_type=MediaType.LIBRO,
-        status=MediaStatus.COMPLETADO, genres="Poesia", rating=8, year=1965,
+        status=MediaStatus.COMPLETADO, rating=8, year=1965,
         page_count=1000,
     )
     juego = MediaItem(
         usuario_id=otro_usuario.id, title="Juego suyo", media_type=MediaType.VIDEOJUEGO,
-        status=MediaStatus.COMPLETADO, genres="Puzzle", hltb_hours=50, year=1985,
+        status=MediaStatus.COMPLETADO, hltb_hours=50, year=1985,
     )
     serie = MediaItem(
         usuario_id=otro_usuario.id, title="Serie suya", media_type=MediaType.SERIE,
-        status=MediaStatus.EN_PROGRESO, genres="Telenovela", year=1995,
+        status=MediaStatus.EN_PROGRESO, year=1995,
     )
     serie.episodes.append(Episode(season_number=1, episode_number=1,
                                   watched=True, runtime_minutes=300))
     db.add_all([peli, libro, juego, serie])
+    for item, genero in ((peli, "Documental"), (libro, "Poesia"),
+                         (juego, "Puzzle"), (serie, "Telenovela")):
+        generos.asignar(db, item, genero)
     db.commit()
     return [peli, libro, juego, serie]
 

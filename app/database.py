@@ -135,12 +135,16 @@ def limpiar_filas_huerfanas(bind=None) -> dict[str, int]:
     dejó su fila en `list_items`. Y el id se reutiliza, así que una fila muerta
     no es solo basura -- puede resucitar como pertenencia de un ítem distinto.
 
-    Idempotente y barato (dos DELETE con subconsulta), así que corre en cada
-    arranque sin necesidad de marca de versión.
+    Idempotente y barato (un DELETE con subconsulta por tabla puente), así que
+    corre en cada arranque sin necesidad de marca de versión.
+
+    REGLA: cada tabla puente nueva entra en esta lista. `media_item_generos`
+    ([N4]) llegó con el mismo peligro intacto, y se vio en un test donde un
+    ítem recién creado heredaba los géneros del que había tenido su id antes.
     """
     borradas: dict[str, int] = {}
     with (bind or engine).begin() as conn:
-        for tabla in ("list_items", "media_item_tags"):
+        for tabla in ("list_items", "media_item_tags", "media_item_generos"):
             r = conn.exec_driver_sql(
                 "DELETE FROM %s WHERE media_item_id NOT IN (SELECT id FROM media_items)" % tabla
             )
@@ -164,6 +168,11 @@ REVISION_INICIAL = "c3b3688bf8aa"
 COLUMNAS_PRE_ALEMBIC: dict[str, dict[str, str]] = {
     "media_items": {
         "completed_at": "DATE",
+        # `genres` ya no existe en el modelo --[N4] la pasó a tabla-- pero
+        # tiene que seguir aquí: la reconciliación deja la base en la revisión
+        # INICIAL, y la migración de géneros necesita esta columna para leer lo
+        # que hay que pasar a filas. Quitarla haría que una base anterior a
+        # Alembic llegara a esa migración sin nada que migrar.
         "genres": "VARCHAR(255)",
         # v3
         "cast": "TEXT",

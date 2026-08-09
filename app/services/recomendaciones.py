@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
-from ..models import MediaItem, MediaStatus, Usuario
+from ..models import Genero, MediaItem, MediaStatus, Usuario, media_item_generos
 
 # Qué se considera "candidato": lo que aún no has consumido.
 CANDIDATOS = (MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
@@ -45,11 +45,25 @@ class Recomendacion:
     motivos: list[str] = field(default_factory=list)
 
 
-def _generos_de_cadena(cadena: str | None) -> list[str]:
-    """`genres` es una cadena separada por comas, no una relación."""
-    if not cadena:
-        return []
-    return [g.strip().lower() for g in cadena.split(",") if g.strip()]
+def _generos_por_item(db: Session, usuario: Usuario) -> dict[int, list[str]]:
+    """{id de ítem: [géneros en minúscula]} de toda la cuenta, en UNA consulta.
+
+    Desde [N4] los géneros son una relación. Leerlos con `item.generos` sería
+    una consulta por ítem --el N+1 que MC-X2 acaba de quitar de las tarjetas--,
+    así que se traen todos los pares de golpe y se indexan aquí. Siguen siendo
+    dos columnas cortas, no filas enteras: el criterio de MC-M5 no cambia.
+    """
+    filas = (
+        db.query(media_item_generos.c.media_item_id, Genero.nombre)
+        .join(Genero, Genero.id == media_item_generos.c.genero_id)
+        .join(MediaItem, MediaItem.id == media_item_generos.c.media_item_id)
+        .filter(MediaItem.usuario_id == usuario.id)
+        .all()
+    )
+    por_item: dict[int, list[str]] = {}
+    for id_item, nombre in filas:
+        por_item.setdefault(id_item, []).append(nombre.lower())
+    return por_item
 
 
 def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
@@ -62,9 +76,10 @@ def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
     esto corre en cada carga de la portada y traerse el catálogo completo --con
     `overview`, que es Text-- es justo lo que quitó MC-M5.
     """
+    generos_por_item = _generos_por_item(db, usuario)
     filas = db.query(
-        MediaItem.title, MediaItem.rating, MediaItem.saga,
-        MediaItem.creator, MediaItem.genres,
+        MediaItem.id, MediaItem.title, MediaItem.rating, MediaItem.saga,
+        MediaItem.creator,
     ).filter(
         MediaItem.status == MediaStatus.COMPLETADO,
         MediaItem.usuario_id == usuario.id,
@@ -74,7 +89,7 @@ def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
     creadores: dict[str, tuple[str, int]] = {}
     generos: Counter = Counter()
 
-    for titulo, nota, saga, creador, cadena_generos in filas:
+    for id_item, titulo, nota, saga, creador in filas:
         # Una nota alta pesa el doble que un simple "lo terminé".
         fuerza = 2 if (nota or 0) >= NOTA_ALTA else 1
 
@@ -86,7 +101,7 @@ def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
             clave = creador.strip().lower()
             if fuerza >= creadores.get(clave, ("", 0))[1]:
                 creadores[clave] = (titulo, fuerza)
-        for genero in _generos_de_cadena(cadena_generos):
+        for genero in generos_por_item.get(id_item, []):
             generos[genero] += fuerza
 
     return sagas, creadores, generos
@@ -108,16 +123,17 @@ def recomendar(db: Session, usuario: Usuario, limite: int = 6) -> list[Recomenda
 
     # Igual que arriba: solo las columnas que se puntúan. Los objetos enteros
     # se traen al final, y solo los `limite` que se van a pintar.
+    generos_por_item = _generos_por_item(db, usuario)
     candidatos = db.query(
         MediaItem.id, MediaItem.saga, MediaItem.creator,
-        MediaItem.genres, MediaItem.priority, MediaItem.updated_at,
+        MediaItem.priority, MediaItem.updated_at,
     ).filter(
         MediaItem.status.in_(CANDIDATOS),
         MediaItem.usuario_id == usuario.id,
     ).all()
 
     puntuados = []
-    for id_item, saga, creador, cadena_generos, prioridad, actualizado in candidatos:
+    for id_item, saga, creador, prioridad, actualizado in candidatos:
         puntos = 0
         motivos: list[str] = []
 
@@ -131,7 +147,9 @@ def recomendar(db: Session, usuario: Usuario, limite: int = 6) -> list[Recomenda
             puntos += PESO_CREADOR * fuerza
             motivos.append("de %s, como «%s»" % (creador, titulo))
 
-        coincidencias = [g for g in _generos_de_cadena(cadena_generos) if g in generos_favoritos]
+        coincidencias = [
+            g for g in generos_por_item.get(id_item, []) if g in generos_favoritos
+        ]
         if coincidencias:
             puntos += PESO_GENERO * len(coincidencias)
             motivos.append("%s, que es de lo que más terminas" % coincidencias[0].capitalize())

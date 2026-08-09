@@ -16,6 +16,7 @@ from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
 from ..models import (
     Episode,
+    Genero,
     Lista,
     MediaItem,
     MediaStatus,
@@ -23,12 +24,14 @@ from ..models import (
     Priority,
     Tag,
     Usuario,
+    media_item_generos,
     media_item_tags,
 )
 from ..security import safe_external_url
 from ..services import (
     catalogo,
     episodios,
+    generos as generos_svc,
     googlebooks,
     itunes,
     metadata,
@@ -328,13 +331,13 @@ def add_item(
         year=_parse_optional(year, int),
         creator=creator or None,
         overview=overview,
-        genres=genres.strip() or None,
         plataforma=plataforma.strip() or None,
         page_count=_parse_optional(page_count, int),
         release_date=_parse_optional(release_date, lambda v: date.fromisoformat(v[:10])),
         completed_at=date.today() if status == MediaStatus.COMPLETADO else None,
     )
     db.add(item)
+    generos_svc.asignar(db, item, genres)
     db.commit()
     db.refresh(item)
 
@@ -445,7 +448,7 @@ def update_item(
     # safe_external_url y no strip() a secas: el campo es editable a mano y se
     # autorrellena desde seis APIs, y su valor acaba en el src de un <img>.
     item.cover_url = safe_external_url(cover_url)
-    item.genres = genres.strip() or None
+    generos_svc.asignar(db, item, genres)
     item.plataforma = plataforma.strip() or None
     item.saga = saga.strip() or None
     item.priority = priority
@@ -477,6 +480,10 @@ def update_item(
     db.commit()
 
     borrar_etiquetas_huerfanas(db)
+    # Y lo mismo con los géneros: quitar el último "Efímero" de un ítem tiene
+    # que llevarse la fila, o el desplegable del filtro acaba ofreciendo
+    # géneros que ya no tiene nadie.
+    generos_svc.borrar_huerfanos(db)
     return redirect_flash("/item/%d" % item.id, '"%s" actualizado' % item.title)
 
 
@@ -555,13 +562,17 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     for month, count in rows:
         por_mes[int(month) - 1] = count
 
-    genre_counts: dict[str, int] = {}
-    for (genres_str,) in de_esta_cuenta(MediaItem.genres).filter(
-        MediaItem.genres.isnot(None)
-    ).all():
-        for g in [x.strip() for x in genres_str.split(",") if x.strip()]:
-            genre_counts[g] = genre_counts.get(g, 0) + 1
-    top_generos = sorted(genre_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]
+    # Un GROUP BY, no un recuento en Python sobre cadenas partidas por comas:
+    # es lo que [N4] vino a hacer posible.
+    top_generos = (
+        de_esta_cuenta(Genero.nombre, func.count(MediaItem.id))
+        .join(media_item_generos, MediaItem.id == media_item_generos.c.media_item_id)
+        .join(Genero, Genero.id == media_item_generos.c.genero_id)
+        .group_by(Genero.id)
+        .order_by(func.count(MediaItem.id).desc(), Genero.nombre)
+        .limit(8)
+        .all()
+    )
 
     ratings = [0] * 10
     for rating, count in (

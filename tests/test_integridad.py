@@ -4,7 +4,7 @@ SQLite no aplica las claves foráneas sin `PRAGMA foreign_keys=ON`, que esta app
 no activa (`database.py` solo pone `journal_mode` y `synchronous`), así que la
 limpieza depende por completo de que SQLAlchemy sepa que la fila existe.
 """
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.models import Lista, list_items, media_item_tags
 
@@ -51,6 +51,39 @@ def test_un_item_nuevo_no_hereda_listas(usuario, db, crear_item):
     # Y si además le tocó el mismo id, la lista sigue vacía.
     if nuevo.id == id_reutilizable:
         assert lista.items == []
+
+
+def test_borrar_un_item_limpia_sus_generos(db, crear_item):
+    """La tabla puente de [N4] llega con el mismo peligro: si la fila muerta se
+    queda, el siguiente ítem que reciba ese id hereda sus géneros. Se vio de
+    verdad en un test del backfill antes de arreglarlo."""
+    from app.models import media_item_generos
+
+    item = crear_item(title="Con géneros", generos=["Drama", "Crimen"])
+    assert len(db.execute(select(media_item_generos)).all()) == 2
+
+    db.delete(item)
+    db.commit()
+
+    assert db.execute(select(media_item_generos)).all() == []
+
+
+def test_la_limpieza_de_arranque_cubre_los_generos(db, crear_item):
+    """`limpiar_filas_huerfanas` corre en cada arranque y es la red para las
+    filas que ya arrastra una base desplegada, donde el borrado por ORM no pasó
+    nunca. Cada tabla puente nueva tiene que entrar en su lista."""
+    from app.database import limpiar_filas_huerfanas
+    from app.models import media_item_generos
+
+    item = crear_item(title="Con géneros", generos=["Drama"])
+    # Se borra a lo bruto, como pasó en su día: sin que el ORM se entere.
+    db.execute(text("DELETE FROM media_items WHERE id = %d" % item.id))
+    db.commit()
+    assert len(db.execute(select(media_item_generos)).all()) == 1
+
+    limpiar_filas_huerfanas(bind=db.get_bind())
+
+    assert db.execute(select(media_item_generos)).all() == []
 
 
 def test_borrar_un_item_sigue_limpiando_sus_etiquetas(db, crear_item):

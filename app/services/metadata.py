@@ -7,7 +7,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from ..models import Episode, MediaItem, MediaStatus, MediaType
-from . import hltb, itunes, tmdb
+from . import generos, hltb, itunes, tmdb
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def enrich_item(db: Session, item: MediaItem) -> None:
                 item.saga = item.saga or d["saga"]
                 item.release_date = _to_date(d.get("release_date"))
                 item.creator = item.creator or d["creator"]
-                item.genres = item.genres or d["genres"]
+                generos.añadir_si_faltan(db, item, d["genres"] or "")
                 item.overview = item.overview or d["overview"]
         elif item.media_type == MediaType.SERIE and item.external_source == "tmdb" and item.external_id:
             d = tmdb.get_tv_details(item.external_id)
@@ -50,7 +50,7 @@ def enrich_item(db: Session, item: MediaItem) -> None:
                 item.cast = d["cast"]
                 item.runtime_minutes = d["runtime_minutes"]
                 item.creator = item.creator or d["creator"]
-                item.genres = item.genres or d["genres"]
+                generos.añadir_si_faltan(db, item, d["genres"] or "")
                 item.overview = item.overview or d["overview"]
                 load_episodes(db, item, d["seasons"])
         elif item.media_type == MediaType.PODCAST and item.external_source == "itunes" and item.external_id:

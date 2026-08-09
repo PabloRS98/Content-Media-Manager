@@ -24,7 +24,7 @@
             {% if item.runtime_minutes %} · {{ item.runtime_minutes }} min{% endif %}
         </p>
         {% if item.rating %}<div style="margin:.3rem 0">{{ stars(item.rating, 17) }}</div>{% endif %}
-        {% if item.genres %}<div class="badges" style="margin:.4rem 0">{% for g in item.genres.split(",") %}<span class="tag">{{ g.strip() }}</span>{% endfor %}</div>{% endif %}
+        {% if item.generos %}<div class="badges" style="margin:.4rem 0">{% for g in item.generos %}<a href="/catalogo?tipo={{ item.media_type.value }}&amp;genero={{ g.nombre|urlencode }}" class="tag">{{ g.nombre }}</a>{% endfor %}</div>{% endif %}
         {% if item.plataforma %}
         <p class="subtle plataforma-badge">{{ icon("tv", 13) }} En {{ item.plataforma }}
             <a href="/catalogo{{ '?tipo=' ~ item.media_type.value }}&amp;plataforma={{ item.plataforma|urlencode }}" class="head-link">ver todo lo de aquí</a></p>
@@ -159,7 +159,7 @@
         </div>
         <div class="field full">
             <label>Géneros (separados por coma)</label>
-            <input type="text" name="genres" value="{{ item.genres or '' }}">
+            <input type="text" name="genres" value="{{ item.generos | map(attribute='nombre') | join(', ') }}">
         </div>
         <div class="field full">
             <label>Dónde lo tienes</label>

@@ -41,6 +41,7 @@ rutas=(
     /catalogo?tipo=videojuego
     /catalogo?tipo=podcast
     /listas
+    /generos
     /estadisticas
     /actividad
     /calendario
