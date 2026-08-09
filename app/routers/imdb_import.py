@@ -7,20 +7,36 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from sqlalchemy.orm import Session
 
 from ..auth import verify_auth
+from ..config import settings
 from ..cuentas import items_de, usuario_actual
 from ..database import SessionLocal, get_db
+from ..flash import redirect_flash
 from ..models import MediaItem, MediaStatus, MediaType, Usuario
-from ..services import generos
+from ..services import generos, steam
 from ..services.enrich import (
     enrich_missing_covers_en_segundo_plano,
     estado_actual,
     reservar_lote,
 )
-from ..services.imports import import_books_csv, import_games_csv
+from ..services.imports import (
+    import_books_csv,
+    import_games_csv,
+    import_letterboxd_csv,
+    import_trakt_csv,
+)
 from ..templating import templates
 
 router = APIRouter(tags=["importar-imdb"], dependencies=[Depends(verify_auth)])
@@ -119,7 +135,12 @@ def _parse_date(value: str | None) -> datetime | None:
 @router.get("/importar")
 def import_form(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import.html", {"sin_portada": sin_portada})
+    return templates.TemplateResponse(request, "import.html", {
+        "sin_portada": sin_portada,
+        # El bloque de Steam solo se ofrece si se puede usar: un botón que
+        # siempre falla es peor que una explicación de qué falta.
+        "steam_configurado": bool(settings.steam_api_key and settings.steam_id),
+    })
 
 
 @router.post("/importar")
@@ -261,6 +282,54 @@ async def import_games(
     res = import_games_csv(db, text, usuario.id)
     sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
     return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+
+
+@router.post("/importar/letterboxd")
+async def import_letterboxd(
+    request: Request,
+    archivo: UploadFile = File(...),
+    pendientes: str = Form(""),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
+    """Importa películas desde un CSV de Letterboxd."""
+    text = await _leer_csv_limitado(archivo)
+    res = import_letterboxd_csv(db, text, usuario.id, pendientes=bool(pendientes))
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
+    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+
+
+@router.post("/importar/trakt")
+async def import_trakt(
+    request: Request,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
+    """Importa el historial de Trakt: películas y series en el mismo fichero."""
+    text = await _leer_csv_limitado(archivo)
+    res = import_trakt_csv(db, text, usuario.id)
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
+    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+
+
+@router.post("/importar/steam")
+def import_steam(
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(usuario_actual),
+):
+    """Trae la biblioteca de Steam. No sube nada: la pide a su API."""
+    res = steam.importar_biblioteca(
+        db, usuario.id, settings.steam_api_key, settings.steam_id
+    )
+    if res.get("error"):
+        return redirect_flash("/importar", res["error"], "error")
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
+    return templates.TemplateResponse(request, "import_result.html", {
+        "creados": res["creados"], "duplicados": res["duplicados"], "omitidos": 0,
+        "sin_portada": sin_portada,
+    })
 
 
 @router.post("/importar/completar-portadas")

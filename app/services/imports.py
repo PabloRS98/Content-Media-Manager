@@ -1,4 +1,5 @@
-"""Importadores de CSV: Goodreads/StoryGraph (libros) y Backloggd/genérico (juegos).
+"""Importadores de CSV: Goodreads/StoryGraph (libros), Backloggd/genérico
+(juegos), Letterboxd (películas) y Trakt (películas y series). [N6]
 
 Tolerantes con los nombres de columna (cada export usa los suyos). Dedupe por
 título+autor/estudio contra lo ya existente del mismo tipo."""
@@ -125,6 +126,135 @@ def import_books_csv(db: Session, text: str, usuario_id: int) -> dict:
         ))
         existing.add(key)
         creados += 1
+    db.commit()
+    return {"creados": creados, "duplicados": duplicados, "omitidos": omitidos}
+
+
+def import_letterboxd_csv(db: Session, text: str, usuario_id: int,
+                          pendientes: bool = False) -> dict:
+    """Películas exportadas de Letterboxd.
+
+    `pendientes` lo dice quien importa, y no se puede deducir: el CSV de la
+    watchlist tiene EXACTAMENTE las mismas columnas que el de vistas (fecha,
+    nombre, año, enlace). Adivinarlo por el nombre del fichero sería adivinar.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    existing = _existing_keys(db, MediaType.PELICULA, usuario_id)
+    estado = MediaStatus.PENDIENTE if pendientes else MediaStatus.COMPLETADO
+
+    creados = duplicados = omitidos = 0
+    for row in reader:
+        title = _get(row, "Name", "Title", "Film")
+        if not title:
+            omitidos += 1
+            continue
+        key = (title.lower(), "")
+        if key in existing:
+            duplicados += 1
+            continue
+
+        fecha = _parse_date(_get(row, "Date", "Watched Date"))
+        db.add(MediaItem(
+            usuario_id=usuario_id,
+            media_type=MediaType.PELICULA,
+            title=title,
+            external_source="letterboxd",
+            # Letterboxd puntúa sobre 5 con medias estrellas; aquí es sobre 10.
+            rating=_rating5_to_10(_get(row, "Rating")),
+            year=_int(_get(row, "Year")),
+            status=estado,
+            completed_at=fecha if estado == MediaStatus.COMPLETADO else None,
+        ))
+        existing.add(key)
+        creados += 1
+    db.commit()
+    return {"creados": creados, "duplicados": duplicados, "omitidos": omitidos}
+
+
+def import_trakt_csv(db: Session, text: str, usuario_id: int) -> dict:
+    """Historial de Trakt: películas y series en el mismo fichero.
+
+    Los episodios NO se convierten en ítems: veinte filas de la misma serie son
+    una serie, no veinte entradas. Lo que se guarda de ellos es hasta dónde
+    llegaste, en las notas, porque los episodios de verdad los trae TMDB al
+    enriquecer y hasta entonces no hay a qué marcarlo. Decirlo en las notas es
+    honesto; inventar episodios vacíos para marcarlos, no.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    existentes_pelis = _existing_keys(db, MediaType.PELICULA, usuario_id)
+    existentes_series = _existing_keys(db, MediaType.SERIE, usuario_id)
+
+    # Las series se agrupan antes de crear nada: cada fila es un episodio.
+    series: dict[str, dict] = {}
+    creados = duplicados = omitidos = 0
+
+    for row in reader:
+        title = _get(row, "title", "show", "show_title", "Title")
+        if not title:
+            omitidos += 1
+            continue
+
+        tipo = _get(row, "type", "media_type").lower()
+        temporada = _int(_get(row, "season"))
+        episodio = _int(_get(row, "episode", "number"))
+        es_serie = tipo in ("episode", "show", "season") or (
+            not tipo and temporada is not None
+        )
+
+        if es_serie:
+            datos = series.setdefault(title, {
+                "year": _int(_get(row, "year")),
+                "imdb": _get(row, "imdb_id", "imdb"),
+                "ultimo": None,
+                "fecha": None,
+            })
+            if temporada is not None and episodio is not None:
+                marca = (temporada, episodio)
+                if datos["ultimo"] is None or marca > datos["ultimo"]:
+                    datos["ultimo"] = marca
+            datos["fecha"] = _parse_date(_get(row, "watched_at", "date")) or datos["fecha"]
+            continue
+
+        key = (title.lower(), "")
+        if key in existentes_pelis:
+            duplicados += 1
+            continue
+        imdb = _get(row, "imdb_id", "imdb")
+        db.add(MediaItem(
+            usuario_id=usuario_id,
+            media_type=MediaType.PELICULA,
+            title=title,
+            year=_int(_get(row, "year")),
+            external_id=imdb or None,
+            external_source="imdb" if imdb else "trakt",
+            status=MediaStatus.COMPLETADO,
+            completed_at=_parse_date(_get(row, "watched_at", "date")),
+        ))
+        existentes_pelis.add(key)
+        creados += 1
+
+    for title, datos in series.items():
+        key = (title.lower(), "")
+        if key in existentes_series:
+            duplicados += 1
+            continue
+        notas = ["Importado de Trakt."]
+        if datos["ultimo"]:
+            notas.append("Visto hasta S%02dE%02d." % datos["ultimo"])
+        db.add(MediaItem(
+            usuario_id=usuario_id,
+            media_type=MediaType.SERIE,
+            title=title,
+            year=datos["year"],
+            external_id=datos["imdb"] or None,
+            external_source="imdb" if datos["imdb"] else "trakt",
+            status=MediaStatus.EN_PROGRESO,
+            started_at=datos["fecha"],
+            notes=" ".join(notas),
+        ))
+        existentes_series.add(key)
+        creados += 1
+
     db.commit()
     return {"creados": creados, "duplicados": duplicados, "omitidos": omitidos}
 

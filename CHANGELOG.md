@@ -27,6 +27,15 @@ each entry below names the id it closes.
   has. Existing installations keep everything they had: the migration creates a
   first account ("Yo", renameable in its settings) and assigns the whole
   existing catalog to it, so nothing disappears and nothing needs re-importing.
+- **[N6]** Three more places to bring a catalog in from. **Letterboxd** and
+  **Trakt** as CSV; **Steam** straight from its API, which is the only one of
+  the three that doesn't export anything. Letterboxd's watchlist file has
+  exactly the same columns as the watched one, so which is which is asked rather
+  than guessed. From Trakt, a series arrives as *one* entry, not one per
+  episode, with a note of how far you got — the actual episodes come from TMDB
+  when enriching, and inventing empty ones just to tick them would be worse than
+  saying so. Steam brings playtime and tags everything with platform "Steam",
+  which is what makes "what have I got left on Steam?" work.
 - **[N4]** Genres are a table now, not a comma-separated string. That string
   forced four bad things at once, and this fixes all four: filtering used
   `LIKE '%…%'`, so asking for "Acción" also dragged in "Acción y aventura",

@@ -49,6 +49,57 @@
 </section>
 
 <section class="card">
+    <h3>{{ icon("film") }} Importar películas (Letterboxd)</h3>
+    <p class="hint">
+        En Letterboxd, <em>Settings → Data → Export your data</em>: descarga un zip con
+        varios CSV. Sube <code>watched.csv</code> o <code>ratings.csv</code> para lo ya visto,
+        o <code>watchlist.csv</code> marcando la casilla.
+    </p>
+    <form method="post" action="/importar/letterboxd" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="archivo" accept=".csv" required style="max-width: 320px">
+        {# Los dos ficheros tienen las mismas columnas: no hay forma de saber
+           cuál es sin preguntarlo. #}
+        <label class="inline-check"><input type="checkbox" name="pendientes" value="1"> es mi watchlist</label>
+        <button type="submit">{{ icon("upload", 15) }} Importar películas</button>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("tv") }} Importar historial (Trakt)</h3>
+    <p class="hint">
+        Sube el CSV de tu historial de Trakt. Las películas entran como completadas;
+        de las series entra <strong>una entrada por serie</strong>, no una por episodio,
+        con una nota de hasta dónde llegaste. Los episodios concretos se marcan cuando
+        TMDB traiga su lista al enriquecer.
+    </p>
+    <form method="post" action="/importar/trakt" enctype="multipart/form-data" class="inline-form">
+        <input type="file" name="archivo" accept=".csv" required style="max-width: 320px">
+        <button type="submit">{{ icon("upload", 15) }} Importar historial</button>
+    </form>
+</section>
+
+<section class="card">
+    <h3>{{ icon("gamepad-2") }} Importar biblioteca de Steam</h3>
+    {% if steam_configurado %}
+    <p class="hint">
+        Trae los juegos que tienes en Steam con sus horas jugadas. Lo que tenga
+        partida empezada entra como <strong>en progreso</strong>; el resto, como
+        <strong>pendiente</strong>. Todo queda marcado con plataforma "Steam", así que
+        luego puedes filtrar por ahí.
+    </p>
+    <form method="post" action="/importar/steam" class="inline-form">
+        <button type="submit">{{ icon("download", 15) }} Traer mi biblioteca</button>
+    </form>
+    {% else %}
+    <p class="hint">
+        Necesita <code>STEAM_API_KEY</code> (gratuita, en
+        <em>steamcommunity.com/dev/apikey</em>) y <code>STEAM_ID</code> (tu id de 17
+        dígitos) en el <code>.env</code>. El perfil tiene que ser público.
+    </p>
+    {% endif %}
+</section>
+
+<section class="card">
     <h3>{{ icon("image-off") }} Completar portadas que falten</h3>
     {% if sin_portada > 0 %}
     <p class="hint">
