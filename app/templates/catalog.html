@@ -103,6 +103,22 @@
         </details>
         {% endif %}
 
+        {# Solo aparece si has escrito alguna: hasta entonces sería un
+           desplegable vacío ocupando sitio. #}
+        {% if plataformas_disponibles %}
+        <details class="filter-dd">
+            <summary>Dónde {% if plataforma_filtro %}<span class="filter-dd-current">{{ plataforma_filtro }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
+            <div class="filter-dd-panel">
+                <div class="chips">
+                    <a href="/catalogo{{ build_qs(request, plataforma=None) }}" class="{{ 'active' if not plataforma_filtro else '' }}">Todas</a>
+                    {% for p in plataformas_disponibles %}
+                    <a href="/catalogo{{ build_qs(request, plataforma=p) }}" class="{{ 'active' if plataforma_filtro == p else '' }}">{{ p }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </details>
+        {% endif %}
+
         {% if tiempos_disponibles %}
         <details class="filter-dd">
             <summary>Duración {% if tiempo_label %}<span class="filter-dd-current">{{ tiempo_label }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>

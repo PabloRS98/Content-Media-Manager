@@ -25,6 +25,10 @@
         </p>
         {% if item.rating %}<div style="margin:.3rem 0">{{ stars(item.rating, 17) }}</div>{% endif %}
         {% if item.genres %}<div class="badges" style="margin:.4rem 0">{% for g in item.genres.split(",") %}<span class="tag">{{ g.strip() }}</span>{% endfor %}</div>{% endif %}
+        {% if item.plataforma %}
+        <p class="subtle plataforma-badge">{{ icon("tv", 13) }} En {{ item.plataforma }}
+            <a href="/catalogo{{ '?tipo=' ~ item.media_type.value }}&amp;plataforma={{ item.plataforma|urlencode }}" class="head-link">ver todo lo de aquí</a></p>
+        {% endif %}
         {% if item.priority %}<p class="subtle">Prioridad: {{ item.priority.value|capitalize }}</p>{% endif %}
         {% if item.media_type.value == "libro" and item.page_count %}
         {# El factor lo pone `metadata.MINUTES_PER_PAGE`, no un 1.5 escrito aquí:
@@ -156,6 +160,10 @@
         <div class="field full">
             <label>Géneros (separados por coma)</label>
             <input type="text" name="genres" value="{{ item.genres or '' }}">
+        </div>
+        <div class="field full">
+            <label>Dónde lo tienes</label>
+            <input type="text" name="plataforma" value="{{ item.plataforma or '' }}" placeholder="Netflix, Kindle, Steam, estantería...">
         </div>
         <div class="field full">
             <label>Saga / franquicia</label>
