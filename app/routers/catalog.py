@@ -454,6 +454,8 @@ def update_item(
     item.hltb_hours = _parse_optional(hltb_hours, float)
     if item.status != MediaStatus.COMPLETADO and status == MediaStatus.COMPLETADO and item.completed_at is None:
         item.completed_at = date.today()  # primera vez que se marca completado
+    if status == MediaStatus.EN_PROGRESO:
+        metadata.marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
     item.status = status
     item.rating = _parse_rating(rating)
     item.notes = notes

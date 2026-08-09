@@ -205,6 +205,11 @@ class MediaItem(Base):
     # index: lo filtran la portada y cuatro consultas de estadísticas.
     # Fecha de completado; la usan las estadísticas.
     completed_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    # Cuándo lo empezaste. Se pone al pasar a "en progreso" y no se vuelve a
+    # tocar. Hace falta como columna propia porque `updated_at` cambia también
+    # al corregir una errata: un diario que diga que empezaste un libro el día
+    # que le arreglaste el título es un diario que miente. [N5]
+    started_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     genres: Mapped[str | None] = mapped_column(String(255), nullable=True)  # géneros separados por coma
     # Dónde lo tienes: Netflix, Kindle, Steam, "estantería"... Texto libre a
     # propósito: la lista de servicios cambia cada año y cada casa tiene los

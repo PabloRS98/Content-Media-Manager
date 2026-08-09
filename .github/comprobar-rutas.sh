@@ -42,6 +42,7 @@ rutas=(
     /catalogo?tipo=podcast
     /listas
     /estadisticas
+    /actividad
     /calendario
     /importar
     /importar/estado-portadas
