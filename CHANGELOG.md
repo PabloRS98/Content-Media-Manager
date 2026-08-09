@@ -27,6 +27,16 @@ each entry below names the id it closes.
   has. Existing installations keep everything they had: the migration creates a
   first account ("Yo", renameable in its settings) and assigns the whole
   existing catalog to it, so nothing disappears and nothing needs re-importing.
+- **[N7]** Where you have each thing: Netflix, Kindle, Steam, the shelf in the
+  living room. It answers a question that comes up for real — "what's still
+  pending on Netflix before I cancel it?" — which until now you had to answer
+  from memory, and nobody remembers two hundred pending items. It's free text on
+  purpose: the list of services changes every year and every house has its own,
+  so a closed table of platforms would age badly. The filter dropdown fills
+  itself with whatever you've already typed, and only appears once you've typed
+  something. The filter matches exactly rather than by substring, because
+  "Movistar" would otherwise swallow "Movistar Plus+", which is a different
+  subscription.
 - **[N3]** "Because you liked…" on the home page. The app already knew what
   you'd finished, how you rated it, and which sagas, creators and genres it
   belonged to — it just never used any of it. Pending items are now ranked by

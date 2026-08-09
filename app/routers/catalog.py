@@ -114,6 +114,7 @@ def list_catalog(
     tipo: str | None = None,
     estado: str | None = None,
     genero: str | None = None,
+    plataforma: str | None = None,
     tiempo: str | None = None,
     orden: str = "recientes",
     pagina: int = 1,
@@ -125,7 +126,9 @@ def list_catalog(
 ):
     mt = _enum_or_none(MediaType, tipo)
     ms = _enum_or_none(MediaStatus, estado)
-    query = catalogo.aplicar_filtros(db, items_de(db, usuario), mt, ms, genero, tiempo, buscar)
+    query = catalogo.aplicar_filtros(
+        db, items_de(db, usuario), mt, ms, genero, tiempo, buscar, plataforma
+    )
 
     orden = ALIAS_DE_ORDEN.get(orden, orden)
     orden = orden if orden in ORDERINGS else "recientes"
@@ -141,6 +144,7 @@ def list_catalog(
 
     sin_portada = catalogo.contar_sin_portada(db, usuario, mt)
     generos_lista = catalogo.generos_de(db, usuario, mt)
+    plataformas_lista = catalogo.plataformas_de(db, usuario, mt)
 
     return templates.TemplateResponse(request, "catalog.html", {
         **_opciones_de_filtro(mt, tiempo, orden),
@@ -151,6 +155,7 @@ def list_catalog(
         "tipo_filtro": mt.value if mt else None,
         "estado_filtro": ms.value if ms else None,
         "genero_filtro": genero,
+        "plataforma_filtro": plataforma,
         "tiempo_filtro": tiempo,
         "buscar": buscar or "",
         "orden": orden,
@@ -160,6 +165,7 @@ def list_catalog(
         "total": total,
         "sin_portada": sin_portada,
         "generos_disponibles": generos_lista,
+        "plataformas_disponibles": plataformas_lista,
     })
 
 
@@ -305,6 +311,7 @@ def add_item(
     creator: str = Form(""),
     overview: str = Form(""),
     genres: str = Form(""),
+    plataforma: str = Form(""),
     page_count: str = Form(""),
     release_date: str = Form(""),
     usuario: Usuario = Depends(usuario_actual),
@@ -322,6 +329,7 @@ def add_item(
         creator=creator or None,
         overview=overview,
         genres=genres.strip() or None,
+        plataforma=plataforma.strip() or None,
         page_count=_parse_optional(page_count, int),
         release_date=_parse_optional(release_date, lambda v: date.fromisoformat(v[:10])),
         completed_at=date.today() if status == MediaStatus.COMPLETADO else None,
@@ -413,6 +421,7 @@ def update_item(
     creator: str = Form(""),
     cover_url: str = Form(""),
     genres: str = Form(""),
+    plataforma: str = Form(""),
     saga: str = Form(""),
     rating: str = Form(""),
     notes: str = Form(""),
@@ -437,6 +446,7 @@ def update_item(
     # autorrellena desde seis APIs, y su valor acaba en el src de un <img>.
     item.cover_url = safe_external_url(cover_url)
     item.genres = genres.strip() or None
+    item.plataforma = plataforma.strip() or None
     item.saga = saga.strip() or None
     item.priority = priority
     item.runtime_minutes = _parse_optional(runtime_minutes, int)

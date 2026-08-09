@@ -50,12 +50,18 @@ def filtrar_por_busqueda(query, texto: str | None):
 
 def aplicar_filtros(db: Session, query, media_type: MediaType | None,
                     estado: MediaStatus | None, genero: str | None,
-                    tiempo: str | None, busqueda: str | None = None):
+                    tiempo: str | None, busqueda: str | None = None,
+                    plataforma: str | None = None):
     """Aplica a `query` los filtros del catálogo que estén puestos."""
     if media_type:
         query = query.filter(MediaItem.media_type == media_type)
     if estado:
         query = query.filter(MediaItem.status == estado)
+    if plataforma:
+        # Igualdad, no LIKE: son valores completos elegidos de un desplegable,
+        # y con LIKE "Movistar" se llevaría por delante "Movistar Plus+", que
+        # es otra suscripción distinta.
+        query = query.filter(MediaItem.plataforma == plataforma)
     query = filtrar_por_busqueda(query, busqueda)
     if genero:
         # No es inyección SQL (SQLAlchemy parametriza), pero % y _ del usuario
@@ -113,6 +119,22 @@ def generos_de(db: Session, usuario: Usuario, media_type: MediaType | None) -> l
             if limpio:
                 encontrados.add(limpio)
     return sorted(encontrados)
+
+
+def plataformas_de(db: Session, usuario: Usuario, media_type: MediaType | None) -> list[str]:
+    """Plataformas distintas del catálogo, para poblar el filtro.
+
+    Esta sí sale de un DISTINCT en SQL, al revés que los géneros: `plataforma`
+    guarda un valor por ítem, no una lista dentro de una cadena. Es exactamente
+    la diferencia que hace que los géneros haya que agruparlos en Python.
+    """
+    query = db.query(MediaItem.plataforma).filter(
+        MediaItem.usuario_id == usuario.id,
+        MediaItem.plataforma.is_not(None),
+    )
+    if media_type:
+        query = query.filter(MediaItem.media_type == media_type)
+    return sorted({p for (p,) in query.distinct().all() if p})
 
 
 def contar_sin_portada(db: Session, usuario: Usuario, media_type: MediaType | None) -> int:

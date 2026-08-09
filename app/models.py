@@ -206,6 +206,11 @@ class MediaItem(Base):
     # Fecha de completado; la usan las estadísticas.
     completed_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     genres: Mapped[str | None] = mapped_column(String(255), nullable=True)  # géneros separados por coma
+    # Dónde lo tienes: Netflix, Kindle, Steam, "estantería"... Texto libre a
+    # propósito: la lista de servicios cambia cada año y cada casa tiene los
+    # suyos, así que una tabla cerrada de plataformas envejecería mal. El
+    # desplegable del filtro se rellena con las que ya has escrito. [N7]
+    plataforma: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
     # Saga/franquicia: nombre editable (manual) + id de colección de TMDB (automático)
     saga: Mapped[str | None] = mapped_column(String(120), nullable=True)
