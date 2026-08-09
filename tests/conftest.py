@@ -139,8 +139,17 @@ def crear_item(db, usuario):
         campos.setdefault("title", "Titulo de prueba")
         campos.setdefault("status", MediaStatus.PENDIENTE)
         campos.setdefault("usuario_id", usuario.id)
+        # `generos=["Drama", ...]` o `genres="Drama, Crimen"`: desde [N4] son
+        # una relación, así que se resuelven por el mismo camino que usa la app
+        # y no creando filas a mano, que es como se acaba probando algo que no
+        # existe. Se admiten las dos formas porque el formulario y los CSV
+        # siguen hablando en texto separado por comas.
+        nombres = campos.pop("generos", None) or campos.pop("genres", None)
         item = MediaItem(**campos)
         db.add(item)
+        if nombres:
+            from app.services import generos as generos_svc
+            generos_svc.asignar(db, item, nombres)
         db.commit()
         db.refresh(item)
         return item

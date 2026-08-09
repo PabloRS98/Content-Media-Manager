@@ -12,7 +12,7 @@
             {{ media_icon(item.media_type.value, 13) }} {{ item.media_type.value }} · {{ item.year or "?" }}
             {% if item.creator %} · {{ item.creator }}{% endif %}
         </p>
-        {% if item.genres %}<p class="subtle" style="margin:0 0 .5rem">{{ item.genres }}</p>{% endif %}
+        {% if item.generos %}<p class="subtle" style="margin:0 0 .5rem">{{ item.generos | map(attribute='nombre') | join(', ') }}</p>{% endif %}
         <button type="button" class="ghost small"
                 hx-get="/sugerencia{{ ('?tipo=' ~ tipo) if tipo else '' }}"
                 hx-target="#suggestion-box" hx-swap="innerHTML">

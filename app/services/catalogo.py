@@ -4,20 +4,37 @@
 traducción y presentación, en el fichero más grande del proyecto. Esto se lleva
 la parte de "hablar con la base de datos"; el router se queda orquestando.
 """
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..catalogo_config import BUCKETS_DURACION, condicion_de_duracion
-from ..models import Episode, MediaItem, MediaStatus, MediaType, Usuario
+from ..models import (
+    Episode,
+    Genero,
+    MediaItem,
+    MediaStatus,
+    MediaType,
+    Usuario,
+    media_item_generos,
+)
 
-# Columnas donde se busca. Son las cuatro cosas que uno recuerda de un ítem:
-# cómo se llama, quién lo hizo, de qué va y a qué saga pertenece.
+# Columnas donde se busca. Son las cosas que uno recuerda de un ítem: cómo se
+# llama, quién lo hizo y a qué saga pertenece. El género se busca aparte,
+# porque desde [N4] ya no es una columna sino una relación.
 _COLUMNAS_DE_BUSQUEDA = (
     MediaItem.title,
     MediaItem.creator,
-    MediaItem.genres,
     MediaItem.saga,
 )
+
+
+def _items_con_genero_que_contenga(patron: str):
+    """Subconsulta de ids cuyo género encaja con el patrón de búsqueda."""
+    return (
+        select(media_item_generos.c.media_item_id)
+        .join(Genero, Genero.id == media_item_generos.c.genero_id)
+        .where(func.lower(Genero.nombre).like(patron, escape="\\"))
+    )
 
 
 def _escapar_comodines(texto: str) -> str:
@@ -40,10 +57,13 @@ def filtrar_por_busqueda(query, texto: str | None):
     for palabra in texto.lower().split():
         patron = "%%%s%%" % _escapar_comodines(palabra)
         query = query.filter(
-            or_(*[
-                func.lower(columna).like(patron, escape="\\")
-                for columna in _COLUMNAS_DE_BUSQUEDA
-            ])
+            or_(
+                *[
+                    func.lower(columna).like(patron, escape="\\")
+                    for columna in _COLUMNAS_DE_BUSQUEDA
+                ],
+                MediaItem.id.in_(_items_con_genero_que_contenga(patron)),
+            )
         )
     return query
 
@@ -64,12 +84,17 @@ def aplicar_filtros(db: Session, query, media_type: MediaType | None,
         query = query.filter(MediaItem.plataforma == plataforma)
     query = filtrar_por_busqueda(query, busqueda)
     if genero:
-        # No es inyección SQL (SQLAlchemy parametriza), pero % y _ del usuario
-        # se interpretan como comodines de LIKE si no se escapan: sin esto,
-        # ?genero=% devolvía el catálogo entero y ?genero=_ cualquier género
-        # de un carácter.
-        escapado = genero.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.filter(MediaItem.genres.like(f"%{escapado}%", escape="\\"))
+        # Igualdad sobre la tabla de géneros, no un LIKE sobre una cadena. Ya
+        # no hay comodines que escapar --que era un apaño para que ?genero=%
+        # no devolviera el catálogo entero-- y, sobre todo, pedir "Acción" ya
+        # no arrastra "Acción y aventura", que es otro género de TMDB. [N4]
+        query = query.filter(
+            MediaItem.id.in_(
+                select(media_item_generos.c.media_item_id)
+                .join(Genero, Genero.id == media_item_generos.c.genero_id)
+                .where(Genero.nombre == genero)
+            )
+        )
     if tiempo and media_type:
         query = _filtrar_por_duracion(db, query, media_type, tiempo)
     return query
@@ -99,26 +124,25 @@ def _filtrar_por_duracion(db: Session, query, media_type: MediaType, tiempo: str
 def generos_de(db: Session, usuario: Usuario, media_type: MediaType | None) -> list[str]:
     """Géneros distintos presentes en el catálogo, para poblar el filtro.
 
-    Se agrupan en Python porque `genres` es una cadena separada por comas y no
-    una relación: no hay forma de hacerlo en SQL mientras siga siéndolo. Ese es
-    el problema de fondo, y su solución es normalizarlos a tabla.
+    Un DISTINCT en SQL desde [N4]. Antes había que traer la columna `genres` de
+    todas las filas del tipo y partirla en Python, porque no hay forma de
+    agrupar por los trozos de una cadena.
     """
     if not media_type:
         return []
-    encontrados: set[str] = set()
-    filas = db.query(MediaItem.genres).filter(
-        MediaItem.media_type == media_type,
-        MediaItem.genres.is_not(None),
-        MediaItem.usuario_id == usuario.id,
-    ).all()
-    for (cadena,) in filas:
-        if not cadena:
-            continue
-        for genero in cadena.split(","):
-            limpio = genero.strip().capitalize()
-            if limpio:
-                encontrados.add(limpio)
-    return sorted(encontrados)
+    filas = (
+        db.query(Genero.nombre)
+        .join(media_item_generos, Genero.id == media_item_generos.c.genero_id)
+        .join(MediaItem, MediaItem.id == media_item_generos.c.media_item_id)
+        .filter(
+            MediaItem.media_type == media_type,
+            MediaItem.usuario_id == usuario.id,
+        )
+        .distinct()
+        .order_by(Genero.nombre)
+        .all()
+    )
+    return [nombre for (nombre,) in filas]
 
 
 def plataformas_de(db: Session, usuario: Usuario, media_type: MediaType | None) -> list[str]:

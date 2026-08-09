@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app import models  # noqa: F401  registra los modelos en Base
 from app.database import INDICES, REVISION_INICIAL, Base, _config_alembic, init_db
-from app.models import Lista, MediaItem, MediaStatus, MediaType, Usuario
+from app.models import Genero, Lista, MediaItem, MediaStatus, MediaType, Usuario
 
 TABLAS_DEL_MODELO = sorted(Base.metadata.tables)
 
@@ -204,6 +204,74 @@ def test_el_esquema_de_las_migraciones_coincide_con_los_modelos(engine_temporal,
             assert _nulabilidad(engine_temporal, tabla) == _nulabilidad(desde_modelos, tabla), tabla
     finally:
         desde_modelos.dispose()
+
+
+class TestGenerosAlMigrar:
+    """[N4] La columna `genres` se borra, así que lo único que importa de esta
+    migración es que no se pierda ni un género por el camino."""
+
+    def _base_con_generos_en_texto(self, engine, cadenas):
+        """Una base en la revisión anterior a [N4], con géneros aún en texto."""
+        command.upgrade(_config_alembic(engine), "d4e5f6a70004")
+        with engine.begin() as conn:
+            # La migración de cuentas ya dejó creada la cuenta inicial.
+            cuenta = conn.execute(text("SELECT id FROM usuarios ORDER BY id LIMIT 1")).scalar()
+            assert cuenta is not None
+            for i, cadena in enumerate(cadenas, start=1):
+                conn.execute(
+                    text(
+                        "INSERT INTO media_items "
+                        "(id, usuario_id, media_type, title, status, priority, overview, "
+                        " notes, release_notified, genres, created_at, updated_at) "
+                        "VALUES (:id, :cuenta, 'pelicula', :titulo, 'pendiente', 'media', '', "
+                        "        '', 0, :g, '2026-01-01', '2026-01-01')"
+                    ),
+                    {"id": i, "cuenta": cuenta, "titulo": "Peli %d" % i, "g": cadena},
+                )
+
+    def test_los_generos_en_texto_acaban_en_filas(self, engine_temporal):
+        self._base_con_generos_en_texto(
+            engine_temporal, ["Drama, Ciencia ficción", "drama", " Comedia "]
+        )
+
+        init_db(bind=engine_temporal)
+
+        sesion = sessionmaker(bind=engine_temporal)()
+        try:
+            por_titulo = {
+                i.title: sorted(g.nombre for g in i.generos)
+                for i in sesion.query(MediaItem).all()
+            }
+            assert por_titulo == {
+                "Peli 1": ["Ciencia ficción", "Drama"],
+                # "drama" y "Drama" son el mismo género: la migración normaliza
+                # igual que la app, o al guardar se crearían duplicados.
+                "Peli 2": ["Drama"],
+                "Peli 3": ["Comedia"],
+            }
+            assert sorted(g.nombre for g in sesion.query(Genero).all()) == [
+                "Ciencia ficción", "Comedia", "Drama",
+            ]
+        finally:
+            sesion.close()
+
+    def test_la_columna_vieja_desaparece(self, engine_temporal):
+        self._base_con_generos_en_texto(engine_temporal, ["Drama"])
+
+        init_db(bind=engine_temporal)
+
+        assert "genres" not in _columnas(engine_temporal, "media_items")
+
+    def test_una_base_sin_generos_no_falla(self, engine_temporal):
+        self._base_con_generos_en_texto(engine_temporal, [None, ""])
+
+        init_db(bind=engine_temporal)
+
+        sesion = sessionmaker(bind=engine_temporal)()
+        try:
+            assert sesion.query(Genero).count() == 0
+        finally:
+            sesion.close()
 
 
 class TestUnicidadDeListasPorCuenta:

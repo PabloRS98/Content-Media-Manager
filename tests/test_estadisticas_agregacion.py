@@ -73,12 +73,11 @@ def test_un_catalogo_sin_anos_no_rompe_la_grafica(usuario, client, db):
     assert client.get("/estadisticas").status_code == 200
 
 
-def test_los_generos_siguen_contandose(usuario, client, db):
-    """Los géneros no se pueden agregar en SQL mientras sean una cadena: este
-    test fija que la parte que NO cambia sigue funcionando."""
+def test_los_generos_siguen_contandose(usuario, client, db, crear_item):
+    """Desde [N4] los géneros SÍ se agregan en SQL, con un GROUP BY sobre la
+    tabla. Este test fija que el resultado visible no cambió al hacerlo."""
     for n in range(3):
-        db.add(MediaItem(usuario_id=usuario.id, title="Con género %d" % n, media_type=MediaType.PELICULA,
-                         genres="Drama, Crimen"))
-    db.commit()
+        crear_item(title="Con género %d" % n, media_type=MediaType.PELICULA,
+                   genres="Drama, Crimen")
     html = client.get("/estadisticas").text
     assert "Drama" in html

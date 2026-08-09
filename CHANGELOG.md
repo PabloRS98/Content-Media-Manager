@@ -27,6 +27,21 @@ each entry below names the id it closes.
   has. Existing installations keep everything they had: the migration creates a
   first account ("Yo", renameable in its settings) and assigns the whole
   existing catalog to it, so nothing disappears and nothing needs re-importing.
+- **[N4]** Genres are a table now, not a comma-separated string. That string
+  forced four bad things at once, and this fixes all four: filtering used
+  `LIKE '%…%'`, so asking for "Acción" also dragged in "Acción y aventura",
+  which is a different TMDB genre; the stats chart had to be counted in Python;
+  knowing which genres existed meant reading every row and splitting it; and
+  renaming one was impossible, so "Sci-Fi" and "Ciencia ficción" lived side by
+  side forever, each filtering half of what it should. There's now a **Genres**
+  page where renaming one changes it across every item at once — and renaming
+  to a name that already exists **merges** the two, which is the case that
+  actually comes up. The interface still speaks in commas, because that's how
+  the six metadata APIs return them and how it's comfortable to type; only
+  what's stored changed. The migration moves every existing genre into rows
+  before dropping the column, normalizing exactly the way the app does, so
+  saving an item afterwards doesn't create a duplicate of one that was already
+  there.
 - **[N5]** A diary. The yearly stats only mean something in December; this is
   the same thing during the year — "this week you watched four episodes of X,
   finished book Y and started game Z" — one month per page, because that's the
@@ -87,6 +102,14 @@ each entry below names the id it closes.
 
 ### Fixed
 
+- **A new item could inherit a deleted one's genres.** SQLite reuses
+  `media_items` ids when there's no AUTOINCREMENT (and there isn't), so a row
+  left behind in a bridge table doesn't just sit there — it can come back
+  attached to a different item. `list_items` and `media_item_tags` were already
+  cleaned at startup for exactly this reason; `media_item_generos` arrived with
+  the hazard intact and is now cleaned too. It showed up for real in a test,
+  where an item created after a raw delete came back wearing the previous
+  item's genres.
 - **Statistics leaked across accounts.** When accounts were added,
   `/estadisticas` was scoped where it *listed* items — and stopped there. The
   aggregates kept summing everybody's catalog: counts by status and type,

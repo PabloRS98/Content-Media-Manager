@@ -52,7 +52,6 @@ def item_pendiente_de_migrar(usuario_id):
         title="Importada en la v1",
         status=MediaStatus.COMPLETADO,
         completed_at=None,
-        genres=None,
         notes="Importado de IMDB. Genero: Drama, Crimen. Rating IMDb: 9,3.",
     )
 
@@ -71,7 +70,7 @@ def test_el_backfill_sigue_funcionando_en_una_base_v1(usuario, base_limpia):
     try:
         item = db.query(MediaItem).one()
         assert item.completed_at is not None
-        assert item.genres == "Drama, Crimen"
+        assert [g.nombre for g in item.generos] == ["Crimen", "Drama"]
         assert "Genero:" not in item.notes
     finally:
         db.close()
@@ -118,7 +117,7 @@ def test_una_base_ya_marcada_no_toca_los_datos(usuario, base_limpia):
 
     db = SessionLocal()
     try:
-        assert db.query(MediaItem).one().genres is None
+        assert db.query(MediaItem).one().generos == []
     finally:
         db.close()
 

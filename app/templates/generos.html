@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Géneros · Catálogo{% endblock %}
+{% block content %}
+
+<a href="/catalogo" class="back-link">{{ icon("chevron-left", 15) }} Catálogo</a>
+
+<section class="card">
+    <h3>{{ icon("tags") }} Tus géneros</h3>
+    {% if generos %}
+    <p class="subtle">Renombrar uno lo cambia en todos tus ítems a la vez. Si le
+        pones el nombre de otro que ya existe, los dos se fusionan -- que es lo
+        que hace falta cuando conviven "Sci-Fi" y "Ciencia ficción".</p>
+    <ul class="genero-lista">
+        {% for genero, cuantos in generos %}
+        <li>
+            <form method="post" action="/generos/{{ genero.id }}/renombrar" class="genero-fila">
+                <input type="text" name="nombre" value="{{ genero.nombre }}" aria-label="Nombre del género">
+                <span class="subtle">{{ cuantos }} ítem{{ "s" if cuantos != 1 }}</span>
+                <button type="submit" class="ghost">Guardar</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">{{ icon("tags", 30) }} Todavía no hay géneros. Se rellenan solos al añadir cosas desde las APIs, o a mano en la ficha de cada ítem.</div>
+    {% endif %}
+</section>
+
+{% endblock %}

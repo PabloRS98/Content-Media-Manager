@@ -98,6 +98,10 @@
                     {% for g in generos_disponibles %}
                     <a href="/catalogo{{ build_qs(request, genero=g) }}" class="{{ 'active' if genero_filtro == g else '' }}">{{ g }}</a>
                     {% endfor %}
+                    {# Donde se necesita: si acabas de ver "Sci-Fi" y "Ciencia
+                       ficción" en la misma lista, el sitio para arreglarlo
+                       está a un clic. #}
+                    <a href="/generos" class="chip-link">{{ icon("pencil", 12) }} gestionar</a>
                 </div>
             </div>
         </details>

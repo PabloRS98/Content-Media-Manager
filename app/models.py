@@ -72,6 +72,13 @@ media_item_tags = Table(
     Column("tag_id", ForeignKey("tags.id"), primary_key=True),
 )
 
+media_item_generos = Table(
+    "media_item_generos",
+    Base.metadata,
+    Column("media_item_id", ForeignKey("media_items.id"), primary_key=True),
+    Column("genero_id", ForeignKey("generos.id"), primary_key=True),
+)
+
 list_items = Table(
     "list_items",
     Base.metadata,
@@ -123,6 +130,31 @@ class Tag(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(50), unique=True)
+
+
+class Genero(Base):
+    """Género (Drama, Ciencia ficción, Metroidvania...).
+
+    Era una cadena separada por comas dentro de `media_items.genres`, y eso
+    obligaba a filtrar con `LIKE '%...%'` --que arrastra "Acción y aventura"
+    cuando pides "Acción"--, a agregar en Python para las estadísticas, a
+    recorrer todas las filas para saber qué géneros hay, y hacía imposible
+    renombrar uno: "Sci-Fi" y "Ciencia ficción" convivían para siempre. [N4]
+
+    Compartido entre cuentas por lo mismo que `Tag`: es vocabulario sobre la
+    misma biblioteca. A qué ítem pertenece cada género lo dice
+    `media_item_generos`, y los ítems sí son de una cuenta, así que nadie ve
+    los géneros de otro en su catálogo.
+    """
+
+    __tablename__ = "generos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(80), unique=True)
+
+    items: Mapped[list["MediaItem"]] = relationship(
+        secondary=media_item_generos, back_populates="generos"
+    )
 
 
 class Lista(Base):
@@ -210,7 +242,7 @@ class MediaItem(Base):
     # al corregir una errata: un diario que diga que empezaste un libro el día
     # que le arreglaste el título es un diario que miente. [N5]
     started_at: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
-    genres: Mapped[str | None] = mapped_column(String(255), nullable=True)  # géneros separados por coma
+    # Los géneros ya NO son una cadena aquí: viven en `generos` (ver esa clase).
     # Dónde lo tienes: Netflix, Kindle, Steam, "estantería"... Texto libre a
     # propósito: la lista de servicios cambia cada año y cada casa tiene los
     # suyos, así que una tabla cerrada de plataformas envejecería mal. El
@@ -238,6 +270,10 @@ class MediaItem(Base):
     episodes: Mapped[list["Episode"]] = relationship(
         back_populates="item", cascade="all, delete-orphan",
         order_by="Episode.season_number, Episode.episode_number",
+    )
+    generos: Mapped[list["Genero"]] = relationship(
+        secondary=media_item_generos, back_populates="items",
+        order_by="Genero.nombre",
     )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
