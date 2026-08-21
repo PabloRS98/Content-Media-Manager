@@ -2,9 +2,9 @@
 -r requirements.txt
 
 # 9.x: la 8.3.3 arrastraba PYSEC-2026-1845. Los 740 tests pasan igual.
-pytest==9.0.3
-ruff==0.7.4
+pytest==9.1.1
+ruff==0.16.3
 # Para leer docker-compose.yml en los tests: el endurecimiento del contenedor
 # se comprueba por estructura (una lista de capacidades exacta), no buscando
 # subcadenas, que darían por bueno un `cap_add` comentado.
-pyyaml==6.0.2
+pyyaml==6.0.3
