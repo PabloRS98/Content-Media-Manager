@@ -252,8 +252,30 @@ async def cabeceras_de_seguridad(request: Request, call_next):
         # impide embeber la app (que aquí pesa más que en las apps hermanas,
         # porque la protección CSRF de este proyecto falla abierta -- MC-A6).
         "default-src 'self'; img-src 'self' data: https:; "
-        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+        # script-src sin 'unsafe-inline': todo el JS vive en /static/js y los datos
+        # de las gráficas van en un <script type="application/json">, que el
+        # navegador no ejecuta. Un XSS que inyectara un <script> en línea ya no
+        # correría. style-src SÍ conserva 'unsafe-inline' a propósito: las
+        # plantillas pintan colores y tamaños con atributos `style="..."` (el
+        # tono del avatar, el ancho de las barras de progreso, las estrellas), y
+        # inyectar CSS es un riesgo mucho menor que inyectar JS. [R3-B6]
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; "
         "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    )
+    # Nada de lo que la app sirve en HTML debe quedar en la caché del navegador
+    # ni de un proxy: son páginas de una cuenta concreta, y con el botón "atrás"
+    # de un navegador compartido se verían tras cerrar la sesión. Se excluye
+    # /static (que tiene su propia política justo debajo) y todo lo que no sea
+    # HTML, como el JSON de /salud. [R3-B7]
+    if not request.url.path.startswith("/static/") and response.headers.get(
+        "content-type", ""
+    ).startswith("text/html"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    # La app no usa cámara, micrófono ni geolocalización: se le niegan al
+    # propio documento y a cualquier iframe, por si un día se cuela un script.
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
     )
     # Los estáticos pedidos con huella (`static_url` en templating.py) no
     # cambian nunca bajo esa URL: se cachean un año sin revalidar. Los que

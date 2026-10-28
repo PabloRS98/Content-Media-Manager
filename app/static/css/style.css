@@ -39,6 +39,12 @@
     --btn-top: var(--accent);
     --btn-hover: brightness(.94);
     --star-off: color-mix(in srgb, var(--text) 18%, transparent);
+    /* Borde de los campos de formulario. WCAG 1.4.11 pide 3:1 para el borde de
+       un control frente a lo que tiene alrededor; --border (el filete decorativo
+       de las tarjetas) daba 1,19:1 sobre el fondo del campo. Con #85703f:
+       3,35:1 sobre --bg-soft (el fondo del campo), 4,25:1 sobre --card,
+       3,72:1 sobre --bg y 3,82:1 sobre --card-2. [R3-B32] */
+    --field-border: #85703f;
 
     /* Un color apagado por tipo de medio, dentro de la paleta: ocre, granate,
        petróleo, oliva y ciruela. Se usan en detalles (iconos, gráficas,
@@ -88,6 +94,9 @@
     --star-off: color-mix(in srgb, var(--text) 16%, transparent);
     --btn-top: color-mix(in srgb, var(--accent) 92%, #fff);
     --btn-hover: brightness(1.08);
+    /* #7d6842: 3,72:1 sobre --bg-soft (el fondo del campo), 3,47:1 sobre --card,
+       3,64:1 sobre --bg y 3,27:1 sobre --card-2. [R3-B32] */
+    --field-border: #7d6842;
 
     --c-libro: #d6a24c;
     --c-pelicula: #e0796b;
@@ -115,8 +124,15 @@
     src: url("/static/fonts/inter-latin-wght-normal.woff2") format("woff2-variations");
 }
 
-/* Transiciones entre páginas (Chromium/Safari recientes; el resto, sin más). */
-@view-transition { navigation: auto; }
+/* Transiciones entre páginas (Chromium/Safari recientes; el resto, sin más).
+   Solo si el usuario no ha pedido menos movimiento. Antes el `navigation: auto`
+   iba suelto y un `@view-transition { navigation: none }` dentro de
+   `prefers-reduced-motion: reduce` intentaba anularlo: @view-transition no es
+   un bloque de reglas que se pueda "deshacer" así, y el navegador lo ignoraba.
+   Condicionar la activación es lo que de verdad funciona. [R3-B29] */
+@media (prefers-reduced-motion: no-preference) {
+    @view-transition { navigation: auto; }
+}
 
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
@@ -149,11 +165,11 @@ body::before {
 :root[data-theme="dark"] body::before { opacity: .035; }
 
 h1, h2, h3, h4 { line-height: 1.2; margin: 0 0 .5rem; letter-spacing: -0.01em; }
-/* h1/h2 son título de página (nombre de la obra, nombre de la lista): serif
-   editorial. h3 es cabecera de sección y se trata aparte, en versalitas. */
-h1, h2 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0; }
-h1 { font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.2rem); }
-h2 { font-size: 1.5rem; }
+/* h1 es el título de página (nombre de la obra, nombre de la lista): serif
+   editorial. h2 es cabecera de sección y se trata aparte, en versalitas
+   (`.card h2`, `dialog h2`...). Antes eran h3 saltándose el nivel desde el h1;
+   los selectores se han movido a h2 para que lo visual no cambie. [R3-B27] */
+h1 { font-family: var(--font-display); font-weight: 400; letter-spacing: 0; font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.2rem); }
 
 a { color: var(--accent-soft); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -291,7 +307,11 @@ kbd {
     flex: 0 0 auto;
     display: inline-flex; align-items: center; justify-content: center;
     width: 44px; height: 44px; border-radius: 50%;
-    background: linear-gradient(145deg, hsl(var(--h, 38) 45% 46%), hsl(calc(var(--h, 38) + 30) 50% 30%));
+    /* Luminosidad 30 % y 22 %: el peor tono posible (probados los 360) da
+       4,78:1 del #fbf3e2 de la inicial sobre el extremo claro del degradado,
+       y el oscuro rinde más; con el 46 % de antes bajaba a 2,23:1. Pasa AA
+       para texto normal (4,5:1), no solo el 3:1 de texto grande. [R3-B33] */
+    background: linear-gradient(145deg, hsl(var(--h, 38) 45% 30%), hsl(calc(var(--h, 38) + 30) 50% 22%));
     color: #fbf3e2; font-weight: 650; font-size: 1.1rem;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2);
 }
@@ -360,7 +380,7 @@ kbd {
 /* Cabeceras de sección en versalitas con un filete que corre hasta el
    borde: etiquetas de archivo, no titulares. El enlace "ver todo", si lo hay,
    se queda al final, después del filete. */
-.card h3, .card-title {
+.card h2 {
     display: flex;
     align-items: center;
     gap: .55rem;
@@ -372,17 +392,14 @@ kbd {
     color: var(--text-2);
     margin: 0 0 1rem;
 }
-.card h3::after, .card-title::after {
+.card h2::after {
     content: ""; flex: 1; height: 1px; min-width: 1rem;
     background: linear-gradient(90deg, var(--border-2), transparent);
     order: 1;
 }
-.card h3 .icon, .card-title .icon { color: var(--c-tipo, var(--accent)); }
-.card h3 .head-link, .card h3 .h3-extra { order: 2; }
-.card h3 .tag { letter-spacing: 0; text-transform: none; }
-
-.section-plain { display: flex; flex-direction: column; gap: .9rem; }
-.section-plain > h3 { margin: 0; }
+.card h2 .icon { color: var(--c-tipo, var(--accent)); }
+.card h2 .head-link, .card h2 .h3-extra { order: 2; }
+.card h2 .tag { letter-spacing: 0; text-transform: none; }
 
 .grid-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; }
 .inline-create { flex-wrap: nowrap; }
@@ -424,14 +441,13 @@ td .tag + .subtle { margin-left: .35rem; }
    ============================================================ */
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: .85rem; align-items: end; }
 .form-grid .full { grid-column: 1 / -1; }
-.inline-form { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; }
 
 .field { display: flex; flex-direction: column; gap: .32rem; }
 .field > label, .field-label { font-size: .76rem; font-weight: 600; color: var(--text-2); letter-spacing: .01em; }
 
 input, select, textarea {
     background: var(--bg-soft);
-    border: 1px solid var(--border);
+    border: 1px solid var(--field-border);
     color: var(--text);
     padding: .55rem .7rem;
     border-radius: var(--r-sm);
@@ -441,7 +457,7 @@ input, select, textarea {
     min-width: 0;
     transition: border-color .15s, box-shadow .15s, background .15s;
 }
-input:hover, select:hover, textarea:hover { border-color: var(--border-2); }
+input:hover, select:hover, textarea:hover { border-color: var(--text-3); }
 input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--accent);
@@ -714,8 +730,8 @@ dialog {
 }
 dialog[open] { animation: dialog-in .22s var(--ease); }
 dialog::backdrop { background: rgba(8, 5, 2, .6); backdrop-filter: blur(4px); }
-dialog h3 { display: flex; align-items: center; gap: .5rem; font-size: 1.05rem; margin-bottom: 1.1rem; }
-dialog h3 .icon { color: var(--accent); }
+dialog h2 { display: flex; align-items: center; gap: .5rem; font-size: 1.05rem; margin-bottom: 1.1rem; }
+dialog h2 .icon { color: var(--accent); }
 dialog .form-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 dialog .dialog-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .4rem; grid-column: 1 / -1; }
 .dialog-close { position: absolute; top: .8rem; right: .8rem; }
@@ -731,7 +747,16 @@ dialog.sheet {
     padding: .5rem 1rem calc(1.2rem + env(safe-area-inset-bottom));
 }
 dialog.sheet[open] { animation: sheet-in .28s var(--ease); }
-.sheet-handle { width: 42px; height: 5px; border-radius: 3px; background: var(--border-2); margin: .3rem auto .4rem; cursor: pointer; }
+/* Botón de verdad ([R3-B30]): la zona pulsable mide 44 px de alto y la barrita
+   que se ve es un ::after, para no cambiar el aspecto. */
+button.sheet-handle {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 44px; min-height: 44px; padding: 0; margin: 0 0 -.2rem;
+    background: transparent; border: 0; box-shadow: none; border-radius: 12px;
+}
+button.sheet-handle:hover { background: transparent; filter: none; }
+button.sheet-handle::after { content: ""; width: 42px; height: 5px; border-radius: 3px; background: var(--border-2); }
+button.sheet-handle:hover::after, button.sheet-handle:focus-visible::after { background: var(--text-3); }
 .sheet .nav-group { margin: .8rem .2rem .45rem; }
 .sheet-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; }
 .sheet-grid .navlink {
@@ -855,10 +880,6 @@ a.media-card:hover { text-decoration: none; }
 .media-card .cover .status-badge { position: absolute; top: .5rem; left: .5rem; z-index: 1; }
 .media-card .cover .prio-badge { position: absolute; top: .5rem; right: .5rem; z-index: 1; }
 .media-card .cover .stars-wrap { position: absolute; bottom: .5rem; right: .5rem; z-index: 1; }
-.media-card .cover .cover-progress { position: absolute; left: .5rem; right: .5rem; bottom: .5rem; z-index: 1; }
-.media-card .cover .cover-progress .progress { background: rgba(255, 255, 255, .25); height: 4px; }
-.media-card .cover .stars-wrap + .cover-progress, .media-card .cover .cover-progress:has(+ .stars-wrap) { right: 4.6rem; }
-
 a.media-card:hover .cover, a.media-card:focus-visible .cover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
 a.media-card:hover .cover img { transform: scale(1.045); }
 a.media-card:focus-visible { outline: none; }
@@ -957,8 +978,7 @@ a.media-card:focus-visible .cover { outline: 2px solid var(--accent); outline-of
 .as-list .media-card .cover { width: 46px; flex: 0 0 46px; border-radius: 6px; }
 .as-list a.media-card:hover .cover { transform: none; box-shadow: var(--shadow); }
 .as-list .media-card .cover .status-badge, .as-list .media-card .cover .prio-badge,
-.as-list .media-card .cover .stars-wrap, .as-list .media-card .cover .cover-progress,
-.as-list .media-card .cover .no-cover-title { display: none; }
+.as-list .media-card .cover .stars-wrap, .as-list .as-list .media-card .cover .no-cover-title { display: none; }
 .as-list .media-card .mc-body { flex: 1; flex-direction: row; align-items: center; flex-wrap: wrap; gap: .25rem 1rem; }
 .as-list .media-card .title { flex: 1 1 40%; -webkit-line-clamp: 1; }
 .as-list .media-card .mc-progress { width: 180px; flex: 0 0 auto; margin: 0; }
@@ -985,6 +1005,9 @@ a.media-card:focus-visible .cover { outline: 2px solid var(--accent); outline-of
 .rail-nav.prev { left: -14px; }
 .rail-nav.next { right: -14px; }
 .rail-wrap:hover .rail-nav.visible { opacity: 1; pointer-events: auto; }
+/* Con teclado también: sin esto las flechas existían en el orden de tabulación
+   pero con opacity 0, así que el foco caía en algo invisible. [R3-M27] */
+.rail-wrap:focus-within .rail-nav.visible, .rail-nav:focus-visible { opacity: 1; pointer-events: auto; }
 
 /* ============================================================
    Inicio
@@ -1348,7 +1371,7 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
    ============================================================ */
 .import-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1.25rem; align-items: stretch; }
 .import-card { display: flex; flex-direction: column; gap: .75rem; }
-.import-card h3 { margin-bottom: .2rem; }
+.import-card h2 { margin-bottom: .2rem; }
 .import-card .hint { margin: 0; }
 .import-card form { margin-top: auto; display: flex; flex-direction: column; gap: .65rem; }
 .import-card ol { margin: 0; padding-left: 1.15rem; }
@@ -1360,8 +1383,8 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
     color: var(--c-tipo, var(--accent));
 }
 .import-head { display: flex; gap: .8rem; align-items: center; }
-.import-head h3 { margin: 0; }
-.import-head h3::after { display: none; }
+.import-head h2 { margin: 0; }
+.import-head h2::after { display: none; }
 .import-head .subtle { display: block; margin-top: .15rem; }
 
 .dropzone {
@@ -1426,7 +1449,6 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
 /* Diario */
 .diario-nav { display: inline-flex; gap: .3rem; }
 .diario-resumen { display: flex; gap: .6rem; flex-wrap: wrap; margin: -.2rem 0 1.2rem; }
-.month-nav { display: inline-flex; align-items: center; gap: .3rem; }
 
 /* Estado */
 .estado-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.25rem; align-items: start; }
@@ -1447,7 +1469,6 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
-    @view-transition { navigation: none; }
 }
 
 /* ============================================================
@@ -1485,6 +1506,23 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
     .container { padding: 1.25rem 1.1rem calc(5.5rem + env(safe-area-inset-bottom)); gap: 1.2rem; }
     .toasts { bottom: calc(5rem + env(safe-area-inset-bottom)); }
     .rail-nav { display: none; }
+
+    /* Objetivos táctiles de 44 px (WCAG 2.5.5) donde se usa el dedo. [R3-M28]
+       Se agranda la zona pulsable, no el dibujo, salvo en los botones de icono,
+       que ya eran de 34 px y crecen de verdad. */
+    button.icon-btn, .btn.icon-btn { min-width: 44px; min-height: 44px; }
+    /* Cuatro pestañas más "Más" a 390 px: 5 x 44 caben de sobra y `flex: 1`
+       reparte el resto, así que la barra no desborda. */
+    .tabbar .navlink { min-height: 44px; min-width: 0; }
+    /* El círculo de 26 px se queda igual; el ::before añade 11 px por lado (el
+       inset cuenta desde el borde interior: 23 + 22 = 45 px). */
+    .ep-check::before { content: ""; position: absolute; inset: -11px; border-radius: 50%; }
+    /* Estrellas: cada media estrella pasa de 13 x 26 a 22 x 44 px. La estrella
+       dibujada mide lo mismo (26 px); se centra con mask-position dentro de
+       una caja más grande, y la mitad derecha desplaza la máscara -13 px. */
+    .star-input label { width: 22px; height: 44px; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+    .star-input label.half-l { -webkit-mask-position: 9px 50%; mask-position: 9px 50%; }
+    .star-input label.half-r { -webkit-mask-position: -13px 50%; mask-position: -13px 50%; margin-right: 0; }
 }
 
 @media (max-width: 720px) {
@@ -1529,4 +1567,38 @@ a.hsum:hover { border-color: var(--border-2); text-decoration: none; transform: 
     .catalog-toolbar .view-toggle { margin-left: 0; }
     .episode .ep-thru { opacity: 1; }
     .result-stats { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Alternativa textual de las gráficas [R3-B28]
+   ============================================================ */
+.chart-data { margin-top: .7rem; font-size: .82rem; color: var(--text-2); }
+.chart-data summary { cursor: pointer; color: var(--text-3); width: fit-content; }
+.chart-data summary:hover { color: var(--text); }
+.chart-data table { margin-top: .5rem; width: 100%; }
+.chart-data th, .chart-data td { font-size: .82rem; padding: .3rem .4rem; }
+.chart-data th[scope="row"] { font-weight: 500; text-align: left; text-transform: none; letter-spacing: 0; color: var(--text-2); white-space: normal; }
+.chart-data td { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Impresión [R3-M30]
+   Una ficha o las estadísticas en papel: solo el contenido, en negro sobre
+   blanco y sin nada que no sirva sobre un folio (navegación, botones,
+   formularios, avisos, diálogos).
+   ============================================================ */
+@media print {
+    :root, :root[data-theme="dark"], :root[data-theme="light"] {
+        --bg: #fff; --bg-soft: #fff; --card: #fff; --card-2: #fff;
+        --text: #000; --text-2: #000; --text-3: #333;
+        --border: #999; --border-2: #666; --accent-soft: #000;
+        --shadow: none; --shadow-lg: none;
+    }
+    html, body { background: #fff !important; color: #000 !important; }
+    body::before { display: none; }
+    .sidebar, .topbar, .tabbar, .toasts, .skip-link, dialog, .rail-nav,
+    button, .btn, form { display: none !important; }
+    .shell > .container, .container { margin: 0; padding: 0; max-width: none; }
+    .card, .detail-hero { box-shadow: none; background: #fff; border-color: #999; break-inside: avoid; }
+    a { color: #000; text-decoration: underline; }
+    * { animation: none !important; transition: none !important; }
 }

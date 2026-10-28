@@ -22,7 +22,7 @@
 
     <div class="settings-stack">
         <section class="card">
-            <h3>{{ icon("pencil") }} Nombre</h3>
+            <h2>{{ icon("pencil") }} Nombre</h2>
             <form method="post" action="/cuentas/ajustes/nombre" class="toolbar">
                 <input type="text" name="nombre" value="{{ usuario.nombre }}" class="grow" required maxlength="60" aria-label="Nombre">
                 <button type="submit">{{ icon("check", 14) }} Guardar nombre</button>
@@ -30,7 +30,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("lock") }} Contraseña</h3>
+            <h2>{{ icon("lock") }} Contraseña</h2>
             {% if usuario.tiene_password %}
             <p class="subtle">Tu cuenta está protegida: nadie entra sin la contraseña.</p>
             {% else %}
@@ -56,7 +56,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("keyboard") }} Atajos de teclado</h3>
+            <h2>{{ icon("keyboard") }} Atajos de teclado</h2>
             <p class="subtle" style="margin:0">Pulsa <kbd>?</kbd> en cualquier página para verlos. Los más útiles: <kbd>/</kbd> para buscar, <kbd>n</kbd> para añadir y <kbd>g</kbd> <kbd>i</kbd> para volver al inicio.</p>
         </section>
     </div>

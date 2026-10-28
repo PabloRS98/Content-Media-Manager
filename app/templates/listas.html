@@ -24,7 +24,7 @@
 
 {% if dinamicas %}
 <section class="card">
-    <h3>{{ icon("refresh-cw") }} Vistas automáticas</h3>
+    <h2>{{ icon("refresh-cw") }} Vistas automáticas</h2>
     <div class="list-tiles">
         {% for d in dinamicas %}
         <a href="/listas/{{ d.lista.id }}" class="list-tile">
@@ -38,7 +38,7 @@
 {% endif %}
 
 <section class="card">
-    <h3>{{ icon("list") }} Tus listas</h3>
+    <h2>{{ icon("list") }} Tus listas</h2>
     {% if listas %}
     <div class="list-tiles">
         {% for l in listas %}

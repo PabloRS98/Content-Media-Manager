@@ -102,7 +102,7 @@
     <div style="display:flex; flex-direction:column; gap:1.5rem">
         {% if item.overview or item.cast or item.notes %}
         <section class="card">
-            <h3>{{ icon("book-open") }} {{ "Sinopsis" if item.overview else "Notas" }}</h3>
+            <h2>{{ icon("book-open") }} {{ "Sinopsis" if item.overview else "Notas" }}</h2>
             {% if item.overview %}<p class="overview">{{ item.overview }}</p>{% endif %}
             {% if item.cast %}<p class="hint" style="margin:1rem 0 0"><strong>Reparto:</strong> {{ item.cast }}</p>{% endif %}
             {% if item.notes %}<p class="notes" style="margin-top:{{ '1rem' if item.overview else '0' }}">{{ icon("pencil", 14) }}{{ item.notes }}</p>{% endif %}
@@ -111,7 +111,7 @@
 
         {% if item.is_episodic %}
         <section class="card">
-            <h3>{{ icon("tv") }} Episodios {% if stats and stats.total %}<span class="tag h3-extra">{{ stats.watched }}/{{ stats.total }} vistos{% if stats.next %} · próximo {{ stats.next.code }}{% endif %}</span>{% endif %}</h3>
+            <h2>{{ icon("tv") }} Episodios {% if stats and stats.total %}<span class="tag h3-extra">{{ stats.watched }}/{{ stats.total }} vistos{% if stats.next %} · próximo {{ stats.next.code }}{% endif %}</span>{% endif %}</h2>
 
             {% if seasons %}
             {% for season in seasons %}
@@ -153,7 +153,7 @@
 
     <aside style="display:flex; flex-direction:column; gap:1.5rem">
         <section class="card">
-            <h3>{{ icon("info") }} Ficha</h3>
+            <h2>{{ icon("info") }} Ficha</h2>
             <dl class="facts">
                 <dt>Estado</dt><dd><span class="status-badge {{ item.status.value }}">{{ etiqueta_estado(item) }}</span></dd>
                 {% if item.creator %}<dt>{{ label_creador }}</dt><dd>{{ item.creator }}</dd>{% endif %}
@@ -181,7 +181,7 @@
         </section>
 
         <section class="card add-list">
-            <h3>{{ icon("list") }} Listas</h3>
+            <h2>{{ icon("list") }} Listas</h2>
             {% if item_lists %}
             <div class="badges">
                 {% for l in item_lists %}<a href="/listas/{{ l.id }}" class="tag accent">{{ icon("list", 12) }} {{ l.name }}</a>{% endfor %}
@@ -205,7 +205,7 @@
 
 {% if related %}
 <section class="card">
-    <h3>{{ icon("layers") }} De la misma saga</h3>
+    <h2>{{ icon("layers") }} De la misma saga</h2>
     <div class="rail-wrap">
         <button type="button" class="rail-nav prev" aria-label="Anteriores">{{ icon("chevron-left", 18) }}</button>
         <div class="rail">{% for r in related %}{{ media_card(r) }}{% endfor %}</div>
@@ -216,7 +216,7 @@
 
 <dialog id="dlg-edit" aria-labelledby="dlg-edit-titulo">
     <button type="button" class="quiet icon-btn dialog-close" data-close-dialog aria-label="Cerrar">{{ icon("x", 16) }}</button>
-    <h3 id="dlg-edit-titulo">{{ icon("pencil") }} Editar «{{ item.title|truncate(34) }}»</h3>
+    <h2 id="dlg-edit-titulo">{{ icon("pencil") }} Editar «{{ item.title|truncate(34) }}»</h2>
     <form method="post" action="/item/{{ item.id }}/actualizar" class="form-grid">
         <div class="field full">
             <label for="f-title">Título</label>

@@ -26,7 +26,7 @@
     <section class="card import-card" data-tipo="pelicula">
         <div class="import-head">
             <span class="import-logo">{{ icon("film", 20) }}</span>
-            <div><h3>IMDb</h3><span class="subtle">Valoraciones o watchlist</span></div>
+            <div><h2>IMDb</h2><span class="subtle">Valoraciones o watchlist</span></div>
         </div>
         <ol class="hint">
             <li>Abre <em>Your Ratings</em> (lo valorado) o tu <em>Watchlist</em> (pendientes).</li>
@@ -43,7 +43,7 @@
     <section class="card import-card" data-tipo="libro">
         <div class="import-head">
             <span class="import-logo">{{ icon("book-open", 20) }}</span>
-            <div><h3>Goodreads · StoryGraph</h3><span class="subtle">Libros</span></div>
+            <div><h2>Goodreads · StoryGraph</h2><span class="subtle">Libros</span></div>
         </div>
         <p class="hint">Exporta tu biblioteca desde Goodreads (<em>Account → Export</em>) o StoryGraph (<em>Manage account → Export</em>). Se respetan nota, estado, páginas y fecha de lectura.</p>
         <form method="post" action="/importar/libros" enctype="multipart/form-data">
@@ -55,7 +55,7 @@
     <section class="card import-card" data-tipo="pelicula">
         <div class="import-head">
             <span class="import-logo">{{ icon("film", 20) }}</span>
-            <div><h3>Letterboxd</h3><span class="subtle">Películas</span></div>
+            <div><h2>Letterboxd</h2><span class="subtle">Películas</span></div>
         </div>
         <p class="hint">En <em>Settings → Data → Export your data</em> descargas un zip con varios CSV. Sube <code>watched.csv</code> o <code>ratings.csv</code> para lo visto, o <code>watchlist.csv</code> marcando la casilla.</p>
         <form method="post" action="/importar/letterboxd" enctype="multipart/form-data">
@@ -70,7 +70,7 @@
     <section class="card import-card" data-tipo="serie">
         <div class="import-head">
             <span class="import-logo">{{ icon("tv", 20) }}</span>
-            <div><h3>Trakt</h3><span class="subtle">Historial de pelis y series</span></div>
+            <div><h2>Trakt</h2><span class="subtle">Historial de pelis y series</span></div>
         </div>
         <p class="hint">Las películas entran como completadas; de las series entra <strong>una entrada por serie</strong>, con una nota de hasta dónde llegaste. Los episodios concretos se marcan cuando TMDB traiga su lista.</p>
         <form method="post" action="/importar/trakt" enctype="multipart/form-data">
@@ -82,7 +82,7 @@
     <section class="card import-card" data-tipo="videojuego">
         <div class="import-head">
             <span class="import-logo">{{ icon("gamepad-2", 20) }}</span>
-            <div><h3>Backloggd · CSV</h3><span class="subtle">Videojuegos</span></div>
+            <div><h2>Backloggd · CSV</h2><span class="subtle">Videojuegos</span></div>
         </div>
         <p class="hint">Exporta tu backlog desde Backloggd o sube un CSV con columnas <code>Title</code>, <code>Status</code>, <code>Rating</code>, <code>Hours</code>. Nota en escala 0-5.</p>
         <form method="post" action="/importar/juegos" enctype="multipart/form-data">
@@ -94,7 +94,7 @@
     <section class="card import-card" data-tipo="videojuego">
         <div class="import-head">
             <span class="import-logo">{{ icon("gamepad-2", 20) }}</span>
-            <div><h3>Steam</h3><span class="subtle">Tu biblioteca, con horas jugadas</span></div>
+            <div><h2>Steam</h2><span class="subtle">Tu biblioteca, con horas jugadas</span></div>
         </div>
         {% if steam_configurado %}
         <p class="hint">Lo que tenga partida empezada entra como <strong>en progreso</strong>; el resto, como <strong>pendiente</strong>. Todo queda con plataforma «Steam», para poder filtrar luego.</p>
@@ -109,7 +109,7 @@
 </div>
 
 <section class="card">
-    <h3>{{ icon("image-off") }} Completar portadas que falten</h3>
+    <h2>{{ icon("image-off") }} Completar portadas que falten</h2>
     {% if sin_portada > 0 %}
     <p class="hint">
         Hay <strong>{{ sin_portada }}</strong> ítems sin portada (típico tras importar de IMDB).
@@ -128,7 +128,7 @@
     {% else %}
     <p class="hint">{{ icon("circle-check", 14) }} Todos los ítems del catálogo tienen portada.</p>
     {% endif %}
-    <div id="enrich-result"></div>
+    <div id="enrich-result" aria-live="polite"></div>
 </section>
 
 {% endblock %}
