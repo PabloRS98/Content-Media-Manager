@@ -17,8 +17,8 @@
         {% endif %}
     </div>
     <nav class="diario-nav" aria-label="Meses">
-        {% if hay_anterior %}<a href="/actividad?mes={{ mes_anterior }}" class="btn ghost small">{{ icon("chevron-left", 14) }} anterior</a>{% endif %}
-        {% if hay_siguiente %}<a href="/actividad?mes={{ mes_siguiente }}" class="btn ghost small">siguiente {{ icon("chevron-right", 14) }}</a>{% endif %}
+        {% if hay_anterior and mes_anterior %}<a href="/actividad?mes={{ mes_anterior }}" class="btn ghost small">{{ icon("chevron-left", 14) }} anterior</a>{% endif %}
+        {% if hay_siguiente and mes_siguiente %}<a href="/actividad?mes={{ mes_siguiente }}" class="btn ghost small">siguiente {{ icon("chevron-right", 14) }}</a>{% endif %}
     </nav>
 </header>
 

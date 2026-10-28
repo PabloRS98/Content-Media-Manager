@@ -65,12 +65,21 @@ def rango_del_mes(mes: str | None) -> tuple[date, date]:
     return primero, ultimo
 
 
-def mes_anterior(primero: date) -> str:
-    return (primero - timedelta(days=1)).strftime(FORMATO_MES)
+def mes_anterior(primero: date) -> str | None:
+    """None en el año 1: no hay mes anterior que `date` sepa representar, y
+    `?mes=0001-01` daba 500 al calcular el enlace. [R3-B8]"""
+    try:
+        return (primero - timedelta(days=1)).strftime(FORMATO_MES)
+    except OverflowError:
+        return None
 
 
-def mes_siguiente(ultimo: date) -> str:
-    return (ultimo + timedelta(days=1)).strftime(FORMATO_MES)
+def mes_siguiente(ultimo: date) -> str | None:
+    """Ídem en el 9999-12."""
+    try:
+        return (ultimo + timedelta(days=1)).strftime(FORMATO_MES)
+    except OverflowError:
+        return None
 
 
 def diario(db: Session, usuario: Usuario, desde: date, hasta: date) -> list[Dia]:

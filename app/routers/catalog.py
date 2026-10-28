@@ -229,7 +229,8 @@ def catalog_fill_covers(
     # que ser una sola operación.
     if reservar_lote():
         background_tasks.add_task(
-            enrich_missing_covers_en_segundo_plano, SessionLocal, ya_reservado=True
+            enrich_missing_covers_en_segundo_plano, SessionLocal,
+            ya_reservado=True, usuario_id=usuario.id,
         )
         msg = "Buscando portadas en segundo plano. Vuelve en un minuto y recarga para ver el resultado."
     else:

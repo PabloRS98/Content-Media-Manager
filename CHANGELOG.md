@@ -39,6 +39,27 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, first batch** (see `docs/AUDITORIA-3.md`):
+  - **[R3-A1]** API keys (TMDB, RAWG, Google Books, Steam) and the Telegram
+    token were written to the log on every *successful* request: `httpx` logs
+    the full URL at INFO and the root logger was at INFO. Earlier fixes only
+    covered the error path. `httpx`/`httpcore` now log at WARNING.
+  - **[R3-M7]** Leaving "completed" now clears `completed_at`. A "Visto" pressed
+    by mistake and undone kept counting in stats, best-of-the-year, home and
+    the diary. (Introduced by the redesign's one-click status buttons.)
+  - **[R3-M8]** Marking a series or podcast as completed marks its aired
+    episodes as watched (without a date, so the diary isn't flooded today).
+    Before, it stayed "completed" with 0/N watched.
+  - **[R3-M5]** The two cover-batch endpoints under `/importar` answered without
+    an open account and processed every account's catalog, renaming other
+    people's titles. They now require an account and only touch its items.
+  - **[R3-B4]** `/docs`, `/redoc` and `/openapi.json` are off: they published
+    the route map without an account and outside HTTP Basic.
+  - **[R3-B8]** `/actividad?mes=0001-01` and `?mes=9999-12` returned 500.
+  - **[R3-A6]** Light theme: tertiary text, warning, positive and the rating
+    number now pass WCAG AA (4.5:1) on every paper background; they were
+    2.9-3.7:1. A test reads the tokens from `style.css` so a palette change
+    that breaks it fails CI.
 - Static files are served with a **content hash** in their URL
   (`style.css?v=…`) and cached for a year as `immutable`; unversioned requests
   are revalidated. Before, every page revalidated every asset, and after an

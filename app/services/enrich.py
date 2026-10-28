@@ -145,15 +145,20 @@ def _pick_match(item: MediaItem, results: list[dict]) -> dict | None:
     return _mejor_por_año(compatibles)
 
 
-def enrich_missing_covers(db: Session) -> dict:
+def enrich_missing_covers(db: Session, usuario_id: int | None = None) -> dict:
     """Procesa hasta BATCH_SIZE ítems sin portada. Devuelve contadores para la UI.
 
-    Recorre los de TODAS las cuentas a propósito: es un trabajo de
-    mantenimiento del servidor, no una vista. Nadie ve datos de otro por esto
-    -- solo se rellenan portadas que faltan-- y limitarlo a una cuenta dejaría
-    las demás sin completar salvo que cada persona pulsara el botón.
+    Desde los botones va acotado a la cuenta que lo pulsa (`usuario_id`).
+    Antes recorría todas las cuentas "como mantenimiento", pero no era inocuo:
+    `_aplicar_coincidencia` también corrige el título, así que el botón de una
+    persona reescribía títulos del catálogo de otra, y el contador de
+    "restantes" contaba ítems ajenos. [R3-M5] Sin `usuario_id` sigue
+    recorriéndolas todas, para quien lo llame como tarea de servidor.
     """
-    query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None)).order_by(MediaItem.id)
+    query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None))
+    if usuario_id is not None:
+        query = query.filter(MediaItem.usuario_id == usuario_id)
+    query = query.order_by(MediaItem.id)
     total_missing = query.count()
     batch = query.limit(BATCH_SIZE).all()
 
@@ -243,7 +248,9 @@ def reservar_lote() -> bool:
         return True
 
 
-def enrich_missing_covers_en_segundo_plano(session_factory, ya_reservado: bool = False) -> None:
+def enrich_missing_covers_en_segundo_plano(
+    session_factory, ya_reservado: bool = False, usuario_id: int | None = None
+) -> None:
     """Como enrich_missing_covers, pero para BackgroundTasks: crea su propia
     sesión de BD (la de la petición original ya se habrá cerrado cuando esto
     se ejecute) y deja constancia en _estado_lote de que sigue corriendo.
@@ -261,7 +268,7 @@ def enrich_missing_covers_en_segundo_plano(session_factory, ya_reservado: bool =
 
     db = session_factory()
     try:
-        _estado_lote["resultado"] = enrich_missing_covers(db)
+        _estado_lote["resultado"] = enrich_missing_covers(db, usuario_id)
     except Exception:
         logger.exception("Fallo en el enriquecimiento de portadas en segundo plano")
     finally:

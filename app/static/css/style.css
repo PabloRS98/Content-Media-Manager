@@ -24,12 +24,20 @@
     --border-strong: #b5a06a;
     --text: #2e2013;
     --text-2: #5f4f35;
-    --text-3: #8a7a58;
-    --positive: #4a6b3a;
+    /* Texto terciario, positivo, aviso y el número de la nota, oscurecidos
+       para pasar WCAG AA (4,5:1) sobre todos los fondos del papel: los de
+       antes daban 2,9-3,7. [R3-A6] */
+    --text-3: #6b5d40;
+    --positive: #3d5c2f;
     --negative: #9c3b2e;
-    --warning: #a3701f;
+    --warning: #74500b;
     --stamp: #6b2a24;
     --star: #b07a1c;
+    --star-text: #7d5206;
+    /* Parte alta del degradado de los botones primarios: en el papel, plana
+       (con el +8 % de blanco el texto bajaba a 4,2:1). */
+    --btn-top: var(--accent);
+    --btn-hover: brightness(.94);
     --star-off: color-mix(in srgb, var(--text) 18%, transparent);
 
     /* Un color apagado por tipo de medio, dentro de la paleta: ocre, granate,
@@ -76,7 +84,10 @@
     --warning: #e0ae5e;
     --stamp: #e0919e;
     --star: #e8b84a;
+    --star-text: var(--star);
     --star-off: color-mix(in srgb, var(--text) 16%, transparent);
+    --btn-top: color-mix(in srgb, var(--accent) 92%, #fff);
+    --btn-hover: brightness(1.08);
 
     --c-libro: #d6a24c;
     --c-pelicula: #e0796b;
@@ -466,7 +477,7 @@ button, .btn {
     align-items: center;
     justify-content: center;
     gap: .45rem;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff), var(--accent));
+    background: linear-gradient(180deg, var(--btn-top), var(--accent));
     border: 1px solid color-mix(in srgb, var(--accent) 70%, #000);
     color: var(--accent-ink);
     padding: .52rem 1rem;
@@ -481,7 +492,7 @@ button, .btn {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 1px 2px rgba(0, 0, 0, .15);
     transition: filter .15s, background .15s, border-color .15s, color .15s, transform .08s, box-shadow .15s;
 }
-button:hover, .btn:hover { filter: brightness(1.08); text-decoration: none; }
+button:hover, .btn:hover { filter: var(--btn-hover); text-decoration: none; }
 button:active, .btn:active { transform: translateY(1px); }
 button:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -907,7 +918,7 @@ a.media-card:focus-visible .cover { outline: 2px solid var(--accent); outline-of
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.8l3.1 6.4 7 1-5.1 5 1.2 7-6.2-3.3-6.2 3.3 1.2-7-5.1-5 7-1z'/%3E%3C/svg%3E") 0 0 / var(--s) var(--s) repeat-x;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.8l3.1 6.4 7 1-5.1 5 1.2 7-6.2-3.3-6.2 3.3 1.2-7-5.1-5 7-1z'/%3E%3C/svg%3E") 0 0 / var(--s) var(--s) repeat-x;
 }
-.stars-num { font-size: .78rem; font-weight: 650; color: var(--star); font-variant-numeric: tabular-nums; }
+.stars-num { font-size: .78rem; font-weight: 650; color: var(--star-text); font-variant-numeric: tabular-nums; }
 /* Sobre la portada: en una píldora oscura, para que se lean sobre lo que sea. */
 .media-card .cover .stars-wrap {
     padding: .25rem .4rem; border-radius: 6px;

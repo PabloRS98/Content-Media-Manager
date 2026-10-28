@@ -333,7 +333,11 @@ def import_steam(
 
 
 @router.post("/importar/completar-portadas")
-def fill_covers(request: Request, background_tasks: BackgroundTasks):
+def fill_covers(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    usuario: Usuario = Depends(usuario_actual),
+):
     """Lanza un lote de ítems sin portada y devuelve el fragmento de estado.
 
     Antes procesaba el lote entero aquí dentro: BATCH_SIZE=30 x
@@ -346,15 +350,19 @@ def fill_covers(request: Request, background_tasks: BackgroundTasks):
     Tampoco consultaba el estado, así que se podía lanzar en paralelo con el
     lote del otro endpoint: dos tandas sobre los mismos ítems, duplicando
     peticiones a APIs gratuitas con cuota y arriesgando un 429.
+
+    Pide cuenta y trabaja solo sobre la suya: antes respondía sin pasar por el
+    selector y recorría el catálogo de todas. [R3-M5]
     """
     if reservar_lote():
         background_tasks.add_task(
-            enrich_missing_covers_en_segundo_plano, SessionLocal, ya_reservado=True
+            enrich_missing_covers_en_segundo_plano, SessionLocal,
+            ya_reservado=True, usuario_id=usuario.id,
         )
     return templates.TemplateResponse(request, "_enrich_result.html", estado_actual())
 
 
 @router.get("/importar/estado-portadas")
-def covers_status(request: Request):
+def covers_status(request: Request, usuario: Usuario = Depends(usuario_actual)):
     """Estado del lote, para que el fragmento se refresque solo."""
     return templates.TemplateResponse(request, "_enrich_result.html", estado_actual())

@@ -147,9 +147,31 @@ def cambiar_estado(item: MediaItem, nuevo: MediaStatus) -> None:
     """
     if item.status != MediaStatus.COMPLETADO and nuevo == MediaStatus.COMPLETADO and item.completed_at is None:
         item.completed_at = date.today()  # primera vez que se marca completado
+    if nuevo != MediaStatus.COMPLETADO:
+        # Salir de "completado" deshace la fecha: si no, un "Visto" pulsado por
+        # error seguía contando en estadísticas, "mejores del año", portada y
+        # diario aunque el ítem volviera a "por ver". [R3-M7]
+        item.completed_at = None
     if nuevo == MediaStatus.EN_PROGRESO:
         marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
+    if nuevo == MediaStatus.COMPLETADO and item.is_episodic:
+        _marcar_emitidos_como_vistos(item)
     item.status = nuevo
+
+
+def _marcar_emitidos_como_vistos(item: MediaItem) -> None:
+    """Dar una serie por vista es haber visto sus episodios emitidos.
+
+    Sin esto quedaba "completada" con 0/N vistos, el tiempo total no contaba
+    nada y el primer episodio que se marcara la devolvía a "en progreso". Los
+    que aún no han salido se quedan como están. `watched_at` va vacío a
+    propósito: se sabe que los viste, no cuándo, y poner hoy llenaría el diario
+    con todos los episodios de golpe en un día que no fue. [R3-M8]
+    """
+    hoy = date.today()
+    for e in item.episodes:
+        if not e.watched and (e.air_date is None or e.air_date <= hoy):
+            e.watched = True
 
 
 def recompute_status(item: MediaItem) -> None:

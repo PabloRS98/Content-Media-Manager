@@ -35,6 +35,12 @@ from .routers import (
 )
 
 logging.basicConfig(level=logging.INFO)
+# httpx escribe en INFO la URL completa de cada petición que sale bien, y
+# TMDB, RAWG, Google Books y Steam llevan la clave en la query (y Telegram el
+# token en la ruta): con el root en INFO, cada búsqueda dejaba la clave en
+# `docker logs`. A3/MC-C3 cerraron solo la ruta de error. [R3-A1]
+for _ruidoso in ("httpx", "httpcore"):
+    logging.getLogger(_ruidoso).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 _GENRE_NOTES_RE = re.compile(r"Genero:\s*([^.]+)\.")
@@ -190,7 +196,13 @@ async def lifespan(app: FastAPI):
         app.state.scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
+# Sin /docs, /redoc ni /openapi.json: publicaban el mapa entero de rutas sin
+# pedir cuenta, y fuera de HTTP Basic (que va por router, no en la app). La
+# app no tiene API para terceros; nadie los usa. [R3-B4]
+app = FastAPI(
+    title="Catálogo de Medios", lifespan=lifespan,
+    docs_url=None, redoc_url=None, openapi_url=None,
+)
 
 app.add_middleware(CSRFProtectionMiddleware)
 
