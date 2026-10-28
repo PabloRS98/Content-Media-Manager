@@ -8,11 +8,11 @@
 # auditaba lo que figuraba en el fichero. El Dockerfile instala con
 # --require-hashes: un paquete que cambie en PyPI sin que cambie el lock no entra.
 # Dependabot entiende este layout (.in + .txt) y sube las dos cosas juntas.
-fastapi==0.141.1
-uvicorn[standard]==0.52.0
-sqlalchemy==2.0.51
-alembic==1.18.5
-pydantic-settings==2.14.2
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+sqlalchemy==2.1.6
+alembic==1.20.1
+pydantic-settings==2.16.1
 jinja2==3.1.6
 python-multipart==0.0.32
 apscheduler==3.11.3
