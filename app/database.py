@@ -28,6 +28,13 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA synchronous=NORMAL")
+    # SQLite no aplica las claves foráneas si no se le pide, conexión a
+    # conexión. Sin esto, un ítem podía apuntar a una cuenta borrada y una
+    # fila puente a un ítem que ya no existe. Solo en el motor de la app: las
+    # migraciones usan el suyo, sin FK, porque recrear una tabla en modo batch
+    # es borrarla y volver a crearla, y con las FK activas eso arrastraría
+    # sus filas hijas. [R3-B9]
+    cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

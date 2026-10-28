@@ -56,6 +56,36 @@
         </section>
 
         <section class="card">
+            <h3>{{ icon("download") }} Tus datos</h3>
+            <p class="subtle">Todo lo de tu cuenta, para guardarlo o llevártelo: el JSON lo incluye todo (episodios, géneros, etiquetas, listas); el CSV se abre en una hoja de cálculo.</p>
+            <div class="toolbar">
+                <a class="btn ghost" href="/cuentas/ajustes/exportar.json" download>{{ icon("download", 14) }} Descargar JSON</a>
+                <a class="btn ghost" href="/cuentas/ajustes/exportar.csv" download>{{ icon("download", 14) }} Descargar CSV</a>
+            </div>
+        </section>
+
+        <section class="card danger-zone">
+            <h3>{{ icon("trash-2") }} Borrar la cuenta</h3>
+            <p class="subtle">Se borran la cuenta y todo su catálogo, sus listas y su historial. <strong>No se puede deshacer</strong>: descarga antes tus datos si los quieres.</p>
+            <form method="post" action="/cuentas/ajustes/borrar" class="form-grid"
+                  data-confirm="¿Borrar la cuenta «{{ usuario.nombre }}» y todo su catálogo? No se puede deshacer.">
+                <div class="field">
+                    <label for="borrar-nombre">Escribe «{{ usuario.nombre }}» para confirmar</label>
+                    <input type="text" id="borrar-nombre" name="confirmacion" required autocomplete="off">
+                </div>
+                {% if usuario.tiene_password %}
+                <div class="field">
+                    <label for="borrar-pw">Contraseña</label>
+                    <input type="password" id="borrar-pw" name="password" autocomplete="current-password" required>
+                </div>
+                {% endif %}
+                <div class="field" style="justify-content:end">
+                    <button type="submit" class="danger">{{ icon("trash-2", 14) }} Borrar la cuenta</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
             <h3>{{ icon("keyboard") }} Atajos de teclado</h3>
             <p class="subtle" style="margin:0">Pulsa <kbd>?</kbd> en cualquier página para verlos. Los más útiles: <kbd>/</kbd> para buscar, <kbd>n</kbd> para añadir y <kbd>g</kbd> <kbd>i</kbd> para volver al inicio.</p>
         </section>

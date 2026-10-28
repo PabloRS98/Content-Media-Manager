@@ -65,25 +65,28 @@ class Priority(enum.Enum):
     BAJA = "baja"
 
 
+# En las tablas puente, la clave compuesta solo sirve para buscar por su
+# PRIMERA columna. Filtrar el catálogo por etiqueta o por género busca por la
+# segunda, y eso era un SCAN de la tabla entera; de ahí el índice. [R3-B10]
 media_item_tags = Table(
     "media_item_tags",
     Base.metadata,
     Column("media_item_id", ForeignKey("media_items.id"), primary_key=True),
-    Column("tag_id", ForeignKey("tags.id"), primary_key=True),
+    Column("tag_id", ForeignKey("tags.id"), primary_key=True, index=True),
 )
 
 media_item_generos = Table(
     "media_item_generos",
     Base.metadata,
     Column("media_item_id", ForeignKey("media_items.id"), primary_key=True),
-    Column("genero_id", ForeignKey("generos.id"), primary_key=True),
+    Column("genero_id", ForeignKey("generos.id"), primary_key=True, index=True),
 )
 
 list_items = Table(
     "list_items",
     Base.metadata,
     Column("list_id", ForeignKey("listas.id"), primary_key=True),
-    Column("media_item_id", ForeignKey("media_items.id"), primary_key=True),
+    Column("media_item_id", ForeignKey("media_items.id"), primary_key=True, index=True),
 )
 
 
@@ -173,7 +176,9 @@ class Lista(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    # ON DELETE CASCADE: borrar una cuenta se lleva sus listas. [R3-B9]
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", name="fk_listas_usuario", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     filtro_estado: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -200,14 +205,21 @@ class MediaItem(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # De quién es este ítem. Todas las consultas del catálogo filtran por aquí:
-    # dos personas de la misma casa no ven ni tocan lo del otro.
-    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id"), index=True)
+    # dos personas de la misma casa no ven ni tocan lo del otro. Borrar una
+    # cuenta se lleva su catálogo (ON DELETE CASCADE). [R3-B9]
+    usuario_id: Mapped[int] = mapped_column(
+        ForeignKey("usuarios.id", name="fk_media_items_usuario", ondelete="CASCADE"), index=True)
     media_type: Mapped[MediaType] = mapped_column(SAEnum(MediaType, values_callable=_by_value))
     title: Mapped[str] = mapped_column(String(255))
     # index: se consulta una vez por fila al importar un CSV de IMDb.
     external_id: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
     external_source: Mapped[str | None] = mapped_column(String(20), nullable=True)  # tmdb|openlibrary|rawg|imdb|itunes
     cover_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Última vez que el lote de portadas lo buscó sin encontrar nada. El lote
+    # empieza por lo nunca buscado y sigue por lo buscado hace más tiempo: sin
+    # esto, los 30 primeros sin coincidencia volvían a ser "los 30 primeros"
+    # en cada pulsación y el resto no se procesaba nunca. [R3-A4]
+    cover_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     creator: Mapped[str | None] = mapped_column(String(255), nullable=True)  # autor / director / estudio
     overview: Mapped[str] = mapped_column(Text, default="")

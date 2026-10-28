@@ -26,7 +26,7 @@ import httpx  # noqa: E402
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.database import Base, _config_alembic, get_db  # noqa: E402
@@ -80,6 +80,9 @@ def db(tmp_path):
         f"sqlite:///{tmp_path / 'test.db'}",
         connect_args={"check_same_thread": False},
     )
+    # Las FK activas, como en la app (`app/database.py`): si no, los tests no
+    # verían una escritura que la base de verdad rechaza. [R3-B9]
+    event.listen(engine, "connect", lambda conexion, _: conexion.execute("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(bind=engine)
     command.stamp(_config_alembic(engine), "head")
     Sesion = sessionmaker(autocommit=False, autoflush=False, bind=engine)

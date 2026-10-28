@@ -39,6 +39,26 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, sixth batch — your data, integrity and covers:**
+  - **[R3-M21]** Export your account from its settings: JSON with everything
+    (episodes, genres, tags, lists) or CSV for a spreadsheet. **Delete an
+    account** with its whole catalog (type its name, and its password if it
+    has one). `/estado` downloads a fresh copy of the database when there is
+    one account or Basic auth is on (the file holds every account's password
+    hashes, so it is not offered otherwise).
+  - **[R3-B9]** SQLite foreign keys are enforced (`PRAGMA foreign_keys=ON`),
+    and `usuario_id` is now a real foreign key with `ON DELETE CASCADE` — the
+    accounts migration had added the column without it, so migrated databases
+    and fresh ones differed. `alembic check` is clean.
+  - **[R3-A4]** "Fill in covers" no longer gets stuck on the same 30 items:
+    items searched without luck go to the back of the queue
+    (`cover_checked_at`). **[R3-B14]** An item whose search failed because an
+    API errored (quota, timeout) is not counted as searched.
+  - **[R3-B15]** The daily backup is written to a temporary file, checked with
+    `integrity_check` and only then swapped in: a failure halfway no longer
+    destroys the good one. **[R3-B5]** Backups are `chmod 600`.
+  - **[R3-B10]** Indexes on the second column of each bridge table: filtering
+    by genre or tag was a full scan.
 - **Third audit, fifth batch — importers:**
   - **[R3-M14]** Duplicates are matched on normalised title (accents, case and
     punctuation ignored) **and year**: "Dune" (1984) and "Dune" (2021) are no

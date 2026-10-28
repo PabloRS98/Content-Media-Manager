@@ -5,6 +5,7 @@ import logging
 import re
 import threading
 import time
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +19,7 @@ from . import (
     tmdb,
     wikipedia_covers,
 )
+from ._logging_utils import fallos_de_api
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +160,13 @@ def enrich_missing_covers(db: Session, usuario_id: int | None = None) -> dict:
     query = db.query(MediaItem).filter(MediaItem.cover_url.is_(None))
     if usuario_id is not None:
         query = query.filter(MediaItem.usuario_id == usuario_id)
-    query = query.order_by(MediaItem.id)
     total_missing = query.count()
+    # Primero lo nunca buscado, luego lo buscado hace más tiempo. Con el orden
+    # por id a secas, los 30 primeros sin coincidencia volvían a ser el lote
+    # de cada pulsación: tras importar 400 libros con 30 raros, se gastaba
+    # cuota en esos 30 una y otra vez y los otros 370 no se miraban. [R3-A4]
+    query = query.order_by(
+        MediaItem.cover_checked_at.is_not(None), MediaItem.cover_checked_at, MediaItem.id)
     batch = query.limit(BATCH_SIZE).all()
 
     found = 0
@@ -169,10 +176,17 @@ def enrich_missing_covers(db: Session, usuario_id: int | None = None) -> dict:
         # `metadata.enrich_item` (más abajo) rompía el lote completo y se
         # perdían las portadas ya encontradas.
         try:
+            fallos_antes = fallos_de_api()
             match = _pick_match(item, _search_for(item))
             _aplicar_coincidencia(db, item, match)
             if match:
                 found += 1
+            elif fallos_de_api() == fallos_antes:
+                # Solo cuenta como "buscado sin suerte" si ninguna API falló:
+                # con la cuota agotada o un timeout no se llegó a buscar, y
+                # mandarlo al final de la cola lo dejaría sin reintentar
+                # hasta que pasaran todos los demás. [R3-B14]
+                item.cover_checked_at = datetime.now(UTC).replace(tzinfo=None)
             # Commit por ítem: el lote tarda de 21 s a varios minutos, y si el
             # proceso muere a mitad --un restart, un OOM, un despliegue-- se
             # perdían las 29 portadas ya encontradas, con sus peticiones a APIs

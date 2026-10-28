@@ -107,6 +107,9 @@
                 {% else %}
                 <span class="tag warning">{{ icon("circle-alert", 13) }} Ninguno todavía</span>
                 {% endif %}
+                {% if puede_descargar_backup %}
+                <a class="btn ghost small" href="/estado/backup" download>{{ icon("download", 13) }} Descargar copia</a>
+                {% endif %}
             </td>
         </tr>
         <tr>

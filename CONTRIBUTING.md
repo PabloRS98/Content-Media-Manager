@@ -43,9 +43,8 @@ runs unattended on every existing install.
    DB_PATH=/tmp/dev.db alembic revision --autogenerate -m "what changes"
    ```
 
-   Until R3-B9 is fixed (see `docs/AUDITORIA-3.md`), the draft also proposes
-   two `create_foreign_key` on `usuario_id` (`listas`, `media_items`) that
-   have nothing to do with your change: delete them.
+   `DB_PATH=/tmp/dev.db alembic check` must say "No new upgrade operations
+   detected" once your migration is applied.
 
 3. **Read and edit the draft.** Autogenerate misses data moves, renames
    (it sees a drop plus an add) and SQLite quirks: use

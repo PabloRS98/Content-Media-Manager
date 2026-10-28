@@ -5,7 +5,10 @@ hay ninguna cuenta abierta, así que exigir una cuenta para verla sería un bucl
 Lo que sí hace es no filtrar nada: solo muestra los nombres y si cada una lleva
 candado. Nunca cuántos ítems tiene ni nada de su contenido.
 """
-from fastapi import APIRouter, Depends, Form, Request
+import json
+from datetime import date
+
+from fastapi import APIRouter, Depends, Form, Request, Response
 from sqlalchemy.orm import Session
 
 from .. import intentos
@@ -21,6 +24,7 @@ from ..cuentas import (
 from ..database import get_db
 from ..flash import redirect_flash
 from ..models import Usuario
+from ..services import datos
 from ..templating import templates
 
 router = APIRouter(tags=["cuentas"], dependencies=[Depends(verify_auth)])
@@ -151,3 +155,49 @@ def cambiar_password(actual: str = Form(""), nueva: str = Form(""),
     usuario.password_hash = cifrar_password(nueva)
     db.commit()
     return redirect_flash("/cuentas/ajustes", "Contraseña actualizada")
+
+
+@router.get("/cuentas/ajustes/exportar.{formato}")
+def exportar(formato: str, usuario: Usuario = Depends(usuario_actual),
+             db: Session = Depends(get_db)):
+    """Descarga de todo lo de tu cuenta, en JSON (completo) o CSV. [R3-M21]"""
+    if formato not in ("json", "csv"):
+        return redirect_flash("/cuentas/ajustes", "Formato desconocido", "error")
+    nombre = "catalogo-%s-%s.%s" % (
+        "".join(c for c in usuario.nombre if c.isalnum()) or "cuenta",
+        date.today().isoformat(), formato)
+    if formato == "json":
+        cuerpo = json.dumps(datos.exportar_json(db, usuario), ensure_ascii=False, indent=1)
+        tipo = "application/json"
+    else:
+        cuerpo = datos.exportar_csv(db, usuario)
+        tipo = "text/csv; charset=utf-8"
+    return Response(cuerpo, media_type=tipo, headers={
+        "Content-Disposition": 'attachment; filename="%s"' % nombre})
+
+
+@router.post("/cuentas/ajustes/borrar")
+def borrar(request: Request, confirmacion: str = Form(""), password: str = Form(""),
+           usuario: Usuario = Depends(usuario_actual), db: Session = Depends(get_db)):
+    """Borra la cuenta y todo su catálogo. No se puede deshacer. [R3-M21]
+
+    Pide escribir el nombre (un clic de más no basta) y, si la cuenta tiene
+    contraseña, la contraseña: con la sesión abierta en un ordenador ajeno,
+    nadie debería poder borrarte el catálogo.
+    """
+    if confirmacion.strip() != usuario.nombre:
+        return redirect_flash("/cuentas/ajustes",
+                              "Para borrar la cuenta, escribe su nombre exactamente", "error")
+    if usuario.tiene_password:
+        # El mismo freno que al entrar: esto también es probar contraseñas. [R3-M3]
+        clave = (intentos.ip_de(request), usuario.id)
+        if intentos.cuentas.espera(clave):
+            return redirect_flash("/cuentas/ajustes", "Demasiados intentos: espera un poco", "error")
+        if not comprobar_password(password, usuario.password_hash):
+            intentos.cuentas.fallo(clave)
+            return redirect_flash("/cuentas/ajustes", "La contraseña no es correcta", "error")
+        intentos.cuentas.acierto(clave)
+    nombre = usuario.nombre
+    cuantos = datos.borrar_cuenta(db, usuario)
+    cerrar_sesion(request)
+    return redirect_flash("/cuentas", 'Cuenta "%s" borrada, con sus %d ítems' % (nombre, cuantos))

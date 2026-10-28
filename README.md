@@ -53,7 +53,10 @@ paid API required.
   straight from its API, with playtime, and tags everything as "Steam" so you
   can filter by it.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
-- **Automatic daily backups** of the SQLite database, with rotation.
+- **Automatic daily backups** of the SQLite database, with rotation; download a
+  fresh copy from `/estado`.
+- **Your data is yours**: export your account to JSON (everything) or CSV from
+  its settings, or delete the account with all its catalog.
 - **One account per person in the house**, each with its own catalog, lists and
   stats. A password is optional — without one you enter with a click; with one,
   the account can't be opened or its catalog seen without it.

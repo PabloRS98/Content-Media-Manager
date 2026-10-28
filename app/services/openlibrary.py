@@ -3,6 +3,8 @@ import logging
 
 import httpx
 
+from ._logging_utils import log_fallo_api
+
 logger = logging.getLogger(__name__)
 
 SEARCH_URL = "https://openlibrary.org/search.json"
@@ -46,6 +48,6 @@ def search_books(query: str, limit: int = 8, year: int | None = None, idioma: st
                 "page_count": d.get("number_of_pages_median"),
             })
         return results
-    except Exception:
-        logger.exception("Fallo al buscar libros para '%s'", query)
+    except Exception as e:
+        log_fallo_api(logger, "Fallo al buscar libros en Open Library para '%s'", query, exc=e)
         return []

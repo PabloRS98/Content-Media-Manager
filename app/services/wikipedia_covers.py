@@ -4,6 +4,8 @@ import logging
 
 import httpx
 
+from ._logging_utils import anotar_fallo
+
 logger = logging.getLogger(__name__)
 
 WIKI_APIS = {
@@ -81,5 +83,6 @@ def _fetch_page_image(api_url: str, page_title: str) -> tuple[str | None, str | 
                 return page_title_found, thumb, p.get("extract")
         return None, None, None
     except Exception:
+        anotar_fallo()  # [R3-B14]
         logger.debug("Wikipedia: fallo para '%s' en %s", page_title, api_url)
         return None, None, None

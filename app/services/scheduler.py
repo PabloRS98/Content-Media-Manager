@@ -337,14 +337,29 @@ def backup_database(dest_path: str | None = None) -> str:
         os.makedirs(backups_dir, exist_ok=True)
         dest_path = os.path.join(backups_dir, "media-%s.db" % date.today().strftime("%Y%m%d"))
 
+    # Se escribe aparte y se cambia por el bueno al final: antes se escribía
+    # encima del backup del día, y si la copia fallaba a mitad (disco lleno,
+    # un reinicio) se perdía el que había. `integrity_check` antes de darlo
+    # por bueno, porque un backup que no abre es peor que ninguno: da una
+    # seguridad que no existe. [R3-B15]
+    temporal = dest_path + ".tmp"
     src = sqlite3.connect(settings.db_path)
-    dst = sqlite3.connect(dest_path)
+    dst = sqlite3.connect(temporal)
     try:
         with dst:
             src.backup(dst)
+        resultado = dst.execute("PRAGMA integrity_check").fetchone()[0]
     finally:
         src.close()
         dst.close()
+    if resultado != "ok":
+        os.remove(temporal)
+        raise RuntimeError("El backup no pasa integrity_check: %s" % resultado)
+    # Dentro van los hashes de las contraseñas y la clave de las sesiones:
+    # solo para el usuario que corre la app, no con el umask por defecto
+    # (legible por todos). [R3-B5]
+    os.chmod(temporal, 0o600)
+    os.replace(temporal, dest_path)
 
     # Rotación (solo en el directorio estándar de backups)
     backups_dir = os.path.dirname(dest_path)
