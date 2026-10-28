@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     def trusted_origin_hosts(self) -> set[str]:
         return {h.strip() for h in self.trusted_origins.split(",") if h.strip()}
 
+    # Nombres de host con los que se puede llegar a la app, además de los que
+    # se admiten solos (IPs, nombres de una palabra, .local, .lan, *.ts.net...;
+    # ver hosts.py). Hace falta para un dominio público propio, como el de un
+    # proxy inverso. "*" desactiva la comprobación. Separados por comas.
+    allowed_hosts: str = ""
+
+    def allowed_host_names(self) -> set[str]:
+        return {h.strip().lower().rstrip(".") for h in self.allowed_hosts.split(",") if h.strip()}
+
     @model_validator(mode="after")
     def _reject_insecure_password(self) -> "Settings":
         """Con la autenticacion activada, no arrancar con la contrasena de fabrica.

@@ -111,6 +111,8 @@ source; everything else keeps working.
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Episode/release notifications | Create a bot via [@BotFather](https://t.me/BotFather), then message it and check `api.telegram.org/bot<TOKEN>/getUpdates` for your chat id |
 | `ENABLE_AUTH`, `AUTH_USERNAME`, `AUTH_PASSWORD` | HTTP Basic auth | — |
 | `STEAM_API_KEY` / `STEAM_ID` | Import your Steam library with playtime | Free key at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey); the id is the 17-digit one, and the profile must be public |
+| `ALLOWED_HOSTS` | Host names the app may be reached by. IPs, single-word names, `.local`/`.lan`/`.home.arpa` and Tailscale's `*.ts.net` work on their own; a public domain of your own (e.g. a reverse proxy's) must be listed here. Blocks DNS rebinding. `*` turns the check off | — |
+| `TRUSTED_ORIGINS` | Extra hosts accepted as the origin of form submissions, when the app is reached by a name other than the proxy's | — |
 | `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
 | `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
 

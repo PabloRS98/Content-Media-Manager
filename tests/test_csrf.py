@@ -107,7 +107,9 @@ class TestOrigenesDeConfianza:
 @pytest.mark.parametrize("sec_fetch_site, esperado", [
     ("cross-site", 403),
     ("same-origin", 303),
-    ("same-site", 303),
+    # "same-site" ignora el puerto: sin `Origin` que lo confirme, no basta.
+    # Ver test_same_site_se_decide_por_el_origin. [R3-M1]
+    ("same-site", 403),
     # "none" = el usuario llegó tecleando la URL o desde un marcador.
     ("none", 303),
 ])
@@ -118,6 +120,23 @@ def test_sec_fetch_site_sigue_mandando_cuando_llega(client, crear_item, sec_fetc
     r = limpiar(client).post(
         "/item/%d/eliminar" % item.id,
         headers={"sec-fetch-site": sec_fetch_site},
+        follow_redirects=False,
+    )
+    assert r.status_code == esperado
+
+
+@pytest.mark.parametrize("origin, esperado", [
+    ("http://testserver", 303),        # la propia app
+    ("http://testserver:8003", 403),   # otra app del mismo servidor
+    ("http://evil.example", 403),
+])
+def test_same_site_se_decide_por_el_origin(client, crear_item, origin, esperado):
+    """[R3-M1] `same-site` también lo es una app hermana en otro puerto, y
+    antes bastaba para pasar aunque el `Origin` fuera evidentemente ajeno."""
+    item = crear_item()
+    r = limpiar(client).post(
+        "/item/%d/eliminar" % item.id,
+        headers={"sec-fetch-site": "same-site", "origin": origin},
         follow_redirects=False,
     )
     assert r.status_code == esperado

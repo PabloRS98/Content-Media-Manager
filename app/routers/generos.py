@@ -42,7 +42,7 @@ def renombrar(genero_id: int, nombre: str = Form(""),
         return redirect_flash("/generos", "Ese género no está en tu catálogo", "error")
 
     anterior = genero.nombre
-    error = generos_svc.renombrar(db, genero, nombre)
+    error = generos_svc.renombrar(db, genero, nombre, usuario.id)
     if error:
         return redirect_flash("/generos", error, "error")
     return redirect_flash("/generos", '"%s" pasa a ser "%s"' % (anterior, nombre.strip()))

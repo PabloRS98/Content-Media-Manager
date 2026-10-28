@@ -47,7 +47,7 @@
                 {% endif %}
                 <div class="field">
                     <label for="pw-nueva">Contraseña nueva</label>
-                    <input type="password" id="pw-nueva" name="nueva" placeholder="vacío = quitarla" autocomplete="new-password">
+                    <input type="password" id="pw-nueva" name="nueva" placeholder="mín. 8; vacío = quitarla" autocomplete="new-password" minlength="8">
                 </div>
                 <div class="field" style="justify-content:end">
                     <button type="submit">{{ icon("check", 14) }} Guardar</button>

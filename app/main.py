@@ -23,6 +23,7 @@ from .database import (
     revision_pendiente,
 )
 from .errores import SinCuenta
+from .hosts import HostPermitidoMiddleware
 from .models import Usuario
 from .routers import (
     catalog,
@@ -205,6 +206,9 @@ app = FastAPI(
 )
 
 app.add_middleware(CSRFProtectionMiddleware)
+# Por fuera del CSRF: con DNS rebinding el `Origin` coincide con el `Host` (los
+# dos son del atacante), así que el CSRF lo daría por bueno. [R3-M2]
+app.add_middleware(HostPermitidoMiddleware)
 
 
 

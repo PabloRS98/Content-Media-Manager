@@ -8,6 +8,7 @@ candado. Nunca cuántos ítems tiene ni nada de su contenido.
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.orm import Session
 
+from .. import intentos
 from ..auth import verify_auth
 from ..cuentas import (
     abrir_sesion,
@@ -24,7 +25,10 @@ from ..templating import templates
 
 router = APIRouter(tags=["cuentas"], dependencies=[Depends(verify_auth)])
 
-MIN_PASSWORD = 4
+# 8 y no 4: con 4 caracteres el espacio entero se recorría en horas incluso con
+# scrypt. Solo se exige al poner una nueva; las cuentas que ya tenían una más
+# corta siguen entrando con ella. [R3-M3]
+MIN_PASSWORD = 8
 
 
 @router.get("/cuentas")
@@ -45,8 +49,19 @@ def entrar(usuario_id: int, request: Request, password: str = Form(""),
 
     # Una cuenta con contraseña no se abre sin ella. Elegirla en el selector no
     # basta: si bastara, la contraseña no protegería nada.
-    if usuario.tiene_password and not comprobar_password(password, usuario.password_hash):
-        return redirect_flash("/cuentas", "Contraseña incorrecta", "error")
+    if usuario.tiene_password:
+        # Por cuenta y por IP: bloquear solo por cuenta dejaría a cualquiera
+        # dejar a su dueño fuera a base de fallar adrede desde otro sitio.
+        clave = (intentos.ip_de(request), usuario.id)
+        espera = intentos.cuentas.espera(clave)
+        if espera:
+            return redirect_flash(
+                "/cuentas", "Demasiados intentos. Prueba otra vez en %d s." % espera, "error"
+            )
+        if not comprobar_password(password, usuario.password_hash):
+            intentos.cuentas.fallo(clave)
+            return redirect_flash("/cuentas", "Contraseña incorrecta", "error")
+        intentos.cuentas.acierto(clave)
 
     abrir_sesion(request, usuario)
     return redirect_flash("/", "Hola, %s" % usuario.nombre)

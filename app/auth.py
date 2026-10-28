@@ -12,6 +12,7 @@ import secrets
 
 from fastapi import HTTPException, Request, status
 
+from . import intentos
 from .config import settings
 
 
@@ -41,15 +42,27 @@ def verify_auth(request: Request) -> bool:
             detail="Autenticacion requerida",
             headers={"WWW-Authenticate": "Basic"},
         )
+    # Mismo freno que el de las cuentas, por IP. 429 y no 401 mientras dura:
+    # un 401 haría que el navegador volviera a pedir la contraseña al momento.
+    clave = (intentos.ip_de(request),)
+    espera = intentos.basic.espera(clave)
+    if espera:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Demasiados intentos; prueba otra vez en %d s" % espera,
+            headers={"Retry-After": str(espera)},
+        )
     username, password = credenciales
     # secrets.compare_digest sobre str exige ASCII puro (lanza TypeError con
     # cualquier tilde); comparando en bytes se evita esa limitación.
     user_ok = secrets.compare_digest(username.encode("utf-8"), settings.auth_username.encode("utf-8"))
     pass_ok = secrets.compare_digest(password.encode("utf-8"), settings.auth_password.encode("utf-8"))
     if not (user_ok and pass_ok):
+        intentos.basic.fallo(clave)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Basic"},
         )
+    intentos.basic.acierto(clave)
     return True

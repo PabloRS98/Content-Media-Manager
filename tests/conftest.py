@@ -54,6 +54,16 @@ def sin_red(monkeypatch):
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _bloquear)
 
 
+@pytest.fixture(autouse=True)
+def limitadores_limpios():
+    """Los frenos a probar contraseñas viven en memoria del proceso: sin
+    vaciarlos, los fallos de un test bloquearían al siguiente."""
+    from app import intentos
+    intentos.cuentas = intentos.Limitador()
+    intentos.basic = intentos.Limitador()
+    yield
+
+
 @pytest.fixture
 def db(tmp_path):
     """Sesión contra una base de datos SQLite nueva por test.

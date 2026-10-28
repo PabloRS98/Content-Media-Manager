@@ -39,6 +39,23 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, second batch — isolation and access:**
+  - **[R3-A2]** Renaming or merging a genre only changes *your* items. The
+    genre row is shared vocabulary, and renaming it changed every account's
+    catalog.
+  - **[R3-M1]** CSRF: `Sec-Fetch-Site: same-site` is no longer enough on its own.
+    "Site" ignores the port, so another app on the same server (`host:8003`)
+    passed even with a foreign `Origin`; now `Origin`/`Referer` decide.
+  - **[R3-M2]** The `Host` header is validated against DNS rebinding, which got
+    past both CSRF and the 127.0.0.1 bind and could open a password-less
+    account and read the catalog. IPs, single-word names, private TLDs
+    (`.local`, `.lan`, `.home.arpa`, `.internal`…) and `*.ts.net` work with no
+    setup. **A public domain of your own (reverse proxy) must be added to the
+    new `ALLOWED_HOSTS`**; the 400 page says so.
+  - **[R3-M3]** Brute-force brake on account passwords and HTTP Basic: five
+    free failures, then a doubling wait (up to 15 min) per IP and account,
+    during which scrypt isn't even run. New passwords need 8 characters
+    (existing shorter ones keep working).
 - **Third audit, first batch** (see `docs/AUDITORIA-3.md`):
   - **[R3-A1]** API keys (TMDB, RAWG, Google Books, Steam) and the Telegram
     token were written to the log on every *successful* request: `httpx` logs
