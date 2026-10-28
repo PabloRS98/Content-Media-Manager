@@ -92,9 +92,9 @@ def test_el_filtro_de_genero_trata_el_porcentaje_como_texto(client, crear_item):
 
 
 def test_el_lector_de_columnas_de_imdb_se_salta_las_vacias():
-    """Un CSV bilingüe trae 'Title' y 'Título'. La versión de
-    `services/imports.py` sí lo hace bien: son dos copias divergentes."""
-    from app.routers.imdb_import import _get
+    """Un CSV bilingüe trae 'Title' y 'Título'. Había dos copias divergentes
+    del lector; ahora solo queda la de `services/imports.py`. [R3-B16]"""
+    from app.services.imports import _get
 
     assert _get({"Title": "", "Título": "Duna"}, "Title", "Título") == "Duna"
 

@@ -18,9 +18,10 @@
     <div class="result-stats">
         <div class="result-stat positive"><strong>{{ creados }}</strong><span>añadidos</span></div>
         <div class="result-stat"><strong>{{ duplicados }}</strong><span>ya existían</span></div>
+        {% if actualizados %}<div class="result-stat"><strong>{{ actualizados }}</strong><span>completados con datos nuevos</span></div>{% endif %}
         <div class="result-stat warning"><strong>{{ omitidos }}</strong><span>omitidos</span></div>
     </div>
-    <p class="hint" style="margin:1rem 0 0">Los "omitidos" suelen ser filas sin título reconocible o episodios sueltos (tvEpisode), que no se importan a propósito.</p>
+    <p class="hint" style="margin:1rem 0 0">Los "omitidos" suelen ser filas sin título reconocible o episodios sueltos (tvEpisode), que no se importan a propósito. De lo que ya existía se rellena lo que faltaba (nota, año, fecha…) sin tocar lo que hubieras escrito tú.</p>
 </section>
 
 {% if sin_portada > 0 %}

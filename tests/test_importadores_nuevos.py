@@ -90,7 +90,9 @@ class TestTrakt:
         imports.import_trakt_csv(db, TRAKT, usuario.id)
 
         peli = db.query(MediaItem).filter(MediaItem.title == "Dune").one()
-        assert peli.external_id == "tt1160419"
+        # Con el prefijo, igual que el importador de IMDb: es lo que busca el
+        # enriquecimiento, y lo que permite reconocer el duplicado. [R3-M15]
+        assert peli.external_id == "imdb:tt1160419"
         assert peli.external_source == "imdb"
 
     def test_no_duplica_contra_lo_que_ya_tienes(self, db, usuario, crear_item):

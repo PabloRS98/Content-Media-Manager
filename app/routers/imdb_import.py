@@ -1,12 +1,8 @@
-"""Importador del CSV que IMDB permite exportar desde 'Your Ratings' o tu Watchlist,
-más el enriquecedor de portadas para ítems sin cover (cruza TMDB/Open Library/RAWG).
+"""Rutas de importación: los CSV (IMDb, Goodreads/StoryGraph, Letterboxd, Trakt,
+Backloggd), la biblioteca de Steam y el lote de portadas para ítems sin cover.
 
-No existe una API oficial gratuita de IMDB, así que esta vía de importación puntual
-es la forma más simple y 100% local de traer tu historial existente."""
-import csv
-import io
-from datetime import datetime
-
+La lógica de cada formato vive en `services/imports.py`; aquí solo se recibe
+el fichero, se importa fuera del bucle de eventos y se pinta el resultado."""
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -18,24 +14,19 @@ from fastapi import (
     UploadFile,
 )
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from ..auth import verify_auth
 from ..config import settings
 from ..cuentas import items_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
-from ..models import MediaItem, MediaStatus, MediaType, Usuario
-from ..services import generos, steam
+from ..models import MediaItem, Usuario
+from ..services import imports, steam
 from ..services.enrich import (
     enrich_missing_covers_en_segundo_plano,
     estado_actual,
     reservar_lote,
-)
-from ..services.imports import (
-    import_books_csv,
-    import_games_csv,
-    import_letterboxd_csv,
-    import_trakt_csv,
 )
 from ..templating import templates
 
@@ -62,76 +53,6 @@ async def _leer_csv_limitado(archivo: UploadFile) -> str:
         trozos.append(trozo)
     return b"".join(trozos).decode("utf-8-sig", errors="ignore")
 
-# IMDB usa sus propios "Title Type"; los mapeamos a nuestras 4 categorías.
-# Mapeados en minúsculas para búsquedas seguras tolerantes a mayúsculas/minúsculas.
-TITLE_TYPE_MAP = {
-    "movie": MediaType.PELICULA,
-    "tvmovie": MediaType.PELICULA,
-    "short": MediaType.PELICULA,
-    "tvshort": MediaType.PELICULA,
-    "tvspecial": MediaType.PELICULA,
-    "video": MediaType.PELICULA,
-    "película": MediaType.PELICULA,
-    "pelicula": MediaType.PELICULA,
-    "película de televisión": MediaType.PELICULA,
-    "pelicula de television": MediaType.PELICULA,
-    "cortometraje": MediaType.PELICULA,
-    "cortometraje de televisión": MediaType.PELICULA,
-    "cortometraje de television": MediaType.PELICULA,
-    "especial de televisión": MediaType.PELICULA,
-    "especial de television": MediaType.PELICULA,
-
-    "tvseries": MediaType.SERIE,
-    "tvminiseries": MediaType.SERIE,
-    "tvpilot": MediaType.SERIE,
-    "serie de televisión": MediaType.SERIE,
-    "serie de television": MediaType.SERIE,
-    "miniserie de televisión": MediaType.SERIE,
-    "miniserie de television": MediaType.SERIE,
-    "serie": MediaType.SERIE,
-    "miniserie": MediaType.SERIE,
-
-    "videogame": MediaType.VIDEOJUEGO,
-    "videojuego": MediaType.VIDEOJUEGO,
-}
-
-
-def _get(row: dict, *names: str) -> str:
-    """Obtiene un valor de una fila (row) del CSV buscando entre varios nombres alternativos
-    de forma case-insensitive."""
-    lowered = {(k or "").strip().lower(): (v or "").strip() for k, v in row.items()}
-    for n in names:
-        v = lowered.get(n.strip().lower())
-        # "is not None" deja ganar a una columna PRESENTE pero vacía sobre una
-        # alternativa poblada (un CSV bilingüe con "Title" y "Título" descarta
-        # filas buenas como "omitidas"). services/imports.py ya usa "if v:".
-        if v:
-            return v
-    return ""
-
-
-def _parse_optional_int(value: str | None):
-    value = (value or "").strip()
-    if not value:
-        return None
-    try:
-        return int(float(value))
-    except ValueError:
-        return None
-
-
-def _parse_date(value: str | None) -> datetime | None:
-    value = (value or "").strip()
-    if not value:
-        return None
-    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d"):
-        try:
-            return datetime.strptime(value, fmt)
-        except ValueError:
-            continue
-    return None
-
-
 @router.get("/importar")
 def import_form(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
@@ -143,117 +64,43 @@ def import_form(request: Request, db: Session = Depends(get_db), usuario: Usuari
     })
 
 
+def _resultado(request: Request, db: Session, usuario: Usuario, res: dict):
+    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
+    return templates.TemplateResponse(request, "import_result.html", {
+        "creados": res["creados"], "duplicados": res["duplicados"],
+        "actualizados": res.get("actualizados", 0), "omitidos": res.get("omitidos", 0),
+        "sin_portada": sin_portada,
+    })
+
+
+async def _importar(request: Request, archivo: UploadFile, db: Session, usuario: Usuario,
+                    importador, **opciones):
+    """Lo común a todos los CSV: leer con tope, importar y pintar el resultado.
+
+    El importador va al threadpool: son funciones síncronas (SQLAlchemy lo
+    es) y se llamaban desde un `async def`, así que un CSV de 5 000 filas
+    bloqueaba el bucle de eventos y la app entera dejaba de responder unos
+    segundos, a todas las pestañas y cuentas. [R3-M20]
+    """
+    texto = await _leer_csv_limitado(archivo)
+    try:
+        res = await run_in_threadpool(importador, db, texto, usuario.id, **opciones)
+    except imports.CsvIlegible as e:
+        db.rollback()
+        return redirect_flash(
+            "/importar", "No se ha importado nada: el fichero no se puede leer como CSV (%s)" % e, "error")
+    return _resultado(request, db, usuario, res)
+
+
 @router.post("/importar")
-async def import_imdb_csv(
+async def import_imdb(
     request: Request,
     archivo: UploadFile = File(...),
     usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
-    contenido = await _leer_csv_limitado(archivo)
-    reader = csv.DictReader(io.StringIO(contenido))
-    fieldnames = reader.fieldnames or []
-
-    # Comprobar de forma case-insensitive si existe columna de valoración
-    lowered_fields = {(f or "").strip().lower() for f in fieldnames}
-    tiene_rating = any(r in lowered_fields for r in ["your rating", "tu calificación", "tu calificacion", "rating"])
-
-    creados = 0
-    omitidos = 0
-    duplicados = 0
-    # Un solo SELECT con los external_id que ya existen, en vez de uno por fila
-    # del CSV. Un export de "Your Ratings" tiene fácilmente 2 000-5 000 filas, y
-    # eran 5 000 consultas secuenciales dentro de una sola petición HTTP: la
-    # importación tardaba minutos y cualquier proxy inverso delante cortaba por
-    # timeout. Es el patrón que services/imports.py (Goodreads, Backloggd) ya
-    # usaba con `_existing_keys`; solo el importador de IMDb, el más antiguo y
-    # el que recibe los ficheros más grandes, se había quedado con el N+1.
-    #
-    # El mismo set absorbe los external_id vistos en ESTE fichero: SessionLocal
-    # tiene autoflush=False, así que los db.add() de filas anteriores del bucle
-    # no estarían en la BD aunque se consultara. Sin eso, un CSV con la misma
-    # película repetida (p. ej. en "Ratings" y en "Watchlist") crearía un
-    # duplicado por cada repetición en vez de detectarlas entre sí.
-    ya_conocidos: set[str] = {
-        eid for (eid,) in items_de(db, usuario)
-        .with_entities(MediaItem.external_id)
-        .filter(MediaItem.external_id.isnot(None)).all()
-    }
-
-    for row in reader:
-        # Busca el tipo de título de forma case-insensitive y tolerante a idiomas
-        title_type = _get(row, "Title Type", "Tipo de título", "Tipo de titulo", "Type").strip().lower()
-        media_type = TITLE_TYPE_MAP.get(title_type)
-
-        title = _get(row, "Title", "Título", "Titulo").strip()
-
-        if media_type is None or not title:
-            omitidos += 1
-            continue
-
-        imdb_id = _get(row, "Const", "ID", "id", "Constante").strip()
-        external_id = f"imdb:{imdb_id}" if imdb_id else None
-
-        if external_id:
-            if external_id in ya_conocidos:
-                duplicados += 1
-                continue
-            ya_conocidos.add(external_id)
-
-        year = _parse_optional_int(_get(row, "Year", "Año", "Ano"))
-        directors = _get(row, "Directors", "Directores", "Director").strip()
-        imdb_rating = _get(row, "IMDb Rating", "Calificación de IMDb", "Calificacion de IMDb", "IMDB Rating").strip()
-        genres = _get(row, "Genres", "Géneros", "Generos").strip()
-        num_votes = _get(row, "Num Votes", "Número de votos", "Numero de votos").strip()
-
-        # Obtener valoración del usuario si existe la columna
-        your_rating_str = _get(row, "Your Rating", "Tu calificación", "Tu calificacion", "Rating")
-        your_rating = _parse_optional_int(your_rating_str) if tiene_rating else None
-
-        # Fecha de valoración
-        date_rated_str = _get(row, "Date Rated", "Fecha de calificación", "Fecha de calificacion", "Date")
-        fecha = _parse_date(date_rated_str) or datetime.now()
-
-        notas = ["Importado de IMDB."]
-        if imdb_rating:
-            sufijo_votos = f" ({num_votes} votos)" if num_votes else ""
-            notas.append(f"Rating IMDb: {imdb_rating}{sufijo_votos}.")
-
-        nuevo = MediaItem(
-            usuario_id=usuario.id,
-            media_type=media_type,
-            title=title,
-            external_id=external_id,
-            external_source="imdb",
-            year=year,
-            creator=directors or None,
-            overview="",
-            status=MediaStatus.COMPLETADO if your_rating is not None else MediaStatus.PENDIENTE,
-            rating=your_rating,
-            notes=" ".join(notas),
-            completed_at=fecha.date() if your_rating is not None else None,
-            created_at=fecha,
-            updated_at=fecha,
-        )
-        db.add(nuevo)
-        # Los géneros son una relación desde [N4]: se asignan tras crear el
-        # ítem, no como argumento del constructor.
-        generos.asignar(db, nuevo, genres)
-        creados += 1
-        # Un flush cada 500 filas para no acumular 5 000 objetos en la sesión
-        # antes del único commit final. No abre transacción propia: si algo
-        # falla después, el rollback sigue deshaciendo el fichero entero.
-        if creados % 500 == 0:
-            db.flush()
-
-    db.commit()
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {
-        "creados": creados,
-        "omitidos": omitidos,
-        "duplicados": duplicados,
-        "sin_portada": sin_portada,
-    })
+    """Importa un export de IMDb ("Your Ratings" o la Watchlist)."""
+    return await _importar(request, archivo, db, usuario, imports.import_imdb_csv)
 
 
 @router.post("/importar/libros")
@@ -264,10 +111,7 @@ async def import_books(
     usuario: Usuario = Depends(usuario_actual),
 ):
     """Importa libros desde un CSV de Goodreads o StoryGraph."""
-    text = await _leer_csv_limitado(archivo)
-    res = import_books_csv(db, text, usuario.id)
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+    return await _importar(request, archivo, db, usuario, imports.import_books_csv)
 
 
 @router.post("/importar/juegos")
@@ -278,10 +122,7 @@ async def import_games(
     usuario: Usuario = Depends(usuario_actual),
 ):
     """Importa juegos desde un CSV de Backloggd o genérico."""
-    text = await _leer_csv_limitado(archivo)
-    res = import_games_csv(db, text, usuario.id)
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+    return await _importar(request, archivo, db, usuario, imports.import_games_csv)
 
 
 @router.post("/importar/letterboxd")
@@ -293,10 +134,8 @@ async def import_letterboxd(
     usuario: Usuario = Depends(usuario_actual),
 ):
     """Importa películas desde un CSV de Letterboxd."""
-    text = await _leer_csv_limitado(archivo)
-    res = import_letterboxd_csv(db, text, usuario.id, pendientes=bool(pendientes))
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+    return await _importar(request, archivo, db, usuario, imports.import_letterboxd_csv,
+                           pendientes=bool(pendientes))
 
 
 @router.post("/importar/trakt")
@@ -307,10 +146,7 @@ async def import_trakt(
     usuario: Usuario = Depends(usuario_actual),
 ):
     """Importa el historial de Trakt: películas y series en el mismo fichero."""
-    text = await _leer_csv_limitado(archivo)
-    res = import_trakt_csv(db, text, usuario.id)
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {**res, "sin_portada": sin_portada})
+    return await _importar(request, archivo, db, usuario, imports.import_trakt_csv)
 
 
 @router.post("/importar/steam")
@@ -325,11 +161,7 @@ def import_steam(
     )
     if res.get("error"):
         return redirect_flash("/importar", res["error"], "error")
-    sin_portada = items_de(db, usuario).filter(MediaItem.cover_url.is_(None)).count()
-    return templates.TemplateResponse(request, "import_result.html", {
-        "creados": res["creados"], "duplicados": res["duplicados"], "omitidos": 0,
-        "sin_portada": sin_portada,
-    })
+    return _resultado(request, db, usuario, res)
 
 
 @router.post("/importar/completar-portadas")

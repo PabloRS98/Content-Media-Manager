@@ -39,6 +39,35 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, fifth batch — importers:**
+  - **[R3-M14]** Duplicates are matched on normalised title (accents, case and
+    punctuation ignored) **and year**: "Dune" (1984) and "Dune" (2021) are no
+    longer merged. Books also compare the author.
+  - **[R3-M15]** IMDb ids have one form, `imdb:tt…` (a data migration fixes
+    the ones Trakt stored bare), so IMDb and Trakt recognise the same film and
+    Trakt imports get covers. `/agregar` warns when what you add looks like
+    something you already have (it still adds it).
+  - **[R3-M16]** A duplicate **completes** the existing item instead of being
+    dropped: missing rating, year, finish date… are filled in and the status
+    only moves forward (never back, and "abandoned" is left alone). Importing
+    Letterboxd's `ratings.csv` after `watched.csv` used to bring zero ratings.
+    Re-importing Steam updates the hours played. The result page counts them.
+  - **[R3-M17]** StoryGraph date ranges (`2022/01/05-2022/02/10`) give start
+    and finish dates (it stored 1 January); a Goodreads "read" book without
+    a date falls back to "Date Added" instead of being invisible in stats.
+  - **[R3-B12]** Letterboxd: "Watched Date" wins over "Date" (the day the diary
+    entry was written).
+  - **[R3-B13]** CSVs saved by Excel with `;` are read.
+  - **[R3-B1] [R3-B2]** One number parser (`app/numeros.py`) for forms and
+    CSVs: finite and within a sane range, or empty. `inf` or a 30-digit year
+    in a crafted POST left the home page, catalog, item page and stats
+    returning 500 until the database was edited by hand. A CSV field over
+    128 KB is reported instead of a 500, and nothing is imported.
+  - **[R3-M20]** Imports run in the threadpool: a 5 000-row CSV used to block
+    the event loop and freeze the app for every tab and account.
+  - **[R3-M9]** Adding something "in progress" sets its start date.
+  - **[R3-B16]** The IMDb importer moved to `services/imports.py` and shares
+    its column reader and date parser (there were two diverging copies).
 - **Third audit, fourth batch — CI and releases:**
   - **[R3-A5]** The Docker image is published only after the **whole** CI
     passes. Publishing lived in its own workflow, gated by a copy of the

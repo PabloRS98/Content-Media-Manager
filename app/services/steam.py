@@ -13,6 +13,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from ..models import MediaItem, MediaStatus, MediaType
+from . import imports
 from ._logging_utils import log_fallo_api
 
 logger = logging.getLogger(__name__)
@@ -70,42 +71,55 @@ def importar_biblioteca(db: Session, usuario_id: int, clave: str, steam_id: str)
                      "el perfil público?",
         }
 
-    existentes = {
-        (i.title or "").lower()
-        for i in db.query(MediaItem).filter(
-            MediaItem.media_type == MediaType.VIDEOJUEGO,
-            MediaItem.usuario_id == usuario_id,
-        ).all()
-    }
+    indice = imports.Indice(db, MediaType.VIDEOJUEGO, usuario_id)
 
-    creados = duplicados = 0
+    creados = duplicados = actualizados = 0
     for juego in juegos:
         titulo = (juego.get("name") or "").strip()
         if not titulo:
             continue
-        if titulo.lower() in existentes:
+        appid = str(juego.get("appid")) if juego.get("appid") else None
+        minutos = juego.get("playtime_forever") or 0
+        horas = round(minutos / 60, 1) if minutos else None
+        empezado = minutos >= MINUTOS_PARA_CONTAR_COMO_EMPEZADO
+
+        existente = indice.buscar(titulo, external_id=appid, fuente="steam")
+        if existente:
             duplicados += 1
+            # Reimportar es la forma de poner al día las horas: antes no
+            # cambiaba nada, porque todo eran "duplicados". Solo se tocan las
+            # horas que vinieron de Steam (en un juego añadido a mano el campo
+            # puede ser la duración de HowLongToBeat) y solo si han crecido.
+            # [R3-M16]
+            cambiado = imports.completar(
+                existente, status=MediaStatus.EN_PROGRESO if empezado else None,
+                hltb_hours=horas, external_id=appid,
+            )
+            if (existente.external_source == "steam" and horas
+                    and (existente.hltb_hours or 0) < horas):
+                existente.hltb_hours = horas
+                cambiado = True
+            actualizados += cambiado
             continue
 
-        minutos = juego.get("playtime_forever") or 0
-        db.add(MediaItem(
+        item = MediaItem(
             usuario_id=usuario_id,
             media_type=MediaType.VIDEOJUEGO,
             title=titulo,
-            external_id=str(juego.get("appid")) if juego.get("appid") else None,
+            external_id=appid,
             external_source="steam",
             plataforma="Steam",
             # Las horas de Steam son horas JUGADAS, no las que dura el juego.
             # Se guardan en el mismo sitio que las de HowLongToBeat porque es
             # el campo de "cuánto tiempo lleva esto", y para lo empezado es el
             # dato más fiel que hay.
-            hltb_hours=round(minutos / 60, 1) if minutos else None,
-            status=(MediaStatus.EN_PROGRESO
-                    if minutos >= MINUTOS_PARA_CONTAR_COMO_EMPEZADO
-                    else MediaStatus.PENDIENTE),
-        ))
-        existentes.add(titulo.lower())
+            hltb_hours=horas,
+            status=MediaStatus.EN_PROGRESO if empezado else MediaStatus.PENDIENTE,
+        )
+        db.add(item)
+        indice.añadir(item)
         creados += 1
 
     db.commit()
-    return {"creados": creados, "duplicados": duplicados, "error": None}
+    return {"creados": creados, "duplicados": duplicados,
+            "actualizados": actualizados, "error": None}
