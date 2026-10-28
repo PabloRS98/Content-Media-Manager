@@ -18,9 +18,10 @@ Cada hallazgo indica cómo se comprobó:
 Los de severidad alta se volvieron a comprobar a mano antes de escribir este
 documento.
 
-> **Estado:** cerrados R3-A1, R3-A2, R3-A6, R3-M1, R3-M2, R3-M3, R3-M5,
-> R3-M7, R3-M8, R3-B4 y R3-B8 (bloques 1 y 2 del orden recomendado, con tests
-> en `tests/test_auditoria_3.py`). El resto sigue abierto.
+> **Estado:** cerrados R3-A1, R3-A2, R3-A3, R3-A6, R3-M1, R3-M2, R3-M3,
+> R3-M5, R3-M7, R3-M8, R3-M12, R3-M13, R3-B4, R3-B8 y R3-B11 (bloques 1 a 3
+> del orden recomendado, con tests en `tests/test_auditoria_3.py` y
+> `tests/test_seguimiento.py`). El resto sigue abierto.
 
 | Severidad | Nº |
 |---|---|

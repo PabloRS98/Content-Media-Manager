@@ -37,6 +37,11 @@ _ORDEN_PRIORIDAD = case(
     else_=1,
 )
 _FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
+# En "Próximamente" cuentan también las completadas: terminar la temporada 1 no
+# es dejar de seguir la serie, y la fecha de la 2 es justo lo que se quiere ver.
+# Solo salen episodios futuros, así que una serie terminada hace años no
+# aparece. [R3-A3]
+_CON_ESTRENOS = (*_FOLLOWING, MediaStatus.COMPLETADO)
 
 
 def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[dict]:
@@ -63,7 +68,7 @@ def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[d
             # "estrenan" el mismo día que el episodio real y lo duplican aquí.
             Episode.season_number != 0,
             MediaItem.media_type.in_(TIPOS_EPISODICOS),
-            MediaItem.status.in_(_FOLLOWING),
+            MediaItem.status.in_(_CON_ESTRENOS),
             MediaItem.usuario_id == usuario.id,
         )
         .order_by(Episode.air_date)

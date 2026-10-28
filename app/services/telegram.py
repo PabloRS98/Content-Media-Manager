@@ -9,6 +9,7 @@ ni long polling. Si algún día se quiere responder a comandos desde el chat,
 ese es el sitio de donde copiarlo, no algo que falte por descuido."""
 import html
 import logging
+import time
 
 import httpx
 
@@ -37,23 +38,50 @@ def is_configured() -> bool:
     return bool(settings.telegram_bot_token and settings.telegram_chat_id)
 
 
+# Lo más que se espera a que Telegram deje volver a enviar tras un 429. Más
+# que esto y el mensaje se queda para la siguiente pasada del job (no se marca
+# como avisado), en lugar de dejar el hilo del scheduler dormido.
+ESPERA_MAXIMA_429 = 30
+
+
 def send_message(text: str) -> bool:
-    """Envía un mensaje al chat configurado. Devuelve True si se envió."""
+    """Envía un mensaje al chat configurado. Devuelve True si se envió.
+
+    Ante un 429 (demasiados mensajes seguidos) espera lo que pide Telegram y
+    lo reintenta una vez. [R3-B11]
+    """
     if not is_configured():
         return False
+    for intento in range(2):
+        try:
+            resp = httpx.post(
+                f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+                json={"chat_id": settings.telegram_chat_id, "text": text, "parse_mode": "HTML",
+                      "disable_web_page_preview": True},
+                timeout=10,
+            )
+            if resp.status_code == 429 and intento == 0:
+                espera = _retry_after(resp)
+                if espera is not None and espera <= ESPERA_MAXIMA_429:
+                    time.sleep(espera)
+                    continue
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            # log_fallo_api y no logger.exception: el token va en la RUTA de la
+            # URL, y el mensaje de la excepción de raise_for_status() incluye la
+            # URL completa (ver _logging_utils.py). Un token filtrado permite
+            # suplantar el bot y leer los mensajes pendientes con getUpdates.
+            log_fallo_api(logger, "Fallo al enviar aviso de Telegram", exc=e)
+            return False
+    return False
+
+
+def _retry_after(resp) -> int | None:
     try:
-        resp = httpx.post(
-            f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
-            json={"chat_id": settings.telegram_chat_id, "text": text, "parse_mode": "HTML",
-                  "disable_web_page_preview": True},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        return True
-    except Exception as e:
-        # log_fallo_api y no logger.exception: el token va en la RUTA de la
-        # URL, y el mensaje de la excepción de raise_for_status() incluye la
-        # URL completa (ver _logging_utils.py). Un token filtrado permite
-        # suplantar el bot y leer los mensajes pendientes con getUpdates.
-        log_fallo_api(logger, "Fallo al enviar aviso de Telegram", exc=e)
-        return False
+        return int(resp.json()["parameters"]["retry_after"])
+    except Exception:  # noqa: BLE001  cualquier cuerpo raro = no sabemos cuánto
+        try:
+            return int(resp.headers.get("retry-after", ""))
+        except ValueError:
+            return None

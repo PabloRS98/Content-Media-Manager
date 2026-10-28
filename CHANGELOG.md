@@ -39,6 +39,28 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, third batch — following series and podcasts:**
+  - **[R3-A3]** A series you are up to date with no longer goes silent.
+    Watching the last aired episode marks it completed, and the daily job
+    skipped completed series, so the next episode or season never arrived:
+    no episode, no Telegram alert, nothing in "Coming up". Completed TMDB
+    series are refreshed too, and one with an episode aired *after* you
+    completed it goes back to "in progress". Announced-but-unaired episodes
+    don't reopen it, but they do show in "Coming up".
+  - **[R3-M12]** Episodes already stored get TMDB's later updates: air date,
+    name, synopsis, runtime. An episode announced without a date never made
+    it to the calendar or the alerts. A date pushed into the future makes the
+    alert pending again.
+  - **[R3-M13]** Podcasts are refreshed daily from their RSS feed (no TMDB key
+    needed). Episodes are recognised by name and date instead of their
+    position in the feed, which shifted every number by one with each new
+    episode.
+  - **[R3-B11]** Telegram: one message per series ("8 new episodes", listing
+    five and "and 3 more") instead of one per episode; episodes already watched
+    are not announced; with several accounts, each alert says whose series it
+    is; a `429` waits the `retry_after` Telegram asks for (up to 30 s) and
+    retries once. Episodes that turn up in a refresh having aired in the last
+    week are announced — before, an episode added the day it aired never was.
 - **Third audit, second batch — isolation and access:**
   - **[R3-A2]** Renaming or merging a genre only changes *your* items. The
     genre row is shared vocabulary, and renaming it changed every account's
