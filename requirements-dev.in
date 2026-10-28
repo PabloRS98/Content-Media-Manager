@@ -13,10 +13,10 @@
 -c requirements.txt
 
 # 9.x: la 8.3.3 arrastraba PYSEC-2026-1845. Los 740 tests pasan igual.
-pytest==9.0.3
+pytest==9.1.1
 # Cobertura en el job `tests` del CI [R3-B21].
 pytest-cov==6.2.1
-ruff==0.7.4
+ruff==0.17.2
 # Para leer docker-compose.yml en los tests: el endurecimiento del contenedor
 # se comprueba por estructura (una lista de capacidades exacta), no buscando
 # subcadenas, que darían por bueno un `cap_add` comentado.
