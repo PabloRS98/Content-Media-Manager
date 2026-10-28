@@ -31,13 +31,18 @@ jobs:
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
+        # Con hashes, como la imagen: se prueba el mismo conjunto de paquetes
+        # que se despliega, transitivas incluidas. [R3-M25]
+        run: pip install --require-hashes -r requirements-dev.txt
 
       - name: Lint
         run: ruff check .
 
       - name: Tests
-        run: pytest
+        # Cobertura en el log [R3-B21]; los módulos menos cubiertos (tmdb, hltb,
+        # auth) se ven en la columna Miss. El suelo va unos puntos por debajo
+        # del total actual (87 %): avisa de una caída fuerte sin romper por ruido.
+        run: pytest --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80
 
   # Independiente de los tests: una vulnerabilidad conocida en una dependencia
   # no depende de que el código propio esté bien, y enterarse cuanto antes es
@@ -56,10 +61,12 @@ jobs:
         run: pip install pip-audit
 
       - name: Vulnerabilidades conocidas en las dependencias
-        # Se auditan las versiones declaradas, sin instalarlas: es lo que se va
-        # a desplegar, y no hace falta montar el entorno entero para mirar un
-        # fichero de texto.
-        run: pip-audit -r requirements.txt --progress-spinner off
+        # Se audita el lock COMPLETO (directas + transitivas, con hashes) sin
+        # instalarlo: es lo que se va a desplegar. Antes `-r` sobre un fichero
+        # con solo las directas dejaba sin mirar starlette, pydantic, h11...
+        # `--no-deps` porque el lock ya trae todo resuelto: pip-audit no debe
+        # volver a resolver nada por su cuenta. [R3-M25]
+        run: pip-audit -r requirements.txt --require-hashes --no-deps --progress-spinner off
 
   docker:
     runs-on: ubuntu-latest

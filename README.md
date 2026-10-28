@@ -117,6 +117,9 @@ source; everything else keeps working.
 | `ALLOWED_HOSTS` | Host names the app may be reached by. IPs, single-word names, `.local`/`.lan`/`.home.arpa` and Tailscale's `*.ts.net` work on their own; a public domain of your own (e.g. a reverse proxy's) must be listed here. Blocks DNS rebinding. `*` turns the check off | — |
 | `TRUSTED_ORIGINS` | Extra hosts accepted as the origin of form submissions, when the app is reached by a name other than the proxy's | — |
 | `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
+| `APP_NAME` | Display name setting. Currently read into the settings but not shown anywhere in the UI (the templates have the title fixed) | `Catalogo de Medios` |
+| `ENABLE_SCHEDULER` | Runs the daily backup and the release/episode notifications inside the app process. Set it to `false` on all but one worker if you ever run uvicorn with `--workers N`, or the backup runs N times and Telegram notices are duplicated | `true` |
+| `MEDIA_BIND` / `MEDIA_PORT` | Docker Compose only: host address and port the container is published on. Defaults to `127.0.0.1` and `8002`, so the catalogue is reachable from the same machine only. Use `0.0.0.0` (or an interface IP) to serve it to other machines, ideally behind a reverse proxy or VPN | `127.0.0.1` / `8002` |
 | `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
 
 Books via **Open Library** and podcasts via **iTunes Search** need no key at
@@ -143,11 +146,12 @@ Tests run against the real app via `TestClient`, each one on a throwaway SQLite
 database. They never touch the network: a fixture blocks the HTTP transport, so
 a test that starts calling TMDB fails instead of turning flaky.
 
-`tests/test_fallos_conocidos.py` holds bugs that are diagnosed but not yet
-fixed. Each one asserts the *correct* behaviour and is marked
-`xfail(strict=True)`: they fail on purpose today, and the moment a bug is fixed
-the test passes and `strict` breaks the build until the marker is removed — so
-the list can't silently go stale. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
+`tests/test_fallos_conocidos.py` keeps regression tests for bugs that were
+diagnosed in the audits and have since been fixed (no `xfail` is left in the
+suite). Run them on their own with `pytest -m fallo_conocido`. A bug that is
+diagnosed but not yet fixed would go there as `xfail(strict=True)`, so the
+moment it is fixed the test passes and the build breaks until the marker is
+removed. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
 
 ## Changelog
 

@@ -19,7 +19,7 @@ from app.services import generos
 
 
 @pytest.fixture
-def catalogo_ajeno(db, otro_usuario):  # noqa: C901
+def catalogo_ajeno(db, otro_usuario):
     """Cuatro ítems de otra cuenta, uno de cada tipo, con datos que se agregan:
     género, nota, año, duración y un episodio visto."""
     peli = MediaItem(

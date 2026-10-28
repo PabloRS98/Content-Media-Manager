@@ -46,3 +46,4 @@ migrations/versions/__pycache__/
 
 # Worktrees de Claude Code (subagentes en paralelo)
 .claude/worktrees/
+.coverage

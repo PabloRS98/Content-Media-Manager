@@ -13,7 +13,7 @@ pythonpath = ["."]
 # `--strict-markers` evita que una marca mal escrita se ignore en silencio.
 addopts = "-q --strict-markers"
 markers = [
-    "fallo_conocido: fallo ya diagnosticado y aún sin arreglar (ver docs/AUDITORIA.md)",
+    "fallo_conocido: regresión de un fallo ya diagnosticado y arreglado (ver docs/AUDITORIA.md)",
 ]
 
 [tool.ruff]

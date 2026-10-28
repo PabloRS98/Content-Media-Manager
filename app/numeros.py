@@ -26,7 +26,7 @@ def decimal(valor, rango: tuple[float, float] | None = None) -> float | None:
     """Número finito (acepta coma decimal) o None."""
     if valor is None:
         return None
-    if not isinstance(valor, (int, float)):
+    if not isinstance(valor, int | float):
         texto = str(valor).strip().replace(",", ".")
         if not texto or len(texto) > 32:
             return None
