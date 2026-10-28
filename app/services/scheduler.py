@@ -8,17 +8,23 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
+from .. import fechas
 from ..config import settings
 from ..database import SessionLocal
-from ..models import TIPOS_EPISODICOS, Episode, MediaItem, MediaStatus
+from ..models import TIPOS_EPISODICOS, Episode, MediaItem, MediaStatus, MediaType, Usuario
 from . import metadata, telegram, tmdb
 
 logger = logging.getLogger(__name__)
 
 # Estados que consideramos "siguiendo" para avisos
 FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
+# Las completadas también se refrescan: una serie al día está "completada"
+# hasta que sale el episodio siguiente, y si el job no la mira nunca se entera.
+# El coste está acotado por temporadas_que_pueden_cambiar. [R3-A3]
+REFRESCABLES = (*FOLLOWING, MediaStatus.COMPLETADO)
 
 # Estado de la última ejecución de cada job, para el panel /estado.
 #
@@ -73,7 +79,7 @@ def temporadas_que_pueden_cambiar(item: MediaItem, temporadas_remotas: list[int]
     """
     if not temporadas_remotas:
         return []
-    hoy = hoy or date.today()
+    hoy = hoy or fechas.hoy()
     limite = hoy - VENTANA_TEMPORADA_VIVA
 
     ultima_fecha: dict[int, date | None] = {}
@@ -97,7 +103,7 @@ def temporadas_que_pueden_cambiar(item: MediaItem, temporadas_remotas: list[int]
 
 
 def _refrescar_una_serie(item_id: int, session_factory) -> int:
-    """Refresca una serie con su propia sesión. Devuelve episodios añadidos.
+    """Refresca una serie o un podcast con su propia sesión. Devuelve episodios añadidos.
 
     Sesión por hilo (patrón de projects-dashboard) y commit por serie: antes
     había un único commit al final de todas, así que si la 25ª fallaba se
@@ -108,13 +114,19 @@ def _refrescar_una_serie(item_id: int, session_factory) -> int:
         item = db.get(MediaItem, item_id)
         if not item or not item.external_id:
             return 0
-        detalles = tmdb.get_tv_details(item.external_id)
-        if not detalles:
-            return 0
-        temporadas = temporadas_que_pueden_cambiar(item, detalles["seasons"])
-        if not temporadas:
-            return 0
-        añadidos = metadata.load_episodes(db, item, temporadas)
+        if item.media_type == MediaType.PODCAST:
+            # Los podcasts no se refrescaban nunca: se cargaba el feed al darlos
+            # de alta y no volvía a mirarse. [R3-M13]
+            añadidos = metadata.load_podcast_episodes(item)
+        else:
+            detalles = tmdb.get_tv_details(item.external_id)
+            if not detalles:
+                return 0
+            temporadas = temporadas_que_pueden_cambiar(item, detalles["seasons"])
+            if not temporadas:
+                return 0
+            añadidos = metadata.load_episodes(db, item, temporadas)
+        metadata.reabrir_si_hay_novedades(item)
         db.commit()
         return añadidos
     except Exception:
@@ -126,35 +138,80 @@ def _refrescar_una_serie(item_id: int, session_factory) -> int:
 
 
 def refresh_following_episodes(db: Session, session_factory=SessionLocal) -> None:
-    """Trae episodios nuevos de las series que sigues (requiere TMDB key).
+    """Trae episodios nuevos de las series y podcasts que sigues.
+
+    Las series necesitan la clave de TMDB; los podcasts no (es su feed RSS).
 
     Antes era 1+N peticiones HTTP secuenciales por serie: con 30 series de 5
     temporadas de media, 30 + 150 = 180 peticiones encadenadas con 10 s de
     timeout cada una. En el peor caso, media hora de job -- y corre también 25 s
     después de arrancar, así que un reinicio del contenedor lo disparaba entero.
     """
-    if not settings.tmdb_api_key:
-        return
-    ids = [
-        fila[0] for fila in db.query(MediaItem.id).filter(
-            MediaItem.media_type.in_(TIPOS_EPISODICOS),
-            MediaItem.status.in_(FOLLOWING),
-            MediaItem.external_source == "tmdb",
-            MediaItem.external_id.isnot(None),
-        ).all()
-    ]
+    fuentes = [(MediaType.PODCAST, "itunes")]
+    if settings.tmdb_api_key:
+        fuentes.append((MediaType.SERIE, "tmdb"))
+    ids = []
+    for tipo, fuente in fuentes:
+        ids += [
+            fila[0] for fila in db.query(MediaItem.id).filter(
+                MediaItem.media_type == tipo,
+                MediaItem.status.in_(REFRESCABLES),
+                MediaItem.external_source == fuente,
+                MediaItem.external_id.isnot(None),
+            ).all()
+        ]
     if not ids:
         return
 
     with ThreadPoolExecutor(max_workers=SERIES_EN_PARALELO) as pool:
         total = sum(pool.map(lambda i: _refrescar_una_serie(i, session_factory), ids))
     if total:
-        logger.info("Refresco de series: %d episodios nuevos", total)
+        logger.info("Refresco de series y podcasts: %d episodios nuevos", total)
+
+
+def reabrir_completadas(db: Session) -> int:
+    """Reabre las completadas con episodios emitidos después de completarlas.
+
+    Va aparte del refresco porque no necesita red: sin clave de TMDB no
+    llegan episodios nuevos, pero sí puede emitirse uno que ya estaba en la
+    base con fecha futura.
+    """
+    items = (
+        db.query(MediaItem)
+        .filter(
+            MediaItem.media_type.in_(TIPOS_EPISODICOS),
+            MediaItem.status == MediaStatus.COMPLETADO,
+            MediaItem.completed_at.isnot(None),
+            MediaItem.episodes.any(and_(
+                Episode.watched.is_(False),
+                Episode.season_number != 0,
+                Episode.air_date > MediaItem.completed_at,
+                Episode.air_date <= fechas.hoy(),
+            )),
+        )
+        .all()
+    )
+    reabiertas = sum(1 for it in items if metadata.reabrir_si_hay_novedades(it))
+    db.commit()
+    return reabiertas
+
+
+# Más episodios que esto en un mismo aviso se resumen en "y N más": tras un
+# fin de semana largo sin el job, o al activar Telegram con meses acumulados,
+# no tiene sentido una lista de cuarenta líneas. [R3-B11]
+EPISODIOS_POR_AVISO = 5
 
 
 def check_new_episodes(db: Session) -> int:
-    """Avisa de episodios ya emitidos aún sin notificar. Devuelve cuántos."""
-    today = date.today()
+    """Avisa de episodios ya emitidos aún sin notificar. Devuelve cuántos.
+
+    Un mensaje por serie, no por episodio: antes, activar Telegram con un mes
+    acumulado o una temporada estrenada de golpe eran decenas de mensajes
+    seguidos (y Telegram corta con 429 a partir de unos 30 por segundo). Los
+    ya vistos no se avisan, pero se marcan: quien ve el episodio el día del
+    estreno antes de que corra el job no necesita que se lo cuenten. [R3-B11]
+    """
+    today = fechas.hoy()
     sent = 0
     eps = (
         db.query(Episode).join(MediaItem)
@@ -171,28 +228,54 @@ def check_new_episodes(db: Session) -> int:
             Episode.season_number != 0,
             MediaItem.status.in_(FOLLOWING),
         )
+        .order_by(Episode.item_id, Episode.season_number, Episode.episode_number)
         .all()
     )
+    por_serie: dict[int, list[Episode]] = {}
     for ep in eps:
-        enviado = telegram.send_message(
-            "📺 <b>%s</b> — nuevo episodio %s%s" % (
-                telegram.esc(ep.item.title), ep.code,
+        if ep.watched:
+            ep.notified = True
+            continue
+        por_serie.setdefault(ep.item_id, []).append(ep)
+
+    # Un solo chat recibe los avisos de todas las cuentas: con más de una, se
+    # dice de quién es cada serie.
+    nombres = {}
+    if por_serie and db.query(Usuario).count() > 1:
+        nombres = dict(db.query(Usuario.id, Usuario.nombre).all())
+
+    for lista in por_serie.values():
+        item = lista[0].item
+        de_quien = (" (%s)" % telegram.esc(nombres[item.usuario_id])) if item.usuario_id in nombres else ""
+        if len(lista) == 1:
+            ep = lista[0]
+            texto = "📺 <b>%s</b>%s — nuevo episodio %s%s" % (
+                telegram.esc(item.title), de_quien, ep.code,
                 (" · " + telegram.esc(ep.name)) if ep.name else "")
-        )
+        else:
+            lineas = [
+                "• %s%s" % (ep.code, (" · " + telegram.esc(ep.name)) if ep.name else "")
+                for ep in lista[:EPISODIOS_POR_AVISO]
+            ]
+            if len(lista) > EPISODIOS_POR_AVISO:
+                lineas.append("• y %d más" % (len(lista) - EPISODIOS_POR_AVISO))
+            texto = "📺 <b>%s</b>%s — %d episodios nuevos\n%s" % (
+                telegram.esc(item.title), de_quien, len(lista), "\n".join(lineas))
         # Marcar solo si el envío funcionó. Antes se marcaba siempre, y como
         # send_message se traga la excepción, un aviso que Telegram rechazaba
         # (un título con "&" da 400) quedaba como notificado y no se
         # reintentaba jamás: el aviso se perdía para siempre.
-        if enviado:
-            ep.notified = True
-            sent += 1
+        if telegram.send_message(texto):
+            for ep in lista:
+                ep.notified = True
+            sent += len(lista)
     db.commit()
     return sent
 
 
 def check_releases(db: Session) -> int:
     """Avisa de estrenos de la wishlist ya disponibles. Devuelve cuántos."""
-    today = date.today()
+    today = fechas.hoy()
     sent = 0
     items = (
         db.query(MediaItem)
@@ -218,12 +301,13 @@ def run_alerts() -> None:
     db = SessionLocal()
     try:
         refresh_following_episodes(db)
+        reabrir_completadas(db)
         n = check_new_episodes(db)
         r = check_releases(db)
         if n or r:
             logger.info("Avisos enviados: %d episodios, %d estrenos", n, r)
         _registrar("media_alerts", True, "%d episodios, %d estrenos" % (n, r))
-    except Exception as exc:  # noqa: BLE001  el scheduler debe sobrevivir a cualquier job
+    except Exception as exc:
         logger.exception("Fallo en el job de estrenos")
         _registrar("media_alerts", False, str(exc)[:200])
     finally:
@@ -240,7 +324,7 @@ def run_backup() -> None:
     try:
         ruta = backup_database()
         _registrar("daily_backup", True, ruta)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Fallo en el job de backup")
         _registrar("daily_backup", False, str(exc)[:200])
 
@@ -252,16 +336,31 @@ def backup_database(dest_path: str | None = None) -> str:
     if dest_path is None:
         backups_dir = os.path.join(os.path.dirname(settings.db_path), "backups")
         os.makedirs(backups_dir, exist_ok=True)
-        dest_path = os.path.join(backups_dir, "media-%s.db" % date.today().strftime("%Y%m%d"))
+        dest_path = os.path.join(backups_dir, "media-%s.db" % fechas.hoy().strftime("%Y%m%d"))
 
+    # Se escribe aparte y se cambia por el bueno al final: antes se escribía
+    # encima del backup del día, y si la copia fallaba a mitad (disco lleno,
+    # un reinicio) se perdía el que había. `integrity_check` antes de darlo
+    # por bueno, porque un backup que no abre es peor que ninguno: da una
+    # seguridad que no existe. [R3-B15]
+    temporal = dest_path + ".tmp"
     src = sqlite3.connect(settings.db_path)
-    dst = sqlite3.connect(dest_path)
+    dst = sqlite3.connect(temporal)
     try:
         with dst:
             src.backup(dst)
+        resultado = dst.execute("PRAGMA integrity_check").fetchone()[0]
     finally:
         src.close()
         dst.close()
+    if resultado != "ok":
+        os.remove(temporal)
+        raise RuntimeError("El backup no pasa integrity_check: %s" % resultado)
+    # Dentro van los hashes de las contraseñas y la clave de las sesiones:
+    # solo para el usuario que corre la app, no con el umask por defecto
+    # (legible por todos). [R3-B5]
+    os.chmod(temporal, 0o600)
+    os.replace(temporal, dest_path)
 
     # Rotación (solo en el directorio estándar de backups)
     backups_dir = os.path.dirname(dest_path)

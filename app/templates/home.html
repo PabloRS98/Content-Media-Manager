@@ -12,48 +12,94 @@
    falla, `lifespan` registra el error y la app sigue arrancando (a propósito),
    pero entonces estos accesos apuntaban a "/listas/" -- un enlace roto que se
    veía igual que uno bueno. Sin lista, se pinta el número sin enlace. #}
-{% macro acceso(estado, valor, texto, cls="") -%}
+{% macro acceso(estado, valor, texto, ico, cls="") -%}
 {%- set id_lista = listas_dinamicas.get(estado) -%}
-{%- if id_lista %}<a href="/listas/{{ id_lista }}" class="hsum {{ cls }}"><strong>{{ valor }}</strong><span>{{ texto }}</span></a>
-{%- else %}<div class="hsum {{ cls }}"><strong>{{ valor }}</strong><span>{{ texto }}</span></div>
+{%- if id_lista %}<a href="/listas/{{ id_lista }}" class="hsum {{ cls }}"><span class="hsum-icon">{{ icon(ico, 18) }}</span><strong>{{ valor }}</strong><span>{{ texto }}</span></a>
+{%- else %}<div class="hsum {{ cls }}"><span class="hsum-icon">{{ icon(ico, 18) }}</span><strong>{{ valor }}</strong><span>{{ texto }}</span></div>
 {%- endif %}
 {%- endmacro %}
 
-<section class="home-summary">
-    <div class="hsum"><strong>{{ resumen.total }}</strong><span>en total</span></div>
-    {{ acceso("en_progreso", resumen.en_progreso, "en progreso", "accent") }}
-    {{ acceso("pendiente", resumen.pendientes, "pendientes") }}
-    {{ acceso("completado", resumen.completados, "completados", "positive") }}
-    {{ acceso("wishlist", resumen.wishlist, "wishlist") }}
+{# Carrusel con flechas (app.js las muestra solo cuando hay más a un lado). #}
+{% macro rail(items) -%}
+<div class="rail-wrap">
+    <button type="button" class="rail-nav prev" aria-label="Anteriores">{{ icon("chevron-left", 18) }}</button>
+    <div class="rail">{% for item in items %}{{ media_card(item) }}{% endfor %}</div>
+    <button type="button" class="rail-nav next" aria-label="Siguientes">{{ icon("chevron-right", 18) }}</button>
+</div>
+{%- endmacro %}
+
+<header class="home-hero">
+    <div>
+        <span class="eyebrow">{{ hoy_largo()|capitalize }}</span>
+        <h1>{{ saludo() }}{% if request.state.cuenta_abierta %}, <em>{{ request.state.cuenta_abierta.nombre }}</em>{% endif %}</h1>
+    </div>
+    <div class="page-head-actions">
+        <a href="#sugerencia" class="btn ghost" hx-get="/sugerencia" hx-target="#suggestion-box" hx-swap="innerHTML">{{ icon("dices", 15) }} Sorpréndeme</a>
+        <a href="/catalogo#anadir" class="btn">{{ icon("plus", 15) }} Añadir</a>
+    </div>
+</header>
+
+<section class="home-summary" aria-label="Resumen">
+    <div class="hsum"><span class="hsum-icon">{{ icon("library-big", 18) }}</span><strong>{{ resumen.total }}</strong><span>en total</span></div>
+    {{ acceso("en_progreso", resumen.en_progreso, "en progreso", "play", "accent") }}
+    {{ acceso("pendiente", resumen.pendientes, "pendientes", "hourglass", "pending") }}
+    {{ acceso("completado", resumen.completados, "completados", "circle-check", "positive") }}
+    {{ acceso("wishlist", resumen.wishlist, "wishlist", "bookmark", "wish") }}
 </section>
 
 {% if not hay_algo %}
 <section class="card">
     <div class="empty">
-        {{ icon("library-big", 30) }}
-        Tu catálogo está vacío. Ve a <a href="/catalogo">Catálogo</a> para buscar y añadir tus libros, pelis, series, juegos y podcasts.
+        {{ icon("library-big", 28) }}
+        <strong>Tu catálogo está vacío</strong>
+        Busca tus libros, pelis, series, juegos y podcasts para añadirlos, o tráete tu historial de IMDb, Goodreads, Letterboxd, Trakt o Steam.
+        <div class="toolbar" style="justify-content:center">
+            <a href="/catalogo#anadir" class="btn">{{ icon("plus", 15) }} Añadir lo primero</a>
+            <a href="/importar" class="btn ghost">{{ icon("upload", 15) }} Importar</a>
+        </div>
     </div>
 </section>
 {% endif %}
 
 {% if en_progreso %}
 <section class="card">
-    <h3>{{ icon("play") }} Continuar</h3>
-    <div class="rail">{% for item in en_progreso %}{{ media_card(item) }}{% endfor %}</div>
+    <h2>{{ icon("play") }} Continuar <span class="tag h3-extra">{{ en_progreso|length }}</span></h2>
+    <div class="continue-grid">
+        {% for item in en_progreso %}
+        {%- set st = item.episode_stats() if item.is_episodic else None %}
+        <a href="/item/{{ item.id }}" class="continue-card" data-tipo="{{ item.media_type.value }}">
+            <span class="continue-cover{% if item.media_type.value == 'podcast' %} podcast{% endif %}">
+                {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy" decoding="async">
+                {% else %}{{ media_icon(item.media_type.value, 24) }}{% endif %}
+            </span>
+            <span class="continue-body">
+                <strong>{{ item.title }}</strong>
+                <span class="meta">{{ media_icon(item.media_type.value, 12) }} {{ etiqueta_estado(item) }}{% if item.creator %} · {{ item.creator }}{% endif %}</span>
+                {% if st and st.total %}
+                <div class="progress"><div style="width: {{ (100 * st.watched / st.total)|round|int }}%"></div></div>
+                <span class="continue-next">
+                    <span>{% if st.next %}Siguiente: <b>{{ st.next.code }}</b>{% else %}Al día{% endif %}</span>
+                    <span>{{ st.watched }}/{{ st.total }} ep</span>
+                </span>
+                {% elif item.progress_total %}
+                {%- set pct = (100 * (item.progress_current or 0) / item.progress_total)|round|int %}
+                <div class="progress"><div style="width: {{ pct }}%"></div></div>
+                <span class="continue-next">
+                    <span>{{ "%g"|format(item.progress_current or 0) }} / {{ "%g"|format(item.progress_total) }} {{ item.progress_unit or "" }}</span>
+                    <b>{{ pct }}%</b>
+                </span>
+                {% endif %}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
 </section>
 {% endif %}
 
 {% if proximos %}
 <section class="card">
-    <h3 class="rowline">{{ icon("list-todo") }} Próximos <a href="/catalogo?estado=pendiente" class="head-link">ver todos {{ icon("chevron-right", 13) }}</a></h3>
-    <div class="rail">{% for item in proximos %}{{ media_card(item) }}{% endfor %}</div>
-</section>
-{% endif %}
-
-{% if wishlist %}
-<section class="card">
-    <h3 class="rowline">{{ icon("sparkles") }} Wishlist <a href="/catalogo?estado=wishlist" class="head-link">ver todo {{ icon("chevron-right", 13) }}</a></h3>
-    <div class="rail">{% for item in wishlist %}{{ media_card(item) }}{% endfor %}</div>
+    <h2>{{ icon("list-todo") }} Próximos <a href="/catalogo?estado=pendiente" class="head-link">VER TODOS {{ icon("chevron-right", 13) }}</a></h2>
+    {{ rail(proximos) }}
 </section>
 {% endif %}
 
@@ -63,18 +109,18 @@
    ponderados. Si no hay nada completado de donde deducir, el router devuelve
    lista vacía y esta sección no aparece, en vez de inventarse afinidades. #}
 <section class="card">
-    <h3 class="rowline">{{ icon("wand-sparkles") }} Porque te gustó lo que ya has visto
-        <a href="/catalogo?estado=pendiente" class="head-link">pendientes {{ icon("chevron-right", 13) }}</a></h3>
+    <h2>{{ icon("wand-sparkles") }} Porque te gustó lo que ya has visto
+        <a href="/catalogo?estado=pendiente" class="head-link">PENDIENTES {{ icon("chevron-right", 13) }}</a></h2>
     <div class="recomendaciones">
         {% for r in recomendaciones %}
-        <a href="/item/{{ r.item.id }}" class="card recomendacion">
+        <a href="/item/{{ r.item.id }}" class="recomendacion" data-tipo="{{ r.item.media_type.value }}">
             <div class="reco-portada">
-                {% if r.item.cover_url %}<img src="{{ r.item.cover_url }}" alt="" loading="lazy">
-                {% else %}<span class="no-cover">{{ media_icon(r.item.media_type.value, 24) }}</span>{% endif %}
+                {% if r.item.cover_url %}<img src="{{ r.item.cover_url }}" alt="" loading="lazy" decoding="async">
+                {% else %}<span class="no-cover">{{ media_icon(r.item.media_type.value, 22) }}</span>{% endif %}
             </div>
             <div class="reco-texto">
                 <strong>{{ r.item.title }}</strong>
-                <span class="subtle">{{ r.motivos[0] }}</span>
+                <span class="subtle">{{ icon("sparkles", 11) }} {{ r.motivos[0] }}</span>
             </div>
         </a>
         {% endfor %}
@@ -82,50 +128,56 @@
 </section>
 {% endif %}
 
-{% if proximamente %}
+<div class="grid-2">
+    {% if proximamente %}
+    <section class="card">
+        <h2>{{ icon("calendar") }} Próximamente <a href="/calendario" class="head-link">CALENDARIO {{ icon("chevron-right", 13) }}</a></h2>
+        <ul class="upcoming-list">
+            {% for e in proximamente %}
+            <li data-tipo="{{ e.item.media_type.value }}">
+                <span class="up-date">{{ e.fecha.day }}<small>{{ mes_corto(e.fecha) }}</small></span>
+                <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 14) }} {{ e.item.title }}</a>
+                <span class="subtle">{% if e.tipo == "episodio" %}{{ e.episodio.code }}{% else %}estreno{% endif %}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    <section class="card" id="sugerencia">
+        <h2>{{ icon("dices") }} ¿Qué hago ahora?</h2>
+        <div class="toolbar" style="margin-bottom:.8rem">
+            <div class="segmented" role="group" aria-label="Tiempo disponible">
+                <button type="button" hx-get="/tengo-tiempo?minutos=30" hx-target="#timefit-box" hx-swap="innerHTML">30 min</button>
+                <button type="button" hx-get="/tengo-tiempo?minutos=60" hx-target="#timefit-box" hx-swap="innerHTML">1 h</button>
+                <button type="button" hx-get="/tengo-tiempo?minutos=120" hx-target="#timefit-box" hx-swap="innerHTML">2 h</button>
+            </div>
+            <input type="number" id="tf-min" min="5" max="1000" step="5" placeholder="min" class="minutes-input" aria-label="Minutos disponibles"
+                   hx-get="/tengo-tiempo" hx-trigger="keyup changed delay:500ms" hx-target="#timefit-box"
+                   hx-swap="innerHTML" hx-include="this" name="minutos">
+            <button type="button" class="ghost" hx-get="/sugerencia" hx-target="#suggestion-box" hx-swap="innerHTML" hx-indicator="#suggest-spinner">
+                {{ icon("dices", 15) }} Sugiéreme algo
+            </button>
+            <span id="suggest-spinner" class="htmx-indicator spinner"></span>
+        </div>
+        <div id="timefit-box" aria-live="polite"></div>
+        <div id="suggestion-box" aria-live="polite"></div>
+        <p class="subtle" style="margin:.4rem 0 0">Elige cuánto tiempo tienes y te digo qué de lo pendiente cabe, o deja que el azar decida.</p>
+    </section>
+</div>
+
+{% if wishlist %}
 <section class="card">
-    <h3 class="rowline">{{ icon("calendar") }} Próximamente <a href="/calendario" class="head-link">calendario {{ icon("chevron-right", 13) }}</a></h3>
-    <ul class="upcoming-list">
-        {% for e in proximamente %}
-        <li>
-            <span class="up-date">{{ e.fecha.strftime("%d %b") }}</span>
-            <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 14) }} {{ e.item.title }}</a>
-            <span class="subtle">{% if e.tipo == "episodio" %}{{ e.episodio.code }}{% else %}estreno{% endif %}</span>
-        </li>
-        {% endfor %}
-    </ul>
+    <h2>{{ icon("bookmark") }} Wishlist <a href="/catalogo?estado=wishlist" class="head-link">VER TODO {{ icon("chevron-right", 13) }}</a></h2>
+    {{ rail(wishlist) }}
 </section>
 {% endif %}
 
 {% if recientes %}
 <section class="card">
-    <h3>{{ icon("circle-check") }} Completado hace poco</h3>
-    <div class="rail">{% for item in recientes %}{{ media_card(item) }}{% endfor %}</div>
+    <h2>{{ icon("circle-check") }} Completado hace poco <a href="/actividad" class="head-link">DIARIO {{ icon("chevron-right", 13) }}</a></h2>
+    {{ rail(recientes) }}
 </section>
 {% endif %}
-
-<section class="card">
-    <h3>{{ icon("clock") }} ¿Cuánto tiempo tienes?</h3>
-    <div class="toolbar" style="margin-bottom:.6rem">
-        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=30" hx-target="#timefit-box" hx-swap="innerHTML">30 min</button>
-        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=60" hx-target="#timefit-box" hx-swap="innerHTML">1 h</button>
-        <button type="button" class="ghost small" hx-get="/tengo-tiempo?minutos=120" hx-target="#timefit-box" hx-swap="innerHTML">2 h</button>
-        <input type="number" id="tf-min" min="5" max="1000" step="5" placeholder="min" style="max-width:90px"
-               hx-get="/tengo-tiempo" hx-trigger="keyup changed delay:500ms" hx-target="#timefit-box"
-               hx-swap="innerHTML" hx-include="this" name="minutos">
-    </div>
-    <div id="timefit-box"></div>
-</section>
-
-<section class="card">
-    <h3>{{ icon("dices") }} ¿No sabes qué ver/leer/jugar?</h3>
-    <div class="toolbar" style="margin-bottom:.6rem">
-        <button type="button" hx-get="/sugerencia" hx-target="#suggestion-box" hx-swap="innerHTML" hx-indicator="#suggest-spinner">
-            {{ icon("dices", 15) }} Sugiéreme algo pendiente
-        </button>
-        <span id="suggest-spinner" class="htmx-indicator spinner"></span>
-    </div>
-    <div id="suggestion-box"></div>
-</section>
 
 {% endblock %}

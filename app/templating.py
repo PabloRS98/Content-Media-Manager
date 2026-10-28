@@ -7,6 +7,9 @@ escapa nada, y stats.html mete datos controlados por el usuario (los nombres
 de `Genero`, editables y rellenados desde CSVs de importación) dentro de un
 `<script>` vía `| tojson | safe` -- exactamente el vector que el tojson de
 Jinja existe para cerrar."""
+import hashlib
+from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -14,8 +17,8 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from jinja2 import StrictUndefined
 
-from .catalogo_config import etiqueta_estado
-from .fechas import dia_y_mes, fecha_larga
+from .catalogo_config import etiqueta_estado, etiquetas_de
+from .fechas import dia_y_mes, fecha_larga, mes_corto
 
 # Ruta absoluta (relativa a este fichero), no "app/templates": una ruta
 # relativa al cwd solo funciona si el proceso arranca desde la raíz del repo.
@@ -67,6 +70,8 @@ templates.env.globals["build_qs"] = build_qs
 # vuelvan a tener su propia copia del mapeo, que es como acabó divergiendo del
 # router. Ver `catalogo_config.py`.
 templates.env.globals["etiqueta_estado"] = etiqueta_estado
+# Las cinco de un tipo, para los botones de estado de la ficha y su diálogo.
+templates.env.globals["etiquetas_de"] = etiquetas_de
 
 
 def minutos_estimados(item) -> int | None:
@@ -88,3 +93,53 @@ templates.env.globals["minutos_estimados"] = minutos_estimados
 # la interfaz. Ver `fechas.py` para por qué no se arregla con `setlocale`.
 templates.env.globals["dia_y_mes"] = dia_y_mes
 templates.env.globals["fecha_larga"] = fecha_larga
+templates.env.globals["mes_corto"] = mes_corto
+
+# Estáticos con la huella de su contenido en la URL (`style.css?v=3f2a...`).
+# Así se pueden cachear un año (ver `cabeceras_de_seguridad` en main.py) y aun
+# así cada versión nueva del CSS llega al navegador en cuanto se despliega: la
+# URL cambia con el contenido. Sin esto, cada página revalidaba los cinco
+# estáticos contra el servidor, y tras una actualización había quien seguía
+# viendo el CSS viejo con el HTML nuevo.
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+@lru_cache(maxsize=64)
+def _huella(ruta: str) -> str:
+    try:
+        return hashlib.sha256((_STATIC_DIR / ruta).read_bytes()).hexdigest()[:12]
+    except OSError:
+        return ""
+
+
+def static_url(ruta: str) -> str:
+    huella = _huella(ruta)
+    return "/static/%s?v=%s" % (ruta, huella) if huella else "/static/" + ruta
+
+
+templates.env.globals["static_url"] = static_url
+
+
+def _ahora() -> datetime:
+    """La hora de la casa, no la del contenedor (que va en UTC)."""
+    from .fechas import ahora
+
+    return ahora()
+
+
+def saludo() -> str:
+    """'Buenos días' / 'Buenas tardes' / 'Buenas noches', para la portada."""
+    hora = _ahora().hour
+    if 6 <= hora < 14:
+        return "Buenos días"
+    if 14 <= hora < 21:
+        return "Buenas tardes"
+    return "Buenas noches"
+
+
+def hoy_largo() -> str:
+    return fecha_larga(_ahora().date())
+
+
+templates.env.globals["saludo"] = saludo
+templates.env.globals["hoy_largo"] = hoy_largo

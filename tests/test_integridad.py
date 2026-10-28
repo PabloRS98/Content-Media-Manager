@@ -68,6 +68,15 @@ def test_borrar_un_item_limpia_sus_generos(db, crear_item):
     assert db.execute(select(media_item_generos)).all() == []
 
 
+
+def como_una_base_antigua(db):
+    """Las FK desactivadas en la conexión de la sesión, como en las bases de
+    antes de [R3-B9]: es la única forma de fabricar las filas huérfanas que
+    aquellas arrastran. Con PRAGMA hay que estar fuera de transacción."""
+    db.commit()
+    db.execute(text("PRAGMA foreign_keys=OFF"))
+
+
 def test_la_limpieza_de_arranque_cubre_los_generos(db, crear_item):
     """`limpiar_filas_huerfanas` corre en cada arranque y es la red para las
     filas que ya arrastra una base desplegada, donde el borrado por ORM no pasó
@@ -77,6 +86,7 @@ def test_la_limpieza_de_arranque_cubre_los_generos(db, crear_item):
 
     item = crear_item(title="Con géneros", generos=["Drama"])
     # Se borra a lo bruto, como pasó en su día: sin que el ORM se entere.
+    como_una_base_antigua(db)
     db.execute(text("DELETE FROM media_items WHERE id = %d" % item.id))
     db.commit()
     assert len(db.execute(select(media_item_generos)).all()) == 1
@@ -129,6 +139,7 @@ def test_la_limpieza_borra_las_filas_huerfanas_que_ya_existieran(usuario, db, cr
     db.commit()
 
     # Se simula el estado antiguo: la fila puente sobrevive al ítem.
+    como_una_base_antigua(db)
     db.execute(list_items.delete())
     db.execute(list_items.insert().values(list_id=lista.id, media_item_id=99999))
     db.commit()

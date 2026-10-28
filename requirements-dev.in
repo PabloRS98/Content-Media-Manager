@@ -1,0 +1,23 @@
+# Dependencias para desarrollo y CI (no van en la imagen de Docker). [R3-M25]
+#
+# Este fichero se edita a mano; requirements-dev.txt se GENERA:
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements-dev.txt requirements-dev.in
+#
+# Por qué un lock aparte y no `-r requirements.txt` dentro del dev: pip exige
+# que, si un fichero lleva hashes, TODAS sus líneas los lleven; mezclar el lock
+# con hashes y pins sueltos rompe con "--require-hashes". Así que el dev lock
+# se compila entero (runtime + dev, con hashes). `-c requirements.txt` obliga a
+# que las versiones de runtime coincidan con las que irán en la imagen: si no,
+# los tests probarían un conjunto distinto del que se despliega.
+-r requirements.in
+-c requirements.txt
+
+# 9.x: la 8.3.3 arrastraba PYSEC-2026-1845. Los 740 tests pasan igual.
+pytest==9.0.3
+# Cobertura en el job `tests` del CI [R3-B21].
+pytest-cov==6.2.1
+ruff==0.7.4
+# Para leer docker-compose.yml en los tests: el endurecimiento del contenedor
+# se comprueba por estructura (una lista de capacidades exacta), no buscando
+# subcadenas, que darían por bueno un `cap_add` comentado.
+pyyaml==6.0.3

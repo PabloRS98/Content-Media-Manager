@@ -2,15 +2,17 @@
 ficha de detalle con episodios, orden + paginación y estadísticas."""
 import logging
 from datetime import UTC, date, datetime
-from math import ceil
+from math import ceil, isfinite
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from .. import fechas, numeros
 from ..auth import verify_auth
-from ..catalogo_config import etiquetas_de, etiquetas_de_duracion
+from ..catalogo_config import etiqueta_estado, etiquetas_de, etiquetas_de_duracion
+from ..config import settings
 from ..cuentas import item_de, items_de, listas_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
@@ -24,6 +26,7 @@ from ..models import (
     Priority,
     Tag,
     Usuario,
+    list_items,
     media_item_generos,
     media_item_tags,
 )
@@ -33,6 +36,7 @@ from ..services import (
     episodios,
     generos as generos_svc,
     googlebooks,
+    imports as imports_svc,
     itunes,
     metadata,
     openlibrary,
@@ -79,12 +83,7 @@ def _parse_optional(value: str, caster):
         return None
 
 
-def _parse_rating(value: str) -> int | None:
-    """La nota es 1-10. El min/max del HTML es solo del lado del cliente:
-    sin esto, un rating de 99 se guardaba y desaparecía silenciosamente del
-    histograma de /estadisticas (que sí filtra 1 <= rating <= 10) sin avisar."""
-    parsed = _parse_optional(value, int)
-    return parsed if parsed is not None and 1 <= parsed <= 10 else None
+_parse_rating = numeros.nota
 
 
 def _enum_or_none(enum_cls, value):
@@ -229,7 +228,8 @@ def catalog_fill_covers(
     # que ser una sola operación.
     if reservar_lote():
         background_tasks.add_task(
-            enrich_missing_covers_en_segundo_plano, SessionLocal, ya_reservado=True
+            enrich_missing_covers_en_segundo_plano, SessionLocal,
+            ya_reservado=True, usuario_id=usuario.id,
         )
         msg = "Buscando portadas en segundo plano. Vuelve en un minuto y recarga para ver el resultado."
     else:
@@ -281,8 +281,16 @@ def search_external(
         source = {"libro": "googlebooks", "pelicula": "tmdb", "serie": "tmdb",
                   "videojuego": "rawg", "podcast": "itunes"}.get(tipo)
 
-    return templates.TemplateResponse(request, "search_results.html",
-                                      {"results": results, "tipo": tipo, "source": source, "idioma": idioma})
+    # Por qué no hay resultados, para no decir "escribe al menos 2
+    # caracteres" a quien ha escrito diez y lo que falta es la clave. [R3-B17]
+    clave_necesaria = {"pelicula": ("TMDB_API_KEY", settings.tmdb_api_key),
+                       "serie": ("TMDB_API_KEY", settings.tmdb_api_key),
+                       "videojuego": ("RAWG_API_KEY", settings.rawg_api_key)}.get(tipo)
+    return templates.TemplateResponse(request, "search_results.html", {
+        "results": results, "tipo": tipo, "source": source, "idioma": idioma,
+        "demasiado_corta": len(q.strip()) < 2,
+        "falta_clave": clave_necesaria[0] if clave_necesaria and not clave_necesaria[1] else None,
+    })
 
 
 @router.get("/sugerencia")
@@ -324,18 +332,28 @@ def add_item(
         usuario_id=usuario.id,
         media_type=media_type,
         title=title,
-        status=status,
         external_id=external_id or None,
         external_source=external_source or None,
         cover_url=safe_external_url(cover_url),
-        year=_parse_optional(year, int),
+        year=numeros.entero(year, numeros.AÑO),
         creator=creator or None,
         overview=overview,
         plataforma=plataforma.strip() or None,
-        page_count=_parse_optional(page_count, int),
+        page_count=numeros.entero(page_count, numeros.PAGINAS),
         release_date=_parse_optional(release_date, lambda v: date.fromisoformat(v[:10])),
-        completed_at=date.today() if status == MediaStatus.COMPLETADO else None,
+        status=MediaStatus.PENDIENTE,
     )
+    # Las fechas que van con el estado, por el mismo sitio que el formulario
+    # de edición y los botones de la ficha: dar de alta algo "en progreso" no
+    # fijaba la fecha de comienzo y no salía en el diario. [R3-M9]
+    metadata.cambiar_estado(item, status)
+
+    # Posible duplicado: mismo tipo, mismo título normalizado y año
+    # compatible, o el mismo id externo. Se avisa y se añade igualmente,
+    # porque puede ser a propósito (una relectura, otra edición). [R3-M15]
+    ya_estaba = imports_svc.Indice(db, media_type, usuario.id).buscar(
+        title, item.year, external_id=item.external_id, fuente=item.external_source)
+
     db.add(item)
     generos_svc.asignar(db, item, genres)
     db.commit()
@@ -355,6 +373,12 @@ def add_item(
     # Ya no se puede prometer un número de episodios: todavía no existen. Antes
     # decía "(24 episodios)"; decir "(0 episodios)" sería peor que no decirlo.
     extra = "; trayendo episodios…" if item.is_episodic and external_source else ""
+    if ya_estaba:
+        return redirect_flash(
+            "/item/%d" % item.id,
+            '"%s" añadido, pero ojo: ya tenías "%s"%s. Si es el mismo, borra uno de los dos.' % (
+                title, ya_estaba.title, " (%d)" % ya_estaba.year if ya_estaba.year else ""),
+            "info")
     return redirect_flash("/catalogo", '"%s" añadido a %s%s' % (title, destino, extra))
 
 
@@ -400,7 +424,10 @@ def item_detail(
         episodios.precalcular(db, related)
 
     all_lists = listas_de(db, usuario).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
-    item_lists = [lista for lista in all_lists if item in lista.items]
+    # Una consulta sobre la tabla de pertenencia, no `item in lista.items`,
+    # que cargaba cada lista entera: una SELECT por lista. [R3-M19]
+    en_listas = set(db.scalars(select(list_items.c.list_id).where(list_items.c.media_item_id == item.id)))
+    item_lists = [lista for lista in all_lists if lista.id in en_listas]
 
     return templates.TemplateResponse(request, "detail.html", {
         "item": item,
@@ -443,7 +470,7 @@ def update_item(
         return redirect_flash("/catalogo", "El ítem ya no existe", "error")
 
     item.title = title.strip() or item.title
-    item.year = _parse_optional(year, int)
+    item.year = numeros.entero(year, numeros.AÑO)
     item.creator = creator.strip() or None
     # safe_external_url y no strip() a secas: el campo es editable a mano y se
     # autorrellena desde seis APIs, y su valor acaba en el src de un <img>.
@@ -452,18 +479,17 @@ def update_item(
     item.plataforma = plataforma.strip() or None
     item.saga = saga.strip() or None
     item.priority = priority
-    item.runtime_minutes = _parse_optional(runtime_minutes, int)
-    item.page_count = _parse_optional(page_count, int)
-    item.hltb_hours = _parse_optional(hltb_hours, float)
-    if item.status != MediaStatus.COMPLETADO and status == MediaStatus.COMPLETADO and item.completed_at is None:
-        item.completed_at = date.today()  # primera vez que se marca completado
-    if status == MediaStatus.EN_PROGRESO:
-        metadata.marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
-    item.status = status
+    # Todo número del formulario pasa por `numeros`: "inf" o un año de treinta
+    # cifras dejaban la portada, el catálogo y las estadísticas en 500 de
+    # forma persistente. [R3-B1]
+    item.runtime_minutes = numeros.entero(runtime_minutes, numeros.MINUTOS)
+    item.page_count = numeros.entero(page_count, numeros.PAGINAS)
+    item.hltb_hours = numeros.decimal(hltb_hours, numeros.HORAS)
+    metadata.cambiar_estado(item, status)
     item.rating = _parse_rating(rating)
     item.notes = notes
-    item.progress_current = _parse_optional(progress_current, float)
-    item.progress_total = _parse_optional(progress_total, float)
+    item.progress_current = numeros.decimal(progress_current, numeros.PROGRESO)
+    item.progress_total = numeros.decimal(progress_total, numeros.PROGRESO)
     item.progress_unit = progress_unit.strip() or None
     item.updated_at = _utcnow()
 
@@ -487,6 +513,95 @@ def update_item(
     return redirect_flash("/item/%d" % item.id, '"%s" actualizado' % item.title)
 
 
+@router.post("/item/{item_id}/estado")
+def quick_status(
+    item_id: int,
+    status: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Cambiar solo el estado, de un clic desde la ficha.
+
+    Hasta ahora había que abrir el diálogo de edición entero -- veinte campos
+    -- para pasar algo de "por ver" a "visto", que es justo lo que más se hace.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    nuevo = _enum_or_none(MediaStatus, status)
+    if nuevo is None:
+        return redirect_flash("/item/%d" % item.id, "Estado no válido", "error")
+    if nuevo != item.status:
+        metadata.cambiar_estado(item, nuevo)
+        item.updated_at = _utcnow()
+        db.commit()
+    return redirect_flash("/item/%d" % item.id, "%s: %s" % (item.title, etiqueta_estado(item)))
+
+
+@router.post("/item/{item_id}/nota")
+def quick_rating(
+    item_id: int,
+    rating: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Poner (o quitar, con vacío) la nota desde las estrellas de la ficha.
+
+    Mismo saneado que el formulario completo: fuera de 1-10 queda sin nota.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    item.rating = _parse_rating(rating)
+    item.updated_at = _utcnow()
+    db.commit()
+    if item.rating:
+        mensaje = "Nota guardada: %s/5" % ("%g" % (item.rating / 2)).replace(".", ",")
+    else:
+        mensaje = "Nota quitada"
+    return redirect_flash("/item/%d" % item.id, mensaje)
+
+
+@router.post("/item/{item_id}/progreso")
+def quick_progress(
+    item_id: int,
+    valor: str = Form(""),
+    incremento: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Apuntar por dónde vas (página, %, horas) sin abrir el formulario.
+
+    `incremento` suma al valor actual (el botón "+1"); `valor` lo fija. Nunca
+    pasa del total, y no marca nada como terminado por llegar a él: acabar un
+    libro es una decisión, no una cuenta.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    paso = numeros.decimal(incremento)
+    fijo = numeros.decimal(valor)
+    if paso is not None:
+        nuevo = (item.progress_current or 0) + paso
+    elif fijo is not None:
+        nuevo = fijo
+    else:
+        return redirect_flash("/item/%d" % item.id, "Indica por dónde vas", "error")
+    # float() acepta "nan" e "inf", y un progreso infinito rompe la barra.
+    if not isfinite(nuevo):
+        return redirect_flash("/item/%d" % item.id, "Ese número no vale", "error")
+    nuevo = max(0.0, nuevo)
+    if item.progress_total:
+        nuevo = min(nuevo, item.progress_total)
+    item.progress_current = nuevo
+    # Avanzar en algo que estaba en la cola es empezarlo.
+    if nuevo > 0 and item.status in (MediaStatus.PENDIENTE, MediaStatus.WISHLIST):
+        metadata.cambiar_estado(item, MediaStatus.EN_PROGRESO)
+    item.updated_at = _utcnow()
+    db.commit()
+    return redirect_flash("/item/%d" % item.id, "Progreso guardado")
+
+
 @router.post("/item/{item_id}/eliminar")
 def delete_item(item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     item = item_de(db, usuario, item_id)
@@ -504,6 +619,10 @@ def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usua
         metadata.toggle_episode(item, ep)
         item.updated_at = _utcnow()
         db.commit()
+        # Con el ancla, el navegador vuelve al episodio que se acaba de marcar
+        # en vez de al principio de la ficha: con cinco temporadas abiertas,
+        # cada clic obligaba a bajar otra vez hasta donde ibas.
+        return redirect_flash("/item/%d#ep-%d" % (item_id, ep.id), "Episodio actualizado", "info")
     return redirect_flash("/item/%d" % item_id, "Episodio actualizado", "info")
 
 
@@ -520,13 +639,13 @@ def mark_through_episode(
         metadata.mark_through(item, ep)
         item.updated_at = _utcnow()
         db.commit()
-        return redirect_flash("/item/%d" % item_id, "Marcado hasta %s" % ep.code)
+        return redirect_flash("/item/%d#ep-%d" % (item_id, ep.id), "Marcado hasta %s" % ep.code)
     return redirect_flash("/item/%d" % item_id, "No se pudo marcar", "error")
 
 
 @router.get("/estadisticas")
 def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
-    year_now = date.today().year
+    year_now = fechas.hoy().year
 
     # TODAS las consultas de esta página acotan por cuenta. Los agregados son la
     # parte fácil de olvidar --no enseñan ningún título, así que un vistazo no
@@ -613,9 +732,10 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     # Colección por década (según el año del ítem). Lo agrega SQLite con un
     # GROUP BY, igual que las sumas de tiempo de más arriba: antes se traía una
     # fila por ítem del catálogo entero solo para contarlas en Python.
-    # La división entera de SQLite sobre enteros ya trunca, así que year/10*10
-    # da la década sin más.
-    decada = (MediaItem.year / 10 * 10).label("decada")
+    # `//` y no `/`: en SQLAlchemy 2, `/` entre enteros es división real (le
+    # añade un CAST a NUMERIC), así que 1999 salía como la "década" de 1999 y
+    # cada año formaba la suya. Los tests solo usaban 2020, que no lo delata.
+    decada = (MediaItem.year // 10 * 10).label("decada")
     por_decada = sorted(
         (int(d), n) for d, n in
         de_esta_cuenta(decada, func.count(MediaItem.id))

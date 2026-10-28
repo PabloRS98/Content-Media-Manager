@@ -2,5 +2,5 @@
 
 **Checklist**
 - [ ] Tested locally (`docker compose up -d --build`, exercised the changed flow)
-- [ ] Schema changes go through `ensure_columns()` in `app/database.py`, not a breaking migration
+- [ ] Schema changes come with an Alembic migration and `alembic check` is clean (see CONTRIBUTING)
 - [ ] No new required (non-optional) config or paid API

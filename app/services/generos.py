@@ -127,12 +127,19 @@ def con_cuantos_items(db: Session, usuario) -> list[tuple[Genero, int]]:
     )
 
 
-def renombrar(db: Session, genero: Genero, nombre_nuevo: str) -> str | None:
-    """Renombra, y si el nombre ya existe FUSIONA los dos.
+def renombrar(db: Session, genero: Genero, nombre_nuevo: str, usuario_id: int) -> str | None:
+    """Renombra el género EN LOS ÍTEMS DE ESA CUENTA, y si el nombre ya existe
+    los FUSIONA.
 
     Fusionar es el caso de verdad: "Sci-Fi" y "Ciencia ficción" ya están los dos
     en la base, y lo que uno quiere es que pasen a ser uno solo. Fallar con "ya
     existe" dejaría el problema exactamente donde estaba.
+
+    La fila de `generos` es vocabulario compartido entre cuentas, así que no se
+    toca: se pasan solo los ítems de esta cuenta a la fila del nombre nuevo
+    (creándola si falta), y la vieja se borra si se queda sin nadie. Antes se
+    cambiaba la fila, y renombrar "Drama" en una cuenta lo cambiaba en el
+    catálogo de todas. [R3-A2]
 
     Devuelve un mensaje de error, o None si fue bien.
     """
@@ -144,14 +151,13 @@ def renombrar(db: Session, genero: Genero, nombre_nuevo: str) -> str | None:
 
     destino = db.query(Genero).filter(Genero.nombre == nombre_nuevo).first()
     if destino is None:
-        genero.nombre = nombre_nuevo
-        db.commit()
-        return None
+        destino = Genero(nombre=nombre_nuevo)
+        db.add(destino)
 
-    for item in list(genero.items):
+    for item in [i for i in genero.items if i.usuario_id == usuario_id]:
         if destino not in item.generos:
             item.generos.append(destino)
         item.generos.remove(genero)
-    db.delete(genero)
     db.commit()
+    borrar_huerfanos(db)
     return None

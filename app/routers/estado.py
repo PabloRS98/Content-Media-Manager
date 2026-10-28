@@ -11,17 +11,22 @@ detrás de la misma autenticación que el resto, pero un panel de estado es
 justo lo que uno acaba enseñando en una captura para pedir ayuda.
 """
 import os
+import tempfile
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from starlette.background import BackgroundTask
 
+from .. import fechas
 from ..auth import verify_auth
 from ..config import settings
 from ..cuentas import items_de, usuario_actual
 from ..database import get_db, revision_pendiente
+from ..flash import redirect_flash
 from ..models import TIPOS_EPISODICOS, Episode, MediaItem, Usuario
 from ..services import telegram
-from ..services.scheduler import JOB_STATUS
+from ..services.scheduler import JOB_STATUS, backup_database
 from ..templating import templates
 
 router = APIRouter(tags=["estado"], dependencies=[Depends(verify_auth)])
@@ -126,7 +131,36 @@ def estado(request: Request, db: Session = Depends(get_db),
         "telegram_configurado": telegram.is_configured(),
         "autenticacion": settings.enable_auth,
         "backup": _ultimo_backup(),
+        "puede_descargar_backup": _puede_descargar_backup(db),
         "huecos": _huecos_en_los_datos(db, usuario),
         "revision_actual": revision_actual,
         "revision_head": revision_head,
     })
+
+
+def _puede_descargar_backup(db: Session) -> bool:
+    """La base entera lleva las cuentas de todos, con sus hashes de contraseña.
+
+    Se ofrece si hay una sola cuenta (es toda tuya) o si la app va detrás de
+    la autenticación básica (quien la pasa es quien administra el servidor).
+    Con varias cuentas y sin ella, cada persona se lleva lo suyo desde sus
+    ajustes y el fichero completo se copia del volumen. [R3-M21]
+    """
+    return settings.enable_auth or db.query(Usuario).count() <= 1
+
+
+@router.get("/estado/backup")
+def descargar_backup(db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
+    """Una copia recién hecha de la base, para guardarla donde quieras."""
+    if not _puede_descargar_backup(db):
+        return redirect_flash(
+            "/estado", "Con varias cuentas, la base completa solo se descarga con la "
+            "autenticación activada. Tus datos los tienes en Tu cuenta → Tus datos.", "error")
+    fd, ruta = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    backup_database(ruta)
+    return FileResponse(
+        ruta, media_type="application/vnd.sqlite3",
+        filename="media-%s.db" % fechas.hoy().strftime("%Y%m%d"),
+        background=BackgroundTask(os.remove, ruta),
+    )

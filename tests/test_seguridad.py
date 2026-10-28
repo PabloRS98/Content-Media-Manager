@@ -64,7 +64,9 @@ class TestProteccionCSRF:
         assert r.status_code == 200
 
     @pytest.mark.parametrize("sec_fetch_site,esperado", [
-        ("cross-site", True), ("same-origin", False), ("same-site", False), ("none", False),
+        ("cross-site", True), ("same-origin", False), ("none", False),
+        # Sin `Origin` ni `Referer` que lo respalden, "same-site" falla cerrado. [R3-M1]
+        ("same-site", True),
     ])
     def test_funcion_de_deteccion_directamente(self, sec_fetch_site, esperado):
         class PeticionFalsa:

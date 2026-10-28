@@ -26,8 +26,8 @@ def lote_espia(monkeypatch):
     """Sustituye el trabajo real del lote y cuenta cuántas veces se lanza."""
     llamadas = []
 
-    def _falso(db):
-        llamadas.append(1)
+    def _falso(db, usuario_id=None):
+        llamadas.append(usuario_id)
         return {"procesados": 3, "encontrados": 2, "restantes": 1}
 
     monkeypatch.setattr(enrich, "enrich_missing_covers", _falso)

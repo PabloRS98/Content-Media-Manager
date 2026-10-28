@@ -5,10 +5,225 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-Second technical audit (August 2026). Findings are tracked by id (`MC-*`);
-each entry below names the id it closes.
+## [1.1.0] — 2026-10-28
+
+The redesign plus the second and third technical audits. Findings are
+tracked by id (`MC-*` for the second audit, `R3-*` for the third, see
+[docs/AUDITORIA-3.md](docs/AUDITORIA-3.md)); each entry below names the id
+it closes.
+
+### Upgrade notes
+
+- **Back up `/data` before upgrading.** Several migrations run on the first
+  start and reshape existing data: genres move to their own table, IMDb ids
+  become `imdb:tt…`, and `usuario_id` becomes a real foreign key. They run
+  unattended (container entrypoint or `init_db()`); pin `:1.0.0` if you are
+  not ready.
+- SQLite foreign keys are now enforced (`PRAGMA foreign_keys=ON`).
+- Open sessions stay valid. The cookie now expires after 90 days; behind an
+  HTTPS reverse proxy you can set `SECURE_COOKIES=true`.
+- Dates ("watched on", "finished on", the diary, the calendar) now follow
+  `TIMEZONE`. Set it to your zone (e.g. `Europe/Madrid`) if it is still `UTC`.
+- Running outside Docker: install with
+  `pip install --require-hashes -r requirements.txt` (dependencies are now
+  locked with hashes).
 
 ### Added
+
+- **Redesign: a refined "vintage archive".** Same identity — ebony and aged
+  paper, brass accent, editorial serif for titles — but the cover is now the
+  star. Navigation moves to a **sidebar** grouped into Library / Organise /
+  Tools, with a search box (`/` focuses it); on phones it becomes a **bottom
+  tab bar** with four destinations and a "More" sheet. The old top bar had
+  eleven links that no longer fit at 1280 px (the theme button was cut off)
+  and scrolled sideways on a phone. Catalog cards are **posters**: no frame,
+  status stamp and rating over the cover, title and progress below. Each media
+  type gets a muted **colour of its own** (ochre, garnet, petrol, olive, plum)
+  used in icons, charts and accents. The item page has a **cinematic header**
+  with the cover blurred behind it. Ratings are shown as **stars** (half
+  stars; still stored 1-10, so imports and stats are unchanged). The home page
+  greets you by name and leads with a "Continue" block with big progress bars.
+  Lists show a fan of their covers. Import is a grid of sources with
+  **drag-and-drop** for the CSV. Subtle entry animations and page transitions,
+  all disabled under `prefers-reduced-motion`.
+- **One-click actions on the item page.** Change status (Por ver / Viendo /
+  Visto…) with one click, rate by clicking the stars, and log progress
+  (`+1`, `+10`, or a value) — before, all three meant opening a twenty-field
+  dialog. They share the date rules of the full form (`metadata.cambiar_estado`),
+  so the diary sees the same thing whichever way you go. Advancing something
+  pending starts it; reaching the total does not finish it — that is your call.
+- **Keyboard shortcuts.** `/` search, `n` add, `e` edit, `t` theme, `g` then a
+  letter to jump (`g i` home, `g l` books, `g e` stats…), `?` for the list.
+- Marking an episode now returns you **to that episode** (`#ep-N`) instead of
+  the top of a page with five seasons open.
+
+### Changed
+
+- **Third audit, seventh batch — sessions, network, dates, frontend and
+  supply chain (closes the audit):**
+  - **[R3-M4]** "Sign out everywhere else" in account settings; changing the
+    password does it too (`sesion_version` in the cookie). The session cookie
+    expires after 90 days and can be marked `Secure` with `SECURE_COOKIES`.
+  - **[R3-M6]** Podcast feeds: only globally routable addresses (Tailscale's
+    `100.64/10` and IPv4-mapped IPv6 were let through), and redirects are
+    followed by hand, re-checking every hop. **[R3-B26]** Feeds that declare
+    a `DOCTYPE`/`ENTITY` or exceed 5 MB are rejected.
+  - **[R3-M11]** "Today" is computed in `TIMEZONE` everywhere (`fechas.hoy()`):
+    an episode watched at 00:30 in Madrid was stored with yesterday's date.
+  - **[R3-M10]** The diary shows a book started in March and finished in
+    April under March too. **[R3-M18]** Things you finished and rated 4 or
+    less no longer drive "because you liked…" recommendations.
+  - **[R3-M19]** The item page and `/calendario` no longer run one query per
+    list / per series. **[R3-B3]** A search with a thousand words no longer
+    crashes SQLite. **[R3-B17]** External search says whether the query is
+    too short or the API key is missing. Stats by decade grouped 1999 apart
+    from 1990 (`/` instead of `//`).
+  - **Frontend [R3-M26..M30, R3-B6, B7, B27..B34]:** CSP without inline
+    scripts, `no-store` on HTML and a `Permissions-Policy`; PNG app icons;
+    visible focus on carousel arrows, 44 px touch targets, `aria-live` on
+    HTMX regions, one live region for toasts, contrast fixes for form
+    borders and avatars, a print stylesheet, data tables behind every chart
+    and a consistent heading hierarchy.
+  - **Supply chain [R3-M25, R3-B18..B25]:** dependencies locked with hashes
+    from `requirements*.in` and installed with `--require-hashes` in CI and
+    the image; base image pinned by digest; Dependabot also for Docker; one
+    healthcheck; CI enforces 80 % coverage; every migration is tested
+    downgrading as well as upgrading.
+- **Third audit, sixth batch — your data, integrity and covers:**
+  - **[R3-M21]** Export your account from its settings: JSON with everything
+    (episodes, genres, tags, lists) or CSV for a spreadsheet. **Delete an
+    account** with its whole catalog (type its name, and its password if it
+    has one). `/estado` downloads a fresh copy of the database when there is
+    one account or Basic auth is on (the file holds every account's password
+    hashes, so it is not offered otherwise).
+  - **[R3-B9]** SQLite foreign keys are enforced (`PRAGMA foreign_keys=ON`),
+    and `usuario_id` is now a real foreign key with `ON DELETE CASCADE` — the
+    accounts migration had added the column without it, so migrated databases
+    and fresh ones differed. `alembic check` is clean.
+  - **[R3-A4]** "Fill in covers" no longer gets stuck on the same 30 items:
+    items searched without luck go to the back of the queue
+    (`cover_checked_at`). **[R3-B14]** An item whose search failed because an
+    API errored (quota, timeout) is not counted as searched.
+  - **[R3-B15]** The daily backup is written to a temporary file, checked with
+    `integrity_check` and only then swapped in: a failure halfway no longer
+    destroys the good one. **[R3-B5]** Backups are `chmod 600`.
+  - **[R3-B10]** Indexes on the second column of each bridge table: filtering
+    by genre or tag was a full scan.
+- **Third audit, fifth batch — importers:**
+  - **[R3-M14]** Duplicates are matched on normalised title (accents, case and
+    punctuation ignored) **and year**: "Dune" (1984) and "Dune" (2021) are no
+    longer merged. Books also compare the author.
+  - **[R3-M15]** IMDb ids have one form, `imdb:tt…` (a data migration fixes
+    the ones Trakt stored bare), so IMDb and Trakt recognise the same film and
+    Trakt imports get covers. `/agregar` warns when what you add looks like
+    something you already have (it still adds it).
+  - **[R3-M16]** A duplicate **completes** the existing item instead of being
+    dropped: missing rating, year, finish date… are filled in and the status
+    only moves forward (never back, and "abandoned" is left alone). Importing
+    Letterboxd's `ratings.csv` after `watched.csv` used to bring zero ratings.
+    Re-importing Steam updates the hours played. The result page counts them.
+  - **[R3-M17]** StoryGraph date ranges (`2022/01/05-2022/02/10`) give start
+    and finish dates (it stored 1 January); a Goodreads "read" book without
+    a date falls back to "Date Added" instead of being invisible in stats.
+  - **[R3-B12]** Letterboxd: "Watched Date" wins over "Date" (the day the diary
+    entry was written).
+  - **[R3-B13]** CSVs saved by Excel with `;` are read.
+  - **[R3-B1] [R3-B2]** One number parser (`app/numeros.py`) for forms and
+    CSVs: finite and within a sane range, or empty. `inf` or a 30-digit year
+    in a crafted POST left the home page, catalog, item page and stats
+    returning 500 until the database was edited by hand. A CSV field over
+    128 KB is reported instead of a 500, and nothing is imported.
+  - **[R3-M20]** Imports run in the threadpool: a 5 000-row CSV used to block
+    the event loop and freeze the app for every tab and account.
+  - **[R3-M9]** Adding something "in progress" sets its start date.
+  - **[R3-B16]** The IMDb importer moved to `services/imports.py` and shares
+    its column reader and date parser (there were two diverging copies).
+- **Third audit, fourth batch — CI and releases:**
+  - **[R3-A5]** The Docker image is published only after the **whole** CI
+    passes. Publishing lived in its own workflow, gated by a copy of the
+    tests alone, so a push to `main` published `latest` with `pip-audit`, the
+    hardened-image smoke test or the 1.0.0 migration in red. It is now the
+    last job of `ci.yml` (`docker-publish.yml` is gone).
+  - **[R3-M22]** Release process in `CONTRIBUTING.md`. Pushing a `vX.Y.Z` tag
+    runs the full CI and publishes `:X.Y.Z` and `:X.Y`, which never move;
+    `latest` still follows `main`.
+  - **[R3-M23]** Every action is pinned to a commit SHA (version in a
+    comment, kept up to date by Dependabot), and the workflow token is
+    `contents: read` except in the publish job.
+  - **[R3-M24]** `CONTRIBUTING.md` said to change the schema with
+    `ensure_columns()`; it is Alembic since MC-M4, and the guide now explains
+    how to write and check a migration.
+- **Third audit, third batch — following series and podcasts:**
+  - **[R3-A3]** A series you are up to date with no longer goes silent.
+    Watching the last aired episode marks it completed, and the daily job
+    skipped completed series, so the next episode or season never arrived:
+    no episode, no Telegram alert, nothing in "Coming up". Completed TMDB
+    series are refreshed too, and one with an episode aired *after* you
+    completed it goes back to "in progress". Announced-but-unaired episodes
+    don't reopen it, but they do show in "Coming up".
+  - **[R3-M12]** Episodes already stored get TMDB's later updates: air date,
+    name, synopsis, runtime. An episode announced without a date never made
+    it to the calendar or the alerts. A date pushed into the future makes the
+    alert pending again.
+  - **[R3-M13]** Podcasts are refreshed daily from their RSS feed (no TMDB key
+    needed). Episodes are recognised by name and date instead of their
+    position in the feed, which shifted every number by one with each new
+    episode.
+  - **[R3-B11]** Telegram: one message per series ("8 new episodes", listing
+    five and "and 3 more") instead of one per episode; episodes already watched
+    are not announced; with several accounts, each alert says whose series it
+    is; a `429` waits the `retry_after` Telegram asks for (up to 30 s) and
+    retries once. Episodes that turn up in a refresh having aired in the last
+    week are announced — before, an episode added the day it aired never was.
+- **Third audit, second batch — isolation and access:**
+  - **[R3-A2]** Renaming or merging a genre only changes *your* items. The
+    genre row is shared vocabulary, and renaming it changed every account's
+    catalog.
+  - **[R3-M1]** CSRF: `Sec-Fetch-Site: same-site` is no longer enough on its own.
+    "Site" ignores the port, so another app on the same server (`host:8003`)
+    passed even with a foreign `Origin`; now `Origin`/`Referer` decide.
+  - **[R3-M2]** The `Host` header is validated against DNS rebinding, which got
+    past both CSRF and the 127.0.0.1 bind and could open a password-less
+    account and read the catalog. IPs, single-word names, private TLDs
+    (`.local`, `.lan`, `.home.arpa`, `.internal`…) and `*.ts.net` work with no
+    setup. **A public domain of your own (reverse proxy) must be added to the
+    new `ALLOWED_HOSTS`**; the 400 page says so.
+  - **[R3-M3]** Brute-force brake on account passwords and HTTP Basic: five
+    free failures, then a doubling wait (up to 15 min) per IP and account,
+    during which scrypt isn't even run. New passwords need 8 characters
+    (existing shorter ones keep working).
+- **Third audit, first batch** (see `docs/AUDITORIA-3.md`):
+  - **[R3-A1]** API keys (TMDB, RAWG, Google Books, Steam) and the Telegram
+    token were written to the log on every *successful* request: `httpx` logs
+    the full URL at INFO and the root logger was at INFO. Earlier fixes only
+    covered the error path. `httpx`/`httpcore` now log at WARNING.
+  - **[R3-M7]** Leaving "completed" now clears `completed_at`. A "Visto" pressed
+    by mistake and undone kept counting in stats, best-of-the-year, home and
+    the diary. (Introduced by the redesign's one-click status buttons.)
+  - **[R3-M8]** Marking a series or podcast as completed marks its aired
+    episodes as watched (without a date, so the diary isn't flooded today).
+    Before, it stayed "completed" with 0/N watched.
+  - **[R3-M5]** The two cover-batch endpoints under `/importar` answered without
+    an open account and processed every account's catalog, renaming other
+    people's titles. They now require an account and only touch its items.
+  - **[R3-B4]** `/docs`, `/redoc` and `/openapi.json` are off: they published
+    the route map without an account and outside HTTP Basic.
+  - **[R3-B8]** `/actividad?mes=0001-01` and `?mes=9999-12` returned 500.
+  - **[R3-A6]** Light theme: tertiary text, warning, positive and the rating
+    number now pass WCAG AA (4.5:1) on every paper background; they were
+    2.9-3.7:1. A test reads the tokens from `style.css` so a palette change
+    that breaks it fails CI.
+- Static files are served with a **content hash** in their URL
+  (`style.css?v=…`) and cached for a year as `immutable`; unversioned requests
+  are revalidated. Before, every page revalidated every asset, and after an
+  update some browsers kept the old CSS with the new HTML.
+- The podcast icon in the navigation was missing from the icon set and showed
+  the generic alert icon instead.
+- Searching inside the catalog kept every active filter except "Dónde": it now
+  keeps that one too.
+- About 150 lines of CSS and 16 icons inherited from the sister apps
+  (budgets, voice input, CI dots, git icons) and never used here are gone;
+  nine classes used by templates but never styled now are.
 
 - **Accounts.** More than one person lives in the house, and until now they all
   shared one catalog: your partner's half-finished series sat in your "in

@@ -7,7 +7,6 @@ from datetime import date
 import pytest
 
 from app.models import MediaItem, MediaType
-from app.routers.imdb_import import _get as imdb_get, _parse_date as imdb_parse_date, _parse_optional_int
 from app.services.enrich import _pick_match
 from app.services.imports import _get, _int, _parse_date, _rating5_to_10
 from app.services.itunes import _duration_minutes
@@ -57,10 +56,11 @@ class TestFechas:
         assert _parse_date("marzo de 2024") is None
         assert _parse_date("") is None
 
-    def test_el_parser_de_imdb_acepta_sus_formatos(self):
-        assert imdb_parse_date("2024-03-15").date() == date(2024, 3, 15)
-        assert imdb_parse_date("15-03-2024").date() == date(2024, 3, 15)
-        assert imdb_parse_date("basura") is None
+    def test_acepta_tambien_los_formatos_de_imdb(self):
+        """Había un segundo parser para IMDb; ahora es el mismo. [R3-B16]"""
+        assert _parse_date("2024-03-15") == date(2024, 3, 15)
+        assert _parse_date("15-03-2024") == date(2024, 3, 15)
+        assert _parse_date("basura") is None
 
 
 class TestEnteros:
@@ -69,7 +69,6 @@ class TestEnteros:
     ])
     def test_tolera_decimales_y_basura(self, entrada, esperado):
         assert _int(entrada) == esperado
-        assert _parse_optional_int(entrada) == esperado
 
 
 class TestDuracionDePodcast:
@@ -170,7 +169,7 @@ class TestSeleccionDeCoincidencia:
 
 class TestLecturaDeColumnasIMDb:
     def test_encuentra_la_columna_ignorando_mayusculas(self):
-        assert imdb_get({"Title Type": "movie"}, "title type") == "movie"
+        assert _get({"Title Type": "movie"}, "title type") == "movie"
 
     def test_devuelve_cadena_vacia_si_falta(self):
-        assert imdb_get({"Otra": "x"}, "Title") == ""
+        assert _get({"Otra": "x"}, "Title") == ""

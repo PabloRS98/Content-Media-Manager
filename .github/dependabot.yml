@@ -30,3 +30,13 @@ updates:
       interval: monthly
     commit-message:
       prefix: "Actualizar"
+
+  # La imagen base (python:3.12-slim) va fijada por digest en el Dockerfile
+  # [R3-B18]: sin esto el digest se queda congelado igual que lo estaban las
+  # dependencias, y nadie se entera de los parches de seguridad de Debian/Python.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "Actualizar"

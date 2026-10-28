@@ -3,20 +3,32 @@
 {% block title %}Listas · Catálogo{% endblock %}
 {% block content %}
 
-<section class="card">
-    <h3>{{ icon("list") }} Mis listas</h3>
-    <form method="post" action="/listas" class="toolbar">
-        <input type="text" name="name" placeholder="Nombre de la lista (p. ej. 'Para ver con pareja')..." class="grow" required>
+{# Mosaico en abanico con hasta cuatro portadas; sin ninguna, el icono. #}
+{% macro mosaico(portadas, ico) -%}
+<div class="mosaic" aria-hidden="true">
+    {% for url in portadas[:4] %}<img src="{{ url }}" alt="" loading="lazy" decoding="async">{% else %}{{ icon(ico, 30) }}{% endfor %}
+</div>
+{%- endmacro %}
+
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("list", 13) }} Organizar</span>
+        <h1>Listas</h1>
+        <p class="lead">Colecciones a tu medida, y cuatro vistas que se ordenan solas.</p>
+    </div>
+    <form method="post" action="/listas" class="toolbar inline-create">
+        <input type="text" name="name" placeholder="Nueva lista: «Para ver en pareja»…" required maxlength="100" style="min-width:16rem" aria-label="Nombre de la lista nueva">
         <button type="submit">{{ icon("plus", 14) }} Crear</button>
     </form>
-</section>
+</header>
 
 {% if dinamicas %}
 <section class="card">
-    <h3>{{ icon("refresh-cw") }} Vistas automáticas</h3>
-    <div class="grid-summary">
+    <h2>{{ icon("refresh-cw") }} Vistas automáticas</h2>
+    <div class="list-tiles">
         {% for d in dinamicas %}
-        <a href="/listas/{{ d.lista.id }}" class="card list-tile">
+        <a href="/listas/{{ d.lista.id }}" class="list-tile">
+            {{ mosaico(d.portadas, "refresh-cw") }}
             <strong>{{ d.lista.name }}</strong>
             <span class="subtle">{{ d.total }} ítem{{ "s" if d.total != 1 else "" }}</span>
         </a>
@@ -25,20 +37,21 @@
 </section>
 {% endif %}
 
-{% if listas %}
 <section class="card">
-    <h3>{{ icon("list") }} Tus listas</h3>
-    <div class="grid-summary">
+    <h2>{{ icon("list") }} Tus listas</h2>
+    {% if listas %}
+    <div class="list-tiles">
         {% for l in listas %}
-        <a href="/listas/{{ l.id }}" class="card list-tile">
+        <a href="/listas/{{ l.id }}" class="list-tile">
+            {{ mosaico(l.items | selectattr("cover_url") | map(attribute="cover_url") | list, "list") }}
             <strong>{{ l.name }}</strong>
             <span class="subtle">{{ l.items|length }} ítem{{ "s" if l.items|length != 1 else "" }}</span>
         </a>
         {% endfor %}
     </div>
+    {% else %}
+    <div class="empty">{{ icon("list", 28) }} Aún no tienes listas propias. Crea una arriba y añade ítems desde su ficha.</div>
+    {% endif %}
 </section>
-{% else %}
-<section class="card"><div class="empty">{{ icon("list", 30) }} Aún no tienes listas propias. Crea una arriba y añade ítems desde su ficha.</div></section>
-{% endif %}
 
 {% endblock %}

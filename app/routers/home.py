@@ -1,11 +1,11 @@
 """Pantalla de inicio estilo Trakt/Ryot: continuar, próximos por prioridad,
 wishlist, actividad reciente, próximamente (estrenos) y sugerencia."""
-from datetime import date
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
+from .. import fechas
 from ..auth import verify_auth
 from ..cuentas import items_de, listas_de, usuario_actual
 from ..database import get_db
@@ -37,6 +37,11 @@ _ORDEN_PRIORIDAD = case(
     else_=1,
 )
 _FOLLOWING = (MediaStatus.EN_PROGRESO, MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
+# En "Próximamente" cuentan también las completadas: terminar la temporada 1 no
+# es dejar de seguir la serie, y la fecha de la 2 es justo lo que se quiere ver.
+# Solo salen episodios futuros, así que una serie terminada hace años no
+# aparece. [R3-A3]
+_CON_ESTRENOS = (*_FOLLOWING, MediaStatus.COMPLETADO)
 
 
 def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[dict]:
@@ -52,18 +57,20 @@ def _upcoming(db: Session, usuario: Usuario, limit: int | None = None) -> list[d
     Sin `limit` (que es como lo llama `/calendario`) sigue trayéndolo todo: esa
     vista lo necesita, y recortarla ahí sería perder entradas en silencio.
     """
-    hoy = date.today()
+    hoy = fechas.hoy()
     entradas: list[dict] = []
 
     eps = (
-        db.query(Episode).join(MediaItem)
+        # contains_eager: la serie ya viene en el JOIN; sin él, `ep.item` era
+        # una SELECT por serie distinta en /calendario. [R3-M19]
+        db.query(Episode).join(MediaItem).options(contains_eager(Episode.item))
         .filter(
             Episode.air_date.isnot(None), Episode.air_date >= hoy,
             # TMDB usa la temporada 0 para especiales/recaps, que a menudo se
             # "estrenan" el mismo día que el episodio real y lo duplican aquí.
             Episode.season_number != 0,
             MediaItem.media_type.in_(TIPOS_EPISODICOS),
-            MediaItem.status.in_(_FOLLOWING),
+            MediaItem.status.in_(_CON_ESTRENOS),
             MediaItem.usuario_id == usuario.id,
         )
         .order_by(Episode.air_date)
@@ -202,7 +209,7 @@ def diario(
         "mes_siguiente": actividad.mes_siguiente(hasta),
         # No se ofrece ir hacia delante del mes en curso ni hacia atrás de la
         # primera cosa que hiciste: son enlaces a páginas vacías garantizadas.
-        "hay_siguiente": hasta < date.today(),
+        "hay_siguiente": hasta < fechas.hoy(),
         "hay_anterior": actividad.hay_algo_antes(db, usuario, desde),
     })
 

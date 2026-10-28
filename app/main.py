@@ -23,6 +23,7 @@ from .database import (
     revision_pendiente,
 )
 from .errores import SinCuenta
+from .hosts import HostPermitidoMiddleware
 from .models import Usuario
 from .routers import (
     catalog,
@@ -35,6 +36,12 @@ from .routers import (
 )
 
 logging.basicConfig(level=logging.INFO)
+# httpx escribe en INFO la URL completa de cada petición que sale bien, y
+# TMDB, RAWG, Google Books y Steam llevan la clave en la query (y Telegram el
+# token en la ruta): con el root en INFO, cada búsqueda dejaba la clave en
+# `docker logs`. A3/MC-C3 cerraron solo la ruta de error. [R3-A1]
+for _ruidoso in ("httpx", "httpcore"):
+    logging.getLogger(_ruidoso).setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 _GENRE_NOTES_RE = re.compile(r"Genero:\s*([^.]+)\.")
@@ -190,9 +197,18 @@ async def lifespan(app: FastAPI):
         app.state.scheduler.shutdown(wait=False)
 
 
-app = FastAPI(title="Catálogo de Medios", lifespan=lifespan)
+# Sin /docs, /redoc ni /openapi.json: publicaban el mapa entero de rutas sin
+# pedir cuenta, y fuera de HTTP Basic (que va por router, no en la app). La
+# app no tiene API para terceros; nadie los usa. [R3-B4]
+app = FastAPI(
+    title="Catálogo de Medios", lifespan=lifespan,
+    docs_url=None, redoc_url=None, openapi_url=None,
+)
 
 app.add_middleware(CSRFProtectionMiddleware)
+# Por fuera del CSRF: con DNS rebinding el `Origin` coincide con el `Host` (los
+# dos son del atacante), así que el CSRF lo daría por bueno. [R3-M2]
+app.add_middleware(HostPermitidoMiddleware)
 
 
 
@@ -236,9 +252,39 @@ async def cabeceras_de_seguridad(request: Request, call_next):
         # impide embeber la app (que aquí pesa más que en las apps hermanas,
         # porque la protección CSRF de este proyecto falla abierta -- MC-A6).
         "default-src 'self'; img-src 'self' data: https:; "
-        "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
+        # script-src sin 'unsafe-inline': todo el JS vive en /static/js y los datos
+        # de las gráficas van en un <script type="application/json">, que el
+        # navegador no ejecuta. Un XSS que inyectara un <script> en línea ya no
+        # correría. style-src SÍ conserva 'unsafe-inline' a propósito: las
+        # plantillas pintan colores y tamaños con atributos `style="..."` (el
+        # tono del avatar, el ancho de las barras de progreso, las estrellas), y
+        # inyectar CSS es un riesgo mucho menor que inyectar JS. [R3-B6]
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; "
         "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     )
+    # Nada de lo que la app sirve en HTML debe quedar en la caché del navegador
+    # ni de un proxy: son páginas de una cuenta concreta, y con el botón "atrás"
+    # de un navegador compartido se verían tras cerrar la sesión. Se excluye
+    # /static (que tiene su propia política justo debajo) y todo lo que no sea
+    # HTML, como el JSON de /salud. [R3-B7]
+    if not request.url.path.startswith("/static/") and response.headers.get(
+        "content-type", ""
+    ).startswith("text/html"):
+        response.headers.setdefault("Cache-Control", "no-store")
+    # La app no usa cámara, micrófono ni geolocalización: se le niegan al
+    # propio documento y a cualquier iframe, por si un día se cuela un script.
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+    )
+    # Los estáticos pedidos con huella (`static_url` en templating.py) no
+    # cambian nunca bajo esa URL: se cachean un año sin revalidar. Los que
+    # llegan sin ella (un enlace viejo, el manifest) se revalidan siempre.
+    if request.url.path.startswith("/static/") and response.status_code == 200:
+        if request.query_params.get("v"):
+            response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 # SessionMiddleware va el ÚLTIMO a propósito. En Starlette el último
@@ -246,16 +292,20 @@ async def cabeceras_de_seguridad(request: Request, call_next):
 # `request.session`: si se registrara antes, quedaría por dentro y
 # reventarían con "SessionMiddleware must be installed".
 # La sesión guarda qué cuenta está abierta, firmada con una clave que se genera
-# sola la primera vez (ver `cuentas.secreto_de_sesion`). `https_only=False`
-# porque esto se sirve casi siempre por HTTP en la red de casa; con un proxy
-# inverso con TLS delante, la cookie viaja igual dentro del túnel.
+# sola la primera vez (ver `cuentas.secreto_de_sesion`). `https_only` va por
+# SECURE_COOKIES: apagado por defecto, porque esto se sirve casi siempre por
+# HTTP en la red de casa.
+#
+# 90 días y no un año: lo justo para no pedir la cuenta cada semana en la tele
+# de casa. Lo que de verdad corta una sesión robada es `sesion_version`
+# (cambiar la contraseña o "cerrar en todos los dispositivos"). [R3-M4]
 app.add_middleware(
     SessionMiddleware,
     secret_key=secreto_de_sesion(),
     session_cookie="media_catalog_sesion",
     same_site="lax",
-    https_only=False,
-    max_age=60 * 60 * 24 * 365,  # un año: es la tele de casa, no un banco
+    https_only=settings.secure_cookies,
+    max_age=60 * 60 * 24 * 90,
 )
 
 

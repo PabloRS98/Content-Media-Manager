@@ -1,10 +1,12 @@
-"""Fallos ya diagnosticados y todavía sin arreglar.
+"""Regresiones de fallos que estuvieron diagnosticados y ya están arreglados.
 
-Cada test describe el comportamiento CORRECTO y va marcado con `xfail(strict=True)`.
-Es decir: hoy fallan a propósito y el CI sigue en verde, pero en cuanto se
-arregle el fallo el test pasará y `strict` hará fallar la construcción, obligando
-a quitar la marca. Así la lista no se queda mintiendo: no se puede arreglar algo
-y olvidarse de este fichero.
+Cada test describe el comportamiento CORRECTO y pasa: antes iban marcados con
+`xfail(strict=True)`, y al arreglarse cada fallo se quitó la marca (así lo
+obligaba `strict`). Ya no queda ningún xfail en la suite. Se conservan aquí, y
+con la marca `fallo_conocido` para poder lanzarlos juntos
+(`pytest -m fallo_conocido`), porque cada uno protege un fallo que ya se
+produjo una vez. Si aparece un fallo nuevo aún sin arreglar, se añade aquí
+con `@pytest.mark.xfail(strict=True)`.
 
 Las referencias (A1, M2...) son las de `docs/AUDITORIA.md`.
 """
@@ -92,9 +94,9 @@ def test_el_filtro_de_genero_trata_el_porcentaje_como_texto(client, crear_item):
 
 
 def test_el_lector_de_columnas_de_imdb_se_salta_las_vacias():
-    """Un CSV bilingüe trae 'Title' y 'Título'. La versión de
-    `services/imports.py` sí lo hace bien: son dos copias divergentes."""
-    from app.routers.imdb_import import _get
+    """Un CSV bilingüe trae 'Title' y 'Título'. Había dos copias divergentes
+    del lector; ahora solo queda la de `services/imports.py`. [R3-B16]"""
+    from app.services.imports import _get
 
     assert _get({"Title": "", "Título": "Duna"}, "Title", "Título") == "Duna"
 

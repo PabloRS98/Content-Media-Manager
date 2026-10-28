@@ -1,36 +1,45 @@
-{# Macro: tarjeta de portada que enlaza a la ficha de detalle. Usada en inicio y catálogo. #}
+{# Macro: tarjeta de portada que enlaza a la ficha de detalle. Usada en inicio,
+   catálogo, listas y sagas. La portada manda: estado, prioridad y nota van
+   encima de ella; título, año y progreso, debajo. #}
 {% from "_icons.html" import icon %}
 {% from "_media_icon.html" import media_icon %}
 {% from "_stars.html" import stars %}
 
 {% macro media_card(item) %}
 {%- set st = item.episode_stats() if item.is_episodic else None %}
-<a href="/item/{{ item.id }}" class="card media-card">
-    <div class="cover{% if item.media_type.value == 'podcast' %} podcast{% endif %}">
-        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">
-        {% else %}<span class="no-cover">{{ media_icon(item.media_type.value, 30) }}</span>{% endif %}
+{%- set tipo = item.media_type.value %}
+<a href="/item/{{ item.id }}" class="card media-card" data-tipo="{{ tipo }}">
+    <div class="cover{% if tipo == 'podcast' %} podcast{% endif %}">
+        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy" decoding="async">
+        {% else %}<span class="no-cover">{{ media_icon(tipo, 30) }}<span class="no-cover-title">{{ item.title }}</span></span>{% endif %}
         {# La tabla vive en catalogo_config.py: esta plantilla tenía su propia
            copia del mapeo, y ya había divergido (le faltaba wishlist). #}
         {% set label = etiqueta_estado(item) %}
         <span class="status-badge {{ item.status.value }}">{{ label }}</span>
         {% if item.priority.value == "alta" and item.status.value in ("pendiente", "wishlist") %}
         <span class="prio-badge" title="Prioridad alta">{{ icon("flame", 13) }}</span>{% endif %}
-        {% if item.rating %}{{ stars(item.rating, 13) }}{% endif %}
+        {% if item.rating %}{{ stars(item.rating, 10) }}{% endif %}
     </div>
     <div class="mc-body">
         <span class="title">{{ item.title }}</span>
-        <span class="meta">{{ media_icon(item.media_type.value, 12) }} {{ item.year or "?" }}{% if item.creator %} · {{ item.creator|truncate(26) }}{% endif %}</span>
+        <span class="meta">{{ media_icon(tipo, 12) }} {{ item.year or "?" }}{% if item.creator %} · {{ item.creator }}{% endif %}</span>
         {% if st and st.total %}
-        <div class="progress" title="{{ st.watched }}/{{ st.total }} episodios">
-            <div style="width: {{ (100 * st.watched / st.total)|round|int }}%"></div>
+        <div class="mc-progress" title="{{ st.watched }}/{{ st.total }} episodios">
+            <div class="progress"><div style="width: {{ (100 * st.watched / st.total)|round|int }}%"></div></div>
+            <span class="subtle">{{ st.watched }}/{{ st.total }} ep</span>
         </div>
-        <span class="subtle">{{ st.watched }}/{{ st.total }} ep{% if st.next %} · próx. {{ st.next.code }}{% endif %}</span>
+        {% if st.next %}<span class="subtle">próx. {{ st.next.code }}</span>{% endif %}
         {% elif item.progress_total %}
-        <div class="progress" title="{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or '' }}">
-            <div style="width: {{ (100 * (item.progress_current or 0) / item.progress_total)|round|int if item.progress_total else 0 }}%"></div>
+        {%- set pct = (100 * (item.progress_current or 0) / item.progress_total)|round|int %}
+        <div class="mc-progress" title="{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or '' }}">
+            <div class="progress"><div style="width: {{ pct }}%"></div></div>
+            <span class="subtle">{{ pct }}%</span>
         </div>
-        <span class="subtle">{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or "" }}</span>
         {% endif %}
+        <span class="list-extra">
+            <span class="status-badge {{ item.status.value }}">{{ label }}</span>
+            {% if item.rating %}{{ stars(item.rating, 12) }}{% endif %}
+        </span>
     </div>
 </a>
 {% endmacro %}

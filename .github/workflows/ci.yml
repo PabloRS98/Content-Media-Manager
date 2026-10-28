@@ -3,7 +3,19 @@ name: CI
 on:
   push:
     branches: [main]
+    # Las versiones se publican al empujar su tag (ver CONTRIBUTING).
+    tags: ["v*.*.*"]
   pull_request:
+
+# Mínimo por defecto: leer el código. Solo el job que publica la imagen pide
+# más, y solo para eso. [R3-M23]
+permissions:
+  contents: read
+
+# Las acciones van fijadas por SHA, no por tag: un tag se puede mover, y quien
+# lo mueva ejecuta código en este CI (y, en `publicar`, con permiso para subir
+# imágenes). El comentario dice qué versión es; Dependabot mantiene las dos
+# cosas al día. [R3-M23]
 
 jobs:
   # Lo que de verdad valida el comportamiento. Va primero y por separado porque
@@ -11,21 +23,26 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Instalar dependencias
-        run: pip install -r requirements-dev.txt
+        # Con hashes, como la imagen: se prueba el mismo conjunto de paquetes
+        # que se despliega, transitivas incluidas. [R3-M25]
+        run: pip install --require-hashes -r requirements-dev.txt
 
       - name: Lint
         run: ruff check .
 
       - name: Tests
-        run: pytest
+        # Cobertura en el log [R3-B21]; los módulos menos cubiertos (tmdb, hltb,
+        # auth) se ven en la columna Miss. El suelo va unos puntos por debajo
+        # del total actual (87 %): avisa de una caída fuerte sin romper por ruido.
+        run: pytest --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=80
 
   # Independiente de los tests: una vulnerabilidad conocida en una dependencia
   # no depende de que el código propio esté bien, y enterarse cuanto antes es
@@ -33,9 +50,9 @@ jobs:
   auditoria:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
@@ -44,16 +61,18 @@ jobs:
         run: pip install pip-audit
 
       - name: Vulnerabilidades conocidas en las dependencias
-        # Se auditan las versiones declaradas, sin instalarlas: es lo que se va
-        # a desplegar, y no hace falta montar el entorno entero para mirar un
-        # fichero de texto.
-        run: pip-audit -r requirements.txt --progress-spinner off
+        # Se audita el lock COMPLETO (directas + transitivas, con hashes) sin
+        # instalarlo: es lo que se va a desplegar. Antes `-r` sobre un fichero
+        # con solo las directas dejaba sin mirar starlette, pydantic, h11...
+        # `--no-deps` porque el lock ya trae todo resuelto: pip-audit no debe
+        # volver a resolver nada por su cuenta. [R3-M25]
+        run: pip-audit -r requirements.txt --require-hashes --no-deps --progress-spinner off
 
   docker:
     runs-on: ubuntu-latest
     needs: tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Construir la imagen
         run: docker build -t media-catalog:ci .
@@ -112,7 +131,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: tests
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Construir la imagen
         run: docker build -t media-catalog:ci .
@@ -231,3 +250,45 @@ jobs:
           print("filas intactas:", n, "| cuenta inicial:", cuentas, "| revision:", rev)
           PY
           docker stop viejo
+
+  # Publicar la imagen en ghcr, solo si ha pasado TODO lo anterior. Antes vivía
+  # en su propio workflow con una copia de los tests como única puerta: un
+  # push a main publicaba `latest` aunque estuvieran en rojo pip-audit, el
+  # smoke de la imagen endurecida o la migración desde una base antigua.
+  # [R3-A5]
+  publicar:
+    if: github.event_name == 'push'
+    needs: [tests, auditoria, docker, despliegue]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # `latest` sigue a main, como siempre. Cada versión publicada deja
+          # además `1.2.3` y `1.2`, que no se mueven: quien no quiera
+          # migraciones por sorpresa fija una de esas. [R3-M22]
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

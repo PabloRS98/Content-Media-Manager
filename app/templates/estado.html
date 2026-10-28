@@ -3,11 +3,20 @@
 {% block title %}Estado · Catálogo{% endblock %}
 {% block content %}
 
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("activity", 13) }} Herramientas</span>
+        <h1>Estado del sistema</h1>
+        <p class="lead">Tareas de fondo, fuentes de datos, base de datos y huecos por rellenar.</p>
+    </div>
+</header>
+
+<div class="estado-grid">
 {# Nunca se imprime el valor de una credencial, solo si está puesta: esta
    página es justo la que uno acaba enseñando en una captura para pedir ayuda. #}
 
-<section class="card">
-    <h3>{{ icon("activity") }} Tareas de fondo</h3>
+<section class="card wide">
+    <h2>{{ icon("activity") }} Tareas de fondo</h2>
     {% if not scheduler_activo %}
     <p class="subtle">{{ icon("circle-alert", 14) }} El planificador está desactivado
         (<code>ENABLE_SCHEDULER=false</code>): no habrá avisos ni backups automáticos.</p>
@@ -39,7 +48,7 @@
 </section>
 
 <section class="card">
-    <h3>{{ icon("plug") }} Fuentes de metadatos</h3>
+    <h2>{{ icon("plug") }} Fuentes de metadatos</h2>
     <div class="table-wrap"><table>
         <thead><tr><th>Fuente</th><th>Para</th><th>Estado</th></tr></thead>
         <tbody>
@@ -74,7 +83,7 @@
 </section>
 
 <section class="card">
-    <h3>{{ icon("database") }} Base de datos</h3>
+    <h2>{{ icon("database") }} Base de datos</h2>
     <div class="table-wrap"><table>
         <tbody>
         <tr>
@@ -98,6 +107,9 @@
                 {% else %}
                 <span class="tag warning">{{ icon("circle-alert", 13) }} Ninguno todavía</span>
                 {% endif %}
+                {% if puede_descargar_backup %}
+                <a class="btn ghost small" href="/estado/backup" download>{{ icon("download", 13) }} Descargar copia</a>
+                {% endif %}
             </td>
         </tr>
         <tr>
@@ -115,8 +127,8 @@
     </table></div>
 </section>
 
-<section class="card">
-    <h3>{{ icon("search") }} Huecos en los datos</h3>
+<section class="card wide">
+    <h2>{{ icon("search") }} Huecos en los datos</h2>
     <div class="table-wrap"><table>
         <thead><tr><th>Qué</th><th>Cuántos</th><th>Qué hacer</th></tr></thead>
         <tbody>
@@ -130,5 +142,6 @@
         </tbody>
     </table></div>
 </section>
+</div>
 
 {% endblock %}

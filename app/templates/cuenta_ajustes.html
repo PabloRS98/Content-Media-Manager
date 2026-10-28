@@ -3,42 +3,101 @@
 {% block title %}Tu cuenta · Catálogo{% endblock %}
 {% block content %}
 
-<section class="card">
-    <h3>{{ icon("user") }} Tu cuenta</h3>
-    <form method="post" action="/cuentas/ajustes/nombre" class="toolbar">
-        <input type="text" name="nombre" value="{{ usuario.nombre }}" class="grow" required maxlength="60">
-        <button type="submit">{{ icon("check", 14) }} Guardar nombre</button>
-    </form>
-</section>
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("user", 13) }} Ajustes</span>
+        <h1>Tu cuenta</h1>
+    </div>
+</header>
 
-<section class="card">
-    <h3>{{ icon("lock") }} Contraseña</h3>
-    {% if usuario.tiene_password %}
-    <p class="subtle">Tu cuenta está protegida: nadie entra sin la contraseña.</p>
-    {% else %}
-    <p class="subtle">Tu cuenta entra de un clic. Ponle una contraseña si quieres que nadie más pueda abrirla.</p>
-    {% endif %}
-    <form method="post" action="/cuentas/ajustes/password">
-        {% if usuario.tiene_password %}
-        {# Para cambiarla o quitarla hay que saber la que hay: si no, alguien que
-           pillara la sesión abierta podría dejar la cuenta sin protección. #}
-        <div class="toolbar">
-            <input type="password" name="actual" placeholder="Contraseña actual" autocomplete="current-password" required class="grow">
-        </div>
-        {% endif %}
-        <div class="toolbar">
-            <input type="password" name="nueva" placeholder="Contraseña nueva (vacío = quitarla)" autocomplete="new-password" class="grow">
-            <button type="submit">{{ icon("check", 14) }} Guardar</button>
-        </div>
-    </form>
-</section>
+<div class="settings">
+    <section class="card settings-profile">
+        <span class="avatar avatar-lg" style="--h: {{ (usuario.nombre|length * 47 + usuario.id * 83) % 360 }}">{{ usuario.nombre[0]|upper }}</span>
+        <strong>{{ usuario.nombre }}</strong>
+        <span class="tag {{ 'positive' if usuario.tiene_password else '' }}">{{ icon("lock", 12) }} {{ "Con contraseña" if usuario.tiene_password else "Sin contraseña" }}</span>
+        <form method="post" action="/cuentas/salir" style="margin-top:.6rem; width:100%">
+            <button type="submit" class="ghost" style="width:100%">{{ icon("log-out", 14) }} Cambiar de persona</button>
+        </form>
+    </section>
 
-<section class="card">
-    <h3>{{ icon("users") }} Cambiar de persona</h3>
-    <p class="subtle">Vuelve al selector para entrar con otra cuenta.</p>
-    <form method="post" action="/cuentas/salir">
-        <button type="submit" class="ghost">{{ icon("log-out", 14) }} Salir de «{{ usuario.nombre }}»</button>
-    </form>
-</section>
+    <div class="settings-stack">
+        <section class="card">
+            <h2>{{ icon("pencil") }} Nombre</h2>
+            <form method="post" action="/cuentas/ajustes/nombre" class="toolbar">
+                <input type="text" name="nombre" value="{{ usuario.nombre }}" class="grow" required maxlength="60" aria-label="Nombre">
+                <button type="submit">{{ icon("check", 14) }} Guardar nombre</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>{{ icon("lock") }} Contraseña</h2>
+            {% if usuario.tiene_password %}
+            <p class="subtle">Tu cuenta está protegida: nadie entra sin la contraseña.</p>
+            {% else %}
+            <p class="subtle">Tu cuenta entra de un clic. Ponle una contraseña si quieres que nadie más pueda abrirla.</p>
+            {% endif %}
+            <form method="post" action="/cuentas/ajustes/password" class="form-grid">
+                {% if usuario.tiene_password %}
+                {# Para cambiarla o quitarla hay que saber la que hay: si no, alguien que
+                   pillara la sesión abierta podría dejar la cuenta sin protección. #}
+                <div class="field">
+                    <label for="pw-actual">Contraseña actual</label>
+                    <input type="password" id="pw-actual" name="actual" autocomplete="current-password" required>
+                </div>
+                {% endif %}
+                <div class="field">
+                    <label for="pw-nueva">Contraseña nueva</label>
+                    <input type="password" id="pw-nueva" name="nueva" placeholder="mín. 8; vacío = quitarla" autocomplete="new-password" minlength="8">
+                </div>
+                <div class="field" style="justify-content:end">
+                    <button type="submit">{{ icon("check", 14) }} Guardar</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>{{ icon("log-out") }} Sesiones</h2>
+            <p class="subtle">Si abriste la cuenta en un ordenador que no es tuyo, ciérrala allí desde aquí. Cambiar la contraseña también las cierra.</p>
+            <form method="post" action="/cuentas/ajustes/cerrar-sesiones">
+                <button type="submit" class="ghost">{{ icon("log-out", 14) }} Cerrar en los demás dispositivos</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>{{ icon("download") }} Tus datos</h2>
+            <p class="subtle">Todo lo de tu cuenta, para guardarlo o llevártelo: el JSON lo incluye todo (episodios, géneros, etiquetas, listas); el CSV se abre en una hoja de cálculo.</p>
+            <div class="toolbar">
+                <a class="btn ghost" href="/cuentas/ajustes/exportar.json" download>{{ icon("download", 14) }} Descargar JSON</a>
+                <a class="btn ghost" href="/cuentas/ajustes/exportar.csv" download>{{ icon("download", 14) }} Descargar CSV</a>
+            </div>
+        </section>
+
+        <section class="card danger-zone">
+            <h2>{{ icon("trash-2") }} Borrar la cuenta</h2>
+            <p class="subtle">Se borran la cuenta y todo su catálogo, sus listas y su historial. <strong>No se puede deshacer</strong>: descarga antes tus datos si los quieres.</p>
+            <form method="post" action="/cuentas/ajustes/borrar" class="form-grid"
+                  data-confirm="¿Borrar la cuenta «{{ usuario.nombre }}» y todo su catálogo? No se puede deshacer.">
+                <div class="field">
+                    <label for="borrar-nombre">Escribe «{{ usuario.nombre }}» para confirmar</label>
+                    <input type="text" id="borrar-nombre" name="confirmacion" required autocomplete="off">
+                </div>
+                {% if usuario.tiene_password %}
+                <div class="field">
+                    <label for="borrar-pw">Contraseña</label>
+                    <input type="password" id="borrar-pw" name="password" autocomplete="current-password" required>
+                </div>
+                {% endif %}
+                <div class="field" style="justify-content:end">
+                    <button type="submit" class="danger">{{ icon("trash-2", 14) }} Borrar la cuenta</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>{{ icon("keyboard") }} Atajos de teclado</h2>
+            <p class="subtle" style="margin:0">Pulsa <kbd>?</kbd> en cualquier página para verlos. Los más útiles: <kbd>/</kbd> para buscar, <kbd>n</kbd> para añadir y <kbd>g</kbd> <kbd>i</kbd> para volver al inicio.</p>
+        </section>
+    </div>
+</div>
 
 {% endblock %}

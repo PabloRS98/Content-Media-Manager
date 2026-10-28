@@ -14,16 +14,23 @@ from app.main import backfill_v2_columns
 from app.models import MediaItem, MediaStatus, MediaType
 
 
+def _vaciar_items(conn):
+    # Las hijas primero: con las FK activas [R3-B9], borrar un ítem que aún
+    # tiene episodios o pertenencias falla, que es justo lo que se quiere.
+    for tabla in ("episodes", "list_items", "media_item_tags", "media_item_generos", "media_items"):
+        conn.exec_driver_sql("DELETE FROM %s" % tabla)
+
+
 @pytest.fixture
 def base_limpia(usuario):
     """Base real del test (conftest apunta DB_PATH a un temporal) sin la marca."""
     init_db()
     with engine.begin() as conn:
         conn.exec_driver_sql("DELETE FROM app_meta")
-        conn.exec_driver_sql("DELETE FROM media_items")
+        _vaciar_items(conn)
     yield
     with engine.begin() as conn:
-        conn.exec_driver_sql("DELETE FROM media_items")
+        _vaciar_items(conn)
 
 
 @pytest.fixture

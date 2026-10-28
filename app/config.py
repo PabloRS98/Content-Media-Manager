@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # solo hace falta si algun dia hay varios procesos sirviendo la misma base.
     secret_key: str = ""
 
+    # Cookie de sesión solo por HTTPS. Desactivada por defecto porque la app se
+    # sirve casi siempre por HTTP en la red de casa, y con ella activa la
+    # cookie no viajaría y no se podría abrir ninguna cuenta. Actívala si
+    # entras siempre por un proxy inverso con TLS. [R3-M4]
+    secure_cookies: bool = False
+
     # Hosts extra admitidos como origen de las peticiones que escriben (ver
     # csrf.py). Solo hace falta si se accede por un nombre distinto al del
     # proxy inverso; separados por comas.
@@ -69,6 +75,15 @@ class Settings(BaseSettings):
 
     def trusted_origin_hosts(self) -> set[str]:
         return {h.strip() for h in self.trusted_origins.split(",") if h.strip()}
+
+    # Nombres de host con los que se puede llegar a la app, además de los que
+    # se admiten solos (IPs, nombres de una palabra, .local, .lan, *.ts.net...;
+    # ver hosts.py). Hace falta para un dominio público propio, como el de un
+    # proxy inverso. "*" desactiva la comprobación. Separados por comas.
+    allowed_hosts: str = ""
+
+    def allowed_host_names(self) -> set[str]:
+        return {h.strip().lower().rstrip(".") for h in self.allowed_hosts.split(",") if h.strip()}
 
     @model_validator(mode="after")
     def _reject_insecure_password(self) -> "Settings":

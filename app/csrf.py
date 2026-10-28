@@ -41,10 +41,17 @@ def _hosts_fiables() -> set[str]:
 
 def _es_peticion_cruzada(request: Request) -> bool:
     sec_fetch_site = request.headers.get("sec-fetch-site")
-    if sec_fetch_site is not None:
-        # La más fiable: es la única que distingue "same-site" de "cross-site"
-        # sin comparar cadenas a mano.
-        return sec_fetch_site == "cross-site"
+    # La más fiable, pero solo en sus dos extremos. "same-origin" (desde la
+    # propia app) y "none" (URL tecleada, marcador) son seguros; "cross-site"
+    # nunca lo es. "same-site" NO basta: el "site" ignora el puerto y los
+    # subdominios, así que otra app del mismo servidor (`casa:8003`) o de un
+    # subdominio hermano es "same-site" -- y antes eso dejaba pasar su POST
+    # aunque trajera un `Origin` ajeno. Con "same-site" se decide por `Origin`
+    # y `Referer`, como en un navegador que no manda la cabecera. [R3-M1]
+    if sec_fetch_site in ("same-origin", "none"):
+        return False
+    if sec_fetch_site == "cross-site":
+        return True
 
     # `Origin` primero: `Referer` puede venir recortado o ausente según la
     # política de referencia de la página de origen, así que solo se mira si

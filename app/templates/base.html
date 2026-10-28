@@ -3,71 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#1c160e">
+    {# Mismo valor que --bg del tema oscuro (el de por defecto) y que el
+       manifest; app.js lo sincroniza con el tema vigente. [R3-M26] #}
+    <meta name="theme-color" content="#140b05">
+    <meta name="color-scheme" content="dark light">
     <title>{% block title %}Catálogo de Medios{% endblock %}</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <link rel="manifest" href="/static/manifest.webmanifest">
-    <link rel="stylesheet" href="/static/css/style.css">
-    <script>
-        // Antes de pintar nada: si no ha elegido nunca, oscuro por defecto.
-        // Bloqueante a propósito, para no mostrar un parpadeo del tema claro
-        // en cada carga antes de que corra app.js.
-        document.documentElement.setAttribute("data-theme", localStorage.getItem("theme") || "dark");
-    </script>
-    <script src="/static/js/htmx.min.js" defer></script>
+    <link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+    {# Bloqueante a propósito (sin defer): fija el tema antes de pintar, para
+       no ver un parpadeo del claro. Es un archivo y no un <script> en línea
+       porque la CSP ya no admite 'unsafe-inline' en scripts. [R3-B6] #}
+    <script src="{{ static_url('js/tema.js') }}"></script>
+    <script src="{{ static_url('js/htmx.min.js') }}" defer></script>
 </head>
 <body>
 {% from "_icons.html" import icon %}
 {% set path = request.url.path %}
-<header class="topbar">
-    <a href="/" class="brand">{{ icon("library-big", 20) }} <span>Catálogo</span></a>
-    <nav class="nav-links">
-        <a href="/" class="{{ 'active' if path == '/' else '' }}">{{ icon("layout-dashboard") }}<span>Inicio</span></a>
-        {% set active_type = request.query_params.get("tipo") or (item.media_type.value if item is defined and item else None) %}
-        <a href="/catalogo?tipo=libro" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'libro' else '' }}">{{ icon("book-open") }}<span>Libros</span></a>
-        <a href="/catalogo?tipo=pelicula" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'pelicula' else '' }}">{{ icon("film") }}<span>Películas</span></a>
-        <a href="/catalogo?tipo=serie" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'serie' else '' }}">{{ icon("tv") }}<span>Series</span></a>
-        <a href="/catalogo?tipo=videojuego" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'videojuego' else '' }}">{{ icon("gamepad-2") }}<span>Juegos</span></a>
-        <a href="/catalogo?tipo=podcast" class="{{ 'active' if path.startswith('/catalogo') and active_type == 'podcast' else '' }}">{{ icon("podcast") }}<span>Podcasts</span></a>
-        <a href="/listas" class="{{ 'active' if path.startswith('/listas') else '' }}">{{ icon("list") }}<span>Listas</span></a>
-        <a href="/actividad" class="{{ 'active' if path.startswith('/actividad') else '' }}">{{ icon("calendar") }}<span>Diario</span></a>
-        <a href="/estadisticas" class="{{ 'active' if path.startswith('/estadisticas') else '' }}">{{ icon("chart-column") }}<span>Stats</span></a>
-        <a href="/importar" class="{{ 'active' if path.startswith('/importar') else '' }}">{{ icon("upload") }}<span>Importar</span></a>
-        <a href="/estado" class="{{ 'active' if path.startswith('/estado') else '' }}">{{ icon("activity") }}<span>Estado</span></a>
-    </nav>
-    {# Quién está usando la app. Lo pone un middleware en `request.state`, para
-       que no tenga que pasarlo cada vista una por una; en el selector de
-       cuentas es None, que es la única página sin cuenta abierta. #}
-    {% if request.state.cuenta_abierta %}
-    <a href="/cuentas/ajustes" class="cuenta-actual-nav ghost icon-btn" title="Tu cuenta: {{ request.state.cuenta_abierta.nombre }}">
-        {{ icon("user", 17) }}<span>{{ request.state.cuenta_abierta.nombre }}</span>
-    </a>
-    {% endif %}
-    <button type="button" id="theme-toggle" class="ghost icon-btn" title="Cambiar entre oscuro y claro" aria-label="Cambiar entre oscuro y claro">
-        {{ icon("sun", 17, cls="theme-icon-sun") }}
-        {{ icon("moon", 17, cls="theme-icon-moon") }}
-    </button>
-</header>
-<main class="container">
-    {% block content %}{% endblock %}
-</main>
-<div id="toasts" class="toasts" aria-live="polite"></div>
-<script src="/static/js/app.js"></script>
-<script>
-    // Oscuro por defecto (ver el script bloqueante en <head>); esto solo
-    // refleja el icono correcto al cargar y guarda la elección al pulsar,
-    // igual que el toggle de vista cuadrícula/lista de catalog.html.
-    (function () {
-        var btn = document.getElementById("theme-toggle");
-        if (!btn) return;
-        btn.addEventListener("click", function () {
-            var next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-            document.documentElement.setAttribute("data-theme", next);
-            localStorage.setItem("theme", next);
-        });
-    })();
-</script>
+{% set active_type = request.query_params.get("tipo") or (item.media_type.value if item is defined and item and item.media_type is defined else None) %}
+{% set en_catalogo = path.startswith('/catalogo') or path.startswith('/item/') %}
+{% set cuenta = request.state.cuenta_abierta %}
+
+{# Un único sitio para los enlaces de navegación: los pinta la barra lateral
+   (escritorio), la barra inferior y la hoja "Más" (móvil). Si cada una llevara
+   su lista, acabarían divergiendo igual que divergieron las etiquetas de
+   estado entre el router y las tarjetas. #}
+{% macro navlink(href, ico, label, activo, cls="") -%}
+<a href="{{ href }}" class="navlink{{ ' ' ~ cls if cls else '' }}{{ ' active' if activo else '' }}"{% if activo %} aria-current="page"{% endif %}>{{ icon(ico, 18) }}<span>{{ label }}</span></a>
+{%- endmacro %}
+
+{% macro enlaces_biblioteca() -%}
+{{ navlink("/catalogo", "library-big", "Todo", en_catalogo and not active_type and path.startswith('/catalogo')) }}
+{{ navlink("/catalogo?tipo=libro", "book-open", "Libros", en_catalogo and active_type == 'libro', "t-libro") }}
+{{ navlink("/catalogo?tipo=pelicula", "film", "Películas", en_catalogo and active_type == 'pelicula', "t-pelicula") }}
+{{ navlink("/catalogo?tipo=serie", "tv", "Series", en_catalogo and active_type == 'serie', "t-serie") }}
+{{ navlink("/catalogo?tipo=videojuego", "gamepad-2", "Juegos", en_catalogo and active_type == 'videojuego', "t-videojuego") }}
+{{ navlink("/catalogo?tipo=podcast", "podcast", "Podcasts", en_catalogo and active_type == 'podcast', "t-podcast") }}
+{%- endmacro %}
+
+{% macro enlaces_organizar() -%}
+{{ navlink("/listas", "list", "Listas", path.startswith('/listas')) }}
+{{ navlink("/actividad", "notebook-pen", "Diario", path.startswith('/actividad')) }}
+{{ navlink("/calendario", "calendar", "Calendario", path.startswith('/calendario')) }}
+{{ navlink("/estadisticas", "chart-column", "Estadísticas", path.startswith('/estadisticas')) }}
+{%- endmacro %}
+
+{% macro enlaces_sistema() -%}
+{{ navlink("/importar", "upload", "Importar", path.startswith('/importar')) }}
+{{ navlink("/generos", "tags", "Géneros", path.startswith('/generos')) }}
+{{ navlink("/estado", "activity", "Estado", path.startswith('/estado')) }}
+{%- endmacro %}
+
+<a href="#contenido" class="skip-link">Saltar al contenido</a>
+
+<div class="shell{% if not cuenta %} shell-sin-cuenta{% endif %}">
+    {# ---------- Barra lateral (escritorio) ---------- #}
+    <aside class="sidebar" aria-label="Navegación principal">
+        <a href="/" class="brand">
+            <span class="brand-mark">{{ icon("library-big", 18) }}</span>
+            <span class="brand-text">Catálogo<small>de medios</small></span>
+        </a>
+
+        {% if cuenta %}
+        <form method="get" action="/catalogo" class="sidebar-search" role="search">
+            {{ icon("search", 15) }}
+            <input type="search" name="buscar" placeholder="Buscar en tu catálogo" aria-label="Buscar en tu catálogo" data-hotkey-search autocomplete="off">
+            <kbd>/</kbd>
+        </form>
+
+        <nav class="sidebar-nav">
+            {{ navlink("/", "layout-dashboard", "Inicio", path == '/') }}
+            <p class="nav-group">Biblioteca</p>
+            {{ enlaces_biblioteca() }}
+            <p class="nav-group">Organizar</p>
+            {{ enlaces_organizar() }}
+            <p class="nav-group">Herramientas</p>
+            {{ enlaces_sistema() }}
+        </nav>
+        {% endif %}
+
+        <div class="sidebar-foot">
+            {# Quién está usando la app. Lo pone un middleware en `request.state`,
+               para que no tenga que pasarlo cada vista una por una; en el
+               selector de cuentas es None, que es la única página sin cuenta
+               abierta. #}
+            {% if cuenta %}
+            <a href="/cuentas/ajustes" class="cuenta-chip{{ ' active' if path.startswith('/cuentas') else '' }}" title="Tu cuenta: {{ cuenta.nombre }}">
+                <span class="avatar avatar-sm" style="--h: {{ (cuenta.nombre|length * 47 + cuenta.id * 83) % 360 }}">{{ cuenta.nombre[0]|upper }}</span>
+                <span class="cuenta-chip-nombre">{{ cuenta.nombre }}<small>Tu cuenta</small></span>
+            </a>
+            {% endif %}
+            {% if cuenta %}
+            <button type="button" class="quiet icon-btn" data-open-dialog="#atajos" title="Atajos de teclado (?)" aria-label="Atajos de teclado">{{ icon("keyboard", 17) }}</button>
+            {% endif %}
+            <button type="button" class="quiet icon-btn theme-toggle" title="Cambiar entre oscuro y claro (t)" aria-label="Cambiar entre oscuro y claro">
+                {{ icon("sun", 17, cls="theme-icon-sun") }}
+                {{ icon("moon", 17, cls="theme-icon-moon") }}
+            </button>
+        </div>
+    </aside>
+
+    {# ---------- Barra superior (móvil y tablet) ---------- #}
+    <header class="topbar">
+        <a href="/" class="brand">
+            <span class="brand-mark">{{ icon("library-big", 16) }}</span>
+            <span class="brand-text">Catálogo</span>
+        </a>
+        {% if cuenta %}
+        <a href="/catalogo" class="ghost icon-btn btn" aria-label="Buscar en tu catálogo" title="Buscar">{{ icon("search", 17) }}</a>
+        <a href="/cuentas/ajustes" class="avatar avatar-sm" style="--h: {{ (cuenta.nombre|length * 47 + cuenta.id * 83) % 360 }}" title="Tu cuenta: {{ cuenta.nombre }}" aria-label="Tu cuenta">{{ cuenta.nombre[0]|upper }}</a>
+        {% endif %}
+        <button type="button" class="ghost icon-btn theme-toggle" title="Cambiar entre oscuro y claro" aria-label="Cambiar entre oscuro y claro">
+            {{ icon("sun", 17, cls="theme-icon-sun") }}
+            {{ icon("moon", 17, cls="theme-icon-moon") }}
+        </button>
+    </header>
+
+    <main class="container" id="contenido" tabindex="-1">
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
+{% if cuenta %}
+{# ---------- Barra inferior (móvil): los cuatro sitios a los que más se va,
+   y "Más" para el resto. Once iconos en fila no caben en un teléfono:
+   la versión anterior desbordaba la pantalla de lado. ---------- #}
+<nav class="tabbar" aria-label="Navegación">
+    {{ navlink("/", "layout-dashboard", "Inicio", path == '/') }}
+    {{ navlink("/catalogo" ~ ("?tipo=" ~ active_type if active_type else ""), "library-big", "Catálogo", en_catalogo) }}
+    {{ navlink("/listas", "list", "Listas", path.startswith('/listas')) }}
+    {{ navlink("/actividad", "notebook-pen", "Diario", path.startswith('/actividad')) }}
+    <button type="button" class="navlink{{ ' active' if path.startswith(('/estadisticas', '/calendario', '/importar', '/estado', '/generos')) else '' }}" data-open-dialog="#nav-mas" aria-haspopup="dialog">{{ icon("menu", 18) }}<span>Más</span></button>
+</nav>
+
+<dialog id="nav-mas" class="sheet" aria-label="Más secciones">
+    {# Botón de verdad (antes un div con clic): se alcanza con Tab y cierra la
+       hoja con Intro o Espacio. [R3-B30] #}
+    <button type="button" class="sheet-handle" data-close-dialog aria-label="Cerrar"></button>
+    <p class="nav-group">Biblioteca</p>
+    <div class="sheet-grid">{{ enlaces_biblioteca() }}</div>
+    <p class="nav-group">Organizar</p>
+    <div class="sheet-grid">{{ enlaces_organizar() }}</div>
+    <p class="nav-group">Herramientas</p>
+    <div class="sheet-grid">{{ enlaces_sistema() }}{{ navlink("/cuentas/ajustes", "user", "Tu cuenta", path.startswith('/cuentas')) }}</div>
+</dialog>
+
+<dialog id="atajos" aria-labelledby="atajos-titulo">
+    <button type="button" class="quiet icon-btn dialog-close" data-close-dialog aria-label="Cerrar">{{ icon("x", 16) }}</button>
+    <h2 id="atajos-titulo">{{ icon("keyboard") }} Atajos de teclado</h2>
+    <dl class="shortcut-list">
+        <dt><kbd>/</kbd></dt><dd>Buscar en tu catálogo</dd>
+        <dt><kbd>n</kbd></dt><dd>Añadir algo nuevo (en el catálogo)</dd>
+        <dt><kbd>e</kbd></dt><dd>Editar (en la ficha)</dd>
+        <dt><kbd>t</kbd></dt><dd>Cambiar tema claro/oscuro</dd>
+        <dt><kbd>g</kbd> <kbd>i</kbd></dt><dd>Ir a Inicio</dd>
+        <dt><kbd>g</kbd> <kbd>c</kbd></dt><dd>Todo el catálogo</dd>
+        <dt><kbd>g</kbd> <kbd>l</kbd> <kbd>p</kbd> <kbd>s</kbd> <kbd>j</kbd> <kbd>o</kbd></dt><dd>Libros, películas, series, juegos, podcasts</dd>
+        <dt><kbd>g</kbd> <kbd>y</kbd></dt><dd>Listas</dd>
+        <dt><kbd>g</kbd> <kbd>d</kbd></dt><dd>Diario</dd>
+        <dt><kbd>g</kbd> <kbd>k</kbd></dt><dd>Calendario</dd>
+        <dt><kbd>g</kbd> <kbd>e</kbd></dt><dd>Estadísticas</dd>
+        <dt><kbd>?</kbd></dt><dd>Esta ayuda</dd>
+    </dl>
+</dialog>
+{% endif %}
+
+{# Única región viva de los avisos: los toasts de dentro no llevan role, o el
+   lector los anunciaría dos veces. [R3-B31] #}
+<div id="toasts" class="toasts" role="region" aria-label="Avisos" aria-live="polite"></div>
+<script src="{{ static_url('js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

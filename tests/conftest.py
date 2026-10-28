@@ -22,16 +22,16 @@ for _clave in ("TMDB_API_KEY", "RAWG_API_KEY", "GOOGLE_BOOKS_API_KEY",
                "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
     os.environ[_clave] = ""
 
-import httpx  # noqa: E402
-import pytest  # noqa: E402
-from alembic import command  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+import httpx
+import pytest
+from alembic import command
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, _config_alembic, get_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType, Usuario  # noqa: E402
+from app.database import Base, _config_alembic, get_db
+from app.main import app
+from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType, Usuario
 
 
 class RedProhibida(RuntimeError):
@@ -54,6 +54,16 @@ def sin_red(monkeypatch):
     monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", _bloquear)
 
 
+@pytest.fixture(autouse=True)
+def limitadores_limpios():
+    """Los frenos a probar contraseñas viven en memoria del proceso: sin
+    vaciarlos, los fallos de un test bloquearían al siguiente."""
+    from app import intentos
+    intentos.cuentas = intentos.Limitador()
+    intentos.basic = intentos.Limitador()
+    yield
+
+
 @pytest.fixture
 def db(tmp_path):
     """Sesión contra una base de datos SQLite nueva por test.
@@ -70,6 +80,9 @@ def db(tmp_path):
         f"sqlite:///{tmp_path / 'test.db'}",
         connect_args={"check_same_thread": False},
     )
+    # Las FK activas, como en la app (`app/database.py`): si no, los tests no
+    # verían una escritura que la base de verdad rechaza. [R3-B9]
+    event.listen(engine, "connect", lambda conexion, _: conexion.execute("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(bind=engine)
     command.stamp(_config_alembic(engine), "head")
     Sesion = sessionmaker(autocommit=False, autoflush=False, bind=engine)

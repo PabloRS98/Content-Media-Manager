@@ -16,9 +16,10 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from .. import fechas
 from ..models import Episode, MediaItem, Usuario
 
 # Cuántos meses hacia atrás ofrece la navegación antes de dejar de tener
@@ -50,7 +51,7 @@ def rango_del_mes(mes: str | None) -> tuple[date, date]:
     El parámetro va en la URL y se puede escribir a mano, así que cualquier
     basura cae al mes en curso en vez de reventar la página.
     """
-    hoy = date.today()
+    hoy = fechas.hoy()
     primero = hoy.replace(day=1)
     if mes:
         try:
@@ -65,12 +66,21 @@ def rango_del_mes(mes: str | None) -> tuple[date, date]:
     return primero, ultimo
 
 
-def mes_anterior(primero: date) -> str:
-    return (primero - timedelta(days=1)).strftime(FORMATO_MES)
+def mes_anterior(primero: date) -> str | None:
+    """None en el año 1: no hay mes anterior que `date` sepa representar, y
+    `?mes=0001-01` daba 500 al calcular el enlace. [R3-B8]"""
+    try:
+        return (primero - timedelta(days=1)).strftime(FORMATO_MES)
+    except OverflowError:
+        return None
 
 
-def mes_siguiente(ultimo: date) -> str:
-    return (ultimo + timedelta(days=1)).strftime(FORMATO_MES)
+def mes_siguiente(ultimo: date) -> str | None:
+    """Ídem en el 9999-12."""
+    try:
+        return (ultimo + timedelta(days=1)).strftime(FORMATO_MES)
+    except OverflowError:
+        return None
 
 
 def diario(db: Session, usuario: Usuario, desde: date, hasta: date) -> list[Dia]:
@@ -97,8 +107,10 @@ def diario(db: Session, usuario: Usuario, desde: date, hasta: date) -> list[Dia]
         MediaItem.started_at >= desde,
         MediaItem.started_at <= hasta,
         # Lo que se empezó y se terminó el mismo día sale como terminado y ya:
-        # dos líneas para el mismo hecho leen peor que una.
-        MediaItem.completed_at.is_(None),
+        # dos líneas para el mismo hecho leen peor que una. Solo ese caso:
+        # antes se excluía todo lo terminado, así que un libro empezado en
+        # marzo y acabado en abril no salía en marzo. [R3-M10]
+        or_(MediaItem.completed_at.is_(None), MediaItem.completed_at != MediaItem.started_at),
     ).all()
     for fecha, id_item, titulo, tipo, portada in empezados:
         añadir(fecha, Entrada("empezado", id_item, titulo, tipo.value, portada))

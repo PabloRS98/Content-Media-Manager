@@ -33,6 +33,7 @@ from .models import Usuario
 CLAVE_SECRETO = "clave_de_sesion"
 
 CLAVE_SESION = "usuario_id"
+CLAVE_VERSION = "sesion_version"
 
 # Parámetros de scrypt. Los recomendados por la documentación de Python para
 # uso interactivo: ~100 ms por comprobación en hardware modesto, que es
@@ -114,15 +115,26 @@ def cuenta_en_sesion(request: Request, db: Session) -> Usuario | None:
     id_usuario = request.session.get(CLAVE_SESION)
     if not id_usuario:
         return None
-    return db.get(Usuario, id_usuario)
+    usuario = db.get(Usuario, id_usuario)
+    if usuario is None or request.session.get(CLAVE_VERSION, 0) != (usuario.sesion_version or 0):
+        return None
+    return usuario
 
 
 def abrir_sesion(request: Request, usuario: Usuario) -> None:
     request.session[CLAVE_SESION] = usuario.id
+    request.session[CLAVE_VERSION] = usuario.sesion_version or 0
 
 
 def cerrar_sesion(request: Request) -> None:
     request.session.pop(CLAVE_SESION, None)
+    request.session.pop(CLAVE_VERSION, None)
+
+
+def cerrar_todas_las_sesiones(request: Request, usuario: Usuario) -> None:
+    """Invalida todas las cookies de la cuenta salvo la de esta petición. [R3-M4]"""
+    usuario.sesion_version = (usuario.sesion_version or 0) + 1
+    abrir_sesion(request, usuario)
 
 
 def usuario_actual(request: Request, db: Session = Depends(get_db)) -> Usuario:

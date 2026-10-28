@@ -1,7 +1,7 @@
 # Media Catalog
 
 [![CI](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml)
-[![Docker image](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
+[![Docker image](https://img.shields.io/badge/image-ghcr.io-blue)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/PabloRS98/Content-Media-Manager)](https://github.com/PabloRS98/Content-Media-Manager/releases/latest)
 
@@ -36,10 +36,14 @@ paid API required.
 - **Episode tracking** for series and podcasts (season/episode, watched state,
   automatic "next up").
 - **Progress tracking** for anything else (page N/300, 45%, etc).
-- **Ratings, notes, tags, and custom lists** ("watch with my partner", "top 2026"...),
+- **Ratings (stars, with halves), notes, tags, and custom lists** ("watch with my partner", "top 2026"...),
   plus four built-in automatic lists (in progress / pending / completed /
   wishlist) that update themselves as an item's status changes.
-- **Light and dark themes**, dark by default, toggled from the top bar.
+- **Light and dark themes**, dark by default, toggled from the sidebar (or `t`).
+- **One-click status, star ratings and progress** right from the item page.
+- **Keyboard shortcuts**: `/` to search, `n` to add, `g` + a letter to jump
+  anywhere, `?` for the full list.
+- **Works on a phone**: bottom tab bar, poster grid that reflows, no build step.
 - **Sagas/franchises**: grouped automatically via TMDB collections, editable manually.
 - **Stats page** and a "suggest me something" random pick.
 - **Calendar view** for upcoming episodes and release dates.
@@ -49,7 +53,10 @@ paid API required.
   straight from its API, with playtime, and tags everything as "Steam" so you
   can filter by it.
 - **Optional Telegram alerts**: new episode aired, wishlist item now available.
-- **Automatic daily backups** of the SQLite database, with rotation.
+- **Automatic daily backups** of the SQLite database, with rotation; download a
+  fresh copy from `/estado`.
+- **Your data is yours**: export your account to JSON (everything) or CSV from
+  its settings, or delete the account with all its catalog.
 - **One account per person in the house**, each with its own catalog, lists and
   stats. A password is optional — without one you enter with a click; with one,
   the account can't be opened or its catalog seen without it.
@@ -79,7 +86,10 @@ cp .env.example .env   # optional: add free API keys, see below
 docker compose up -d --build
 ```
 
-Or, without cloning, using the prebuilt image published on every push to `main`:
+Or, without cloning, using the prebuilt image. It is published only after the
+whole CI passes: `latest` follows `main`, and every release also gets fixed
+tags (`1.2.3` and `1.2`) that never move. Pin one of those if you'd rather
+choose when database migrations run:
 
 ```bash
 docker run -d --name media-catalog -p 8002:8000 \
@@ -107,8 +117,14 @@ source; everything else keeps working.
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Episode/release notifications | Create a bot via [@BotFather](https://t.me/BotFather), then message it and check `api.telegram.org/bot<TOKEN>/getUpdates` for your chat id |
 | `ENABLE_AUTH`, `AUTH_USERNAME`, `AUTH_PASSWORD` | HTTP Basic auth | — |
 | `STEAM_API_KEY` / `STEAM_ID` | Import your Steam library with playtime | Free key at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey); the id is the 17-digit one, and the profile must be public |
+| `ALLOWED_HOSTS` | Host names the app may be reached by. IPs, single-word names, `.local`/`.lan`/`.home.arpa` and Tailscale's `*.ts.net` work on their own; a public domain of your own (e.g. a reverse proxy's) must be listed here. Blocks DNS rebinding. `*` turns the check off | — |
+| `TRUSTED_ORIGINS` | Extra hosts accepted as the origin of form submissions, when the app is reached by a name other than the proxy's | — |
+| `SECURE_COOKIES` | Marks the session cookie `Secure`, so the browser only sends it over HTTPS. Turn it on when the app is served behind an HTTPS reverse proxy; leave it off for plain `http://` on a LAN or Tailscale, or you will not stay signed in | `false` |
 | `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
-| `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
+| `APP_NAME` | Display name setting. Currently read into the settings but not shown anywhere in the UI (the templates have the title fixed) | `Catalogo de Medios` |
+| `ENABLE_SCHEDULER` | Runs the daily backup and the release/episode notifications inside the app process. Set it to `false` on all but one worker if you ever run uvicorn with `--workers N`, or the backup runs N times and Telegram notices are duplicated | `true` |
+| `MEDIA_BIND` / `MEDIA_PORT` | Docker Compose only: host address and port the container is published on. Defaults to `127.0.0.1` and `8002`, so the catalogue is reachable from the same machine only. Use `0.0.0.0` (or an interface IP) to serve it to other machines, ideally behind a reverse proxy or VPN | `127.0.0.1` / `8002` |
+| `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling. `TIMEZONE` also decides what "today" is: the date stored when you mark an episode watched or finish something, the diary and the calendar | — |
 
 Books via **Open Library** and podcasts via **iTunes Search** need no key at
 all — they're on by default.
@@ -119,6 +135,11 @@ all — they're on by default.
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+Dependencies are pinned with hashes. To add or bump one, edit
+`requirements.in` (or `requirements-dev.in` for tooling) and regenerate the
+lock files with the command at the top of each `.in` file
+(`pip-compile --generate-hashes …`); never edit the `.txt` files by hand.
 
 The app expects a writable `/data` directory (or set `DB_PATH` to a local
 path when running outside Docker).
@@ -134,11 +155,12 @@ Tests run against the real app via `TestClient`, each one on a throwaway SQLite
 database. They never touch the network: a fixture blocks the HTTP transport, so
 a test that starts calling TMDB fails instead of turning flaky.
 
-`tests/test_fallos_conocidos.py` holds bugs that are diagnosed but not yet
-fixed. Each one asserts the *correct* behaviour and is marked
-`xfail(strict=True)`: they fail on purpose today, and the moment a bug is fixed
-the test passes and `strict` breaks the build until the marker is removed — so
-the list can't silently go stale. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
+`tests/test_fallos_conocidos.py` keeps regression tests for bugs that were
+diagnosed in the audits and have since been fixed (no `xfail` is left in the
+suite). Run them on their own with `pytest -m fallo_conocido`. A bug that is
+diagnosed but not yet fixed would go there as `xfail(strict=True)`, so the
+moment it is fixed the test passes and the build breaks until the marker is
+removed. See [docs/AUDITORIA.md](docs/AUDITORIA.md).
 
 ## Changelog
 

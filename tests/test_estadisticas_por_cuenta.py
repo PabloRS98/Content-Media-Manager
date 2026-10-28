@@ -19,7 +19,7 @@ from app.services import generos
 
 
 @pytest.fixture
-def catalogo_ajeno(db, otro_usuario):  # noqa: C901
+def catalogo_ajeno(db, otro_usuario):
     """Cuatro ítems de otra cuenta, uno de cada tipo, con datos que se agregan:
     género, nota, año, duración y un episodio visto."""
     peli = MediaItem(
@@ -50,18 +50,25 @@ def catalogo_ajeno(db, otro_usuario):  # noqa: C901
     return [peli, libro, juego, serie]
 
 
-def _numeros_de(html: str, etiqueta: str) -> list:
-    """Saca la serie de datos del gráfico cuyas etiquetas contengan `etiqueta`.
+# Qué serie del bloque JSON corresponde a cada gráfico (ver `stats-data` en
+# stats.html y js/stats.js).
+_SERIES = {"Libros": "tipos", '"5"': "notas", "2020": "decada_n", "Ene": "meses"}
 
-    Se lee el `<script>` renderizado en vez de la página visible porque los
-    números de esta página SOLO están ahí: los gráficos los pinta Chart.js en un
-    canvas, así que no hay texto que buscar.
+
+def _numeros_de(html: str, etiqueta: str) -> list:
+    """Saca la serie de datos del gráfico que corresponda a `etiqueta`.
+
+    Se lee el bloque `<script type="application/json" id="stats-data">` en vez
+    de la página visible porque los gráficos los pinta Chart.js en un canvas.
+    Desde [R3-B6] los datos viajan en ese bloque (la CSP ya no admite scripts en
+    línea) y las etiquetas fijas viven en stats.js, así que la serie se elige
+    por clave y no buscando etiquetas en el HTML.
     """
-    patron = r"labels: (\[[^\]]*\]).*?data: (\[[^\]]*\])"
-    for etiquetas, datos in re.findall(patron, html, re.S):
-        if etiqueta in etiquetas:
-            return json.loads(datos)
-    return []
+    bloque = re.search(
+        r'<script type="application/json" id="stats-data">(.*?)</script>', html, re.S
+    )
+    assert bloque, "falta el bloque stats-data"
+    return json.loads(bloque.group(1))[_SERIES[etiqueta]]
 
 
 class TestLosAgregadosSonDeLaCuenta:

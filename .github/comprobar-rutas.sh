@@ -50,6 +50,7 @@ rutas=(
     /cuentas
     /cuentas/ajustes
     /estado
+    /estado/backup
     /sugerencia
     /tengo-tiempo
     /salud

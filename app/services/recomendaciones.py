@@ -26,6 +26,7 @@ CANDIDATOS = (MediaStatus.PENDIENTE, MediaStatus.WISHLIST)
 # Qué se considera "te gustó". Un completado sin nota cuenta como señal débil
 # (lo terminaste, algo tendría), y una nota alta como señal fuerte.
 NOTA_ALTA = 8
+NOTA_BAJA = 4
 
 # Pesos. La saga pesa más que el creador y el creador más que el género porque
 # así de específica es la señal: que te gustara un libro de una saga dice mucho
@@ -90,6 +91,11 @@ def _gustos(db: Session, usuario: Usuario) -> tuple[dict, dict, Counter]:
     generos: Counter = Counter()
 
     for id_item, titulo, nota, saga, creador in filas:
+        # Terminar algo y ponerle un 3 es decir que no gustó: no puede tirar
+        # de recomendaciones "porque te gustó". Sin nota sí cuenta, como un
+        # "lo terminé". [R3-M18]
+        if nota is not None and nota <= NOTA_BAJA:
+            continue
         # Una nota alta pesa el doble que un simple "lo terminé".
         fuerza = 2 if (nota or 0) >= NOTA_ALTA else 1
 

@@ -2,10 +2,11 @@
 saga) y, en series, trae sus episodios desde TMDB. También recalcula el estado de
 una serie/podcast a partir de qué episodios están vistos."""
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
+from .. import fechas
 from ..models import Episode, MediaItem, MediaStatus, MediaType
 from . import generos, hltb, itunes, tmdb
 
@@ -65,22 +66,60 @@ def enrich_item(db: Session, item: MediaItem) -> None:
 
 
 def load_podcast_episodes(item: MediaItem, limit: int = 50) -> int:
-    """Crea los episodios de un podcast desde su feed RSS (external_id = feedUrl)."""
+    """Crea los episodios de un podcast desde su feed RSS (external_id = feedUrl).
+
+    Antes se numeraba por la posición en el feed, y el feed solo trae los
+    últimos `limit`: en cuanto salía uno nuevo, todos se corrían una posición
+    y "el 3" pasaba a ser otro episodio. Ahora cada episodio se reconoce por
+    su nombre y su fecha, los que ya están conservan su número y los nuevos
+    van detrás. Solo se añaden los posteriores al último conocido: los que el
+    feed deja caer por la cola no se pierden, y los viejos que reaparecieran
+    no se cuelan al final. [R3-M13]
+    """
     if not item.external_id:
         return 0
-    today = date.today()
-    existing = {(e.season_number, e.episode_number) for e in item.episodes}
+    conocidos = {(e.name, e.air_date) for e in item.episodes}
+    fechas = [e.air_date for e in item.episodes if e.air_date]
+    ultima = max(fechas) if fechas else None
+    numero = max((e.episode_number for e in item.episodes if e.season_number == 1), default=0)
+    primera_carga = not item.episodes
     added = 0
-    for i, e in enumerate(itunes.fetch_podcast_episodes(item.external_id, limit), start=1):
-        if (1, i) in existing:
+    for e in itunes.fetch_podcast_episodes(item.external_id, limit):
+        if (e["name"], e["air_date"]) in conocidos:
             continue
+        if ultima and (e["air_date"] is None or e["air_date"] < ultima):
+            continue
+        numero += 1
         item.episodes.append(Episode(
-            season_number=1, episode_number=i,
+            season_number=1, episode_number=numero,
             name=e["name"], air_date=e["air_date"], runtime_minutes=e["runtime_minutes"],
-            notified=bool(e["air_date"] and e["air_date"] <= today),
+            notified=_ya_avisado(e["air_date"], primera_carga),
         ))
+        conocidos.add((e["name"], e["air_date"]))
         added += 1
     return added
+
+
+# Un episodio que aparece en un refresco con fecha de hace unos días se avisa
+# igualmente: los podcasts (y a veces TMDB) publican el episodio el mismo día
+# que sale, así que nunca llega a estar "en el futuro". Más atrás ya no es
+# noticia.
+VENTANA_AVISO_TARDIO = timedelta(days=7)
+
+
+def _ya_avisado(air: date | None, primera_carga: bool) -> bool:
+    """Valor inicial de `notified` para un episodio nuevo.
+
+    En la primera carga los ya emitidos cuentan como avisados (dar de alta una
+    serie de diez temporadas no puede mandar cien mensajes). En un refresco se
+    avisa también de lo emitido hace poco.
+    """
+    if air is None:
+        return False
+    hoy = fechas.hoy()
+    if primera_carga:
+        return air <= hoy
+    return air < hoy - VENTANA_AVISO_TARDIO
 
 
 def estimated_minutes(item: MediaItem) -> int | None:
@@ -100,31 +139,74 @@ def estimated_minutes(item: MediaItem) -> int | None:
 
 
 def load_episodes(db: Session, item: MediaItem, seasons: list[int]) -> int:
-    """Crea las filas de Episode que falten para una serie. Devuelve cuántas añadió."""
+    """Crea las filas de Episode que falten y pone al día las que ya hay.
+
+    Devuelve cuántas añadió. Los existentes reciben fecha, nombre, sinopsis y
+    duración nuevos: TMDB suele anunciar los episodios sin fecha o con un
+    "Episodio 5" provisional, y antes eso se quedaba así para siempre, fuera
+    del calendario y sin aviso. Si la fecha pasa a ser futura, el aviso vuelve
+    a quedar pendiente. [R3-M12]
+    """
     if not item.external_id:
         return 0
-    today = date.today()
-    existing = {(e.season_number, e.episode_number) for e in item.episodes}
+    today = fechas.hoy()
+    existing = {(e.season_number, e.episode_number): e for e in item.episodes}
+    primera_carga = not existing
     added = 0
     for e in tmdb.fetch_tv_episodes(item.external_id, seasons):
         key = (e["season_number"], e["episode_number"])
-        if key in existing:
-            continue
         air = _to_date(e["air_date"])
-        item.episodes.append(Episode(
+        ep = existing.get(key)
+        if ep is not None:
+            if air and air != ep.air_date:
+                ep.air_date = air
+                if air > today:
+                    ep.notified = False
+            if e["name"]:
+                ep.name = e["name"]
+            if e["overview"]:
+                ep.overview = e["overview"]
+            if e["runtime_minutes"]:
+                ep.runtime_minutes = e["runtime_minutes"]
+            continue
+        nuevo = Episode(
             season_number=e["season_number"],
             episode_number=e["episode_number"],
             name=e["name"],
             overview=e["overview"],
             air_date=air,
             runtime_minutes=e["runtime_minutes"],
-            # Los ya emitidos al añadir cuentan como "vistos de aviso" (no spamear
-            # el historial); los futuros dispararán aviso cuando se estrenen
-            notified=bool(air and air <= today),
-        ))
-        existing.add(key)
+            notified=_ya_avisado(air, primera_carga),
+        )
+        item.episodes.append(nuevo)
+        existing[key] = nuevo
         added += 1
     return added
+
+
+def reabrir_si_hay_novedades(item: MediaItem) -> bool:
+    """Devuelve a "en progreso" una serie completada que tiene episodios nuevos.
+
+    Al ver el último episodio emitido la serie pasa a completada; cuando sale
+    el siguiente (o una temporada nueva) sigue completada, y nada de lo que
+    mira series en curso -- avisos, "Próximamente", "Seguir viendo" -- la
+    vuelve a ver. Cuenta solo lo emitido DESPUÉS de completarla: lo anunciado
+    y aún sin emitir no la reabre (seguiría "en progreso" meses sin nada que
+    ver), y una serie vieja completada a mano sin marcar episodios no se
+    reabre por ellos. Devuelve True si cambió. [R3-A3]
+    """
+    if not item.is_episodic or item.status != MediaStatus.COMPLETADO or item.completed_at is None:
+        return False
+    hoy = fechas.hoy()
+    hay_nuevo = any(
+        not e.watched and e.season_number != 0 and e.air_date
+        and item.completed_at < e.air_date <= hoy
+        for e in item.episodes
+    )
+    if not hay_nuevo:
+        return False
+    recompute_status(item)
+    return item.status != MediaStatus.COMPLETADO
 
 
 def marcar_comienzo(item: MediaItem) -> None:
@@ -135,7 +217,43 @@ def marcar_comienzo(item: MediaItem) -> None:
     una nota. [N5]
     """
     if item.started_at is None:
-        item.started_at = date.today()
+        item.started_at = fechas.hoy()
+
+
+def cambiar_estado(item: MediaItem, nuevo: MediaStatus) -> None:
+    """Pone el estado y las fechas que van con él, igual venga de donde venga.
+
+    Lo usan el formulario de edición y los botones de estado de la ficha: si
+    cada uno llevara su copia de las reglas de fechas, el diario dependería
+    de por dónde se hubiera marcado algo como terminado.
+    """
+    if item.status != MediaStatus.COMPLETADO and nuevo == MediaStatus.COMPLETADO and item.completed_at is None:
+        item.completed_at = fechas.hoy()  # primera vez que se marca completado
+    if nuevo != MediaStatus.COMPLETADO:
+        # Salir de "completado" deshace la fecha: si no, un "Visto" pulsado por
+        # error seguía contando en estadísticas, "mejores del año", portada y
+        # diario aunque el ítem volviera a "por ver". [R3-M7]
+        item.completed_at = None
+    if nuevo == MediaStatus.EN_PROGRESO:
+        marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
+    if nuevo == MediaStatus.COMPLETADO and item.is_episodic:
+        _marcar_emitidos_como_vistos(item)
+    item.status = nuevo
+
+
+def _marcar_emitidos_como_vistos(item: MediaItem) -> None:
+    """Dar una serie por vista es haber visto sus episodios emitidos.
+
+    Sin esto quedaba "completada" con 0/N vistos, el tiempo total no contaba
+    nada y el primer episodio que se marcara la devolvía a "en progreso". Los
+    que aún no han salido se quedan como están. `watched_at` va vacío a
+    propósito: se sabe que los viste, no cuándo, y poner hoy llenaría el diario
+    con todos los episodios de golpe en un día que no fue. [R3-M8]
+    """
+    hoy = fechas.hoy()
+    for e in item.episodes:
+        if not e.watched and (e.air_date is None or e.air_date <= hoy):
+            e.watched = True
 
 
 def recompute_status(item: MediaItem) -> None:
@@ -152,7 +270,7 @@ def recompute_status(item: MediaItem) -> None:
     elif stats["watched"] >= stats["total"]:
         item.status = MediaStatus.COMPLETADO
         if item.completed_at is None:
-            item.completed_at = date.today()
+            item.completed_at = fechas.hoy()
         # También aquí: una serie de un solo episodio se empieza y se termina
         # en el mismo gesto, y no haberla empezado nunca sería falso. En el
         # diario sale una sola línea igualmente, la de terminada.
@@ -167,14 +285,14 @@ def recompute_status(item: MediaItem) -> None:
 
 def toggle_episode(item: MediaItem, episode: Episode) -> None:
     episode.watched = not episode.watched
-    episode.watched_at = date.today() if episode.watched else None
+    episode.watched_at = fechas.hoy() if episode.watched else None
     recompute_status(item)
 
 
 def mark_through(item: MediaItem, episode: Episode) -> None:
     """Marca como vistos todos los episodios hasta 'episode' (incluido)."""
     target = (episode.season_number, episode.episode_number)
-    today = date.today()
+    today = fechas.hoy()
     for e in item.episodes:
         if (e.season_number, e.episode_number) <= target and not e.watched:
             e.watched = True
