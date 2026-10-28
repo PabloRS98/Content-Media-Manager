@@ -1,0 +1,7 @@
+{
+  "modelSettings": {
+    "claude-opus-5-5": { "autoCompactWindow": 300000 },
+    "claude-sonnet-5-5": { "autoCompactWindow": 300000 },
+    "claude-haiku-5-5": { "autoCompactWindow": 100000 }
+  }
+}
