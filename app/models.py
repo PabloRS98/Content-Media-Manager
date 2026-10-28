@@ -110,6 +110,11 @@ class Usuario(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(60), unique=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Va dentro de la cookie de sesión y tiene que coincidir: subirla cierra
+    # todas las sesiones abiertas de la cuenta. La cookie está firmada pero
+    # vive en el navegador, así que sin esto una copia seguía valiendo tras
+    # cambiar la contraseña. [R3-M4]
+    sesion_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     @property

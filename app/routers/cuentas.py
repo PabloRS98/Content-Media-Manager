@@ -16,6 +16,7 @@ from ..auth import verify_auth
 from ..cuentas import (
     abrir_sesion,
     cerrar_sesion,
+    cerrar_todas_las_sesiones,
     cifrar_password,
     comprobar_password,
     cuenta_en_sesion,
@@ -128,7 +129,7 @@ def cambiar_nombre(nombre: str = Form(...), usuario: Usuario = Depends(usuario_a
 
 
 @router.post("/cuentas/ajustes/password")
-def cambiar_password(actual: str = Form(""), nueva: str = Form(""),
+def cambiar_password(request: Request, actual: str = Form(""), nueva: str = Form(""),
                      usuario: Usuario = Depends(usuario_actual),
                      db: Session = Depends(get_db)):
     """Poner, cambiar o quitar la contraseña de la cuenta abierta.
@@ -153,6 +154,9 @@ def cambiar_password(actual: str = Form(""), nueva: str = Form(""),
             "La contraseña necesita al menos %d caracteres" % MIN_PASSWORD, "error",
         )
     usuario.password_hash = cifrar_password(nueva)
+    # Una contraseña nueva cierra las sesiones abiertas en otros sitios: es
+    # justo lo que se hace cuando se sospecha que alguien entró. [R3-M4]
+    cerrar_todas_las_sesiones(request, usuario)
     db.commit()
     return redirect_flash("/cuentas/ajustes", "Contraseña actualizada")
 
@@ -201,3 +205,12 @@ def borrar(request: Request, confirmacion: str = Form(""), password: str = Form(
     cuantos = datos.borrar_cuenta(db, usuario)
     cerrar_sesion(request)
     return redirect_flash("/cuentas", 'Cuenta "%s" borrada, con sus %d ítems' % (nombre, cuantos))
+
+
+@router.post("/cuentas/ajustes/cerrar-sesiones")
+def cerrar_sesiones(request: Request, usuario: Usuario = Depends(usuario_actual),
+                    db: Session = Depends(get_db)):
+    """Cierra la cuenta en todos los navegadores menos en este. [R3-M4]"""
+    cerrar_todas_las_sesiones(request, usuario)
+    db.commit()
+    return redirect_flash("/cuentas/ajustes", "Sesiones cerradas en los demás dispositivos")

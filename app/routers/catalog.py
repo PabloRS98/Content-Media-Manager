@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from .. import numeros
 from ..auth import verify_auth
 from ..catalogo_config import etiqueta_estado, etiquetas_de, etiquetas_de_duracion
+from ..config import settings
 from ..cuentas import item_de, items_de, listas_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
@@ -279,8 +280,16 @@ def search_external(
         source = {"libro": "googlebooks", "pelicula": "tmdb", "serie": "tmdb",
                   "videojuego": "rawg", "podcast": "itunes"}.get(tipo)
 
-    return templates.TemplateResponse(request, "search_results.html",
-                                      {"results": results, "tipo": tipo, "source": source, "idioma": idioma})
+    # Por qué no hay resultados, para no decir "escribe al menos 2
+    # caracteres" a quien ha escrito diez y lo que falta es la clave. [R3-B17]
+    clave_necesaria = {"pelicula": ("TMDB_API_KEY", settings.tmdb_api_key),
+                       "serie": ("TMDB_API_KEY", settings.tmdb_api_key),
+                       "videojuego": ("RAWG_API_KEY", settings.rawg_api_key)}.get(tipo)
+    return templates.TemplateResponse(request, "search_results.html", {
+        "results": results, "tipo": tipo, "source": source, "idioma": idioma,
+        "demasiado_corta": len(q.strip()) < 2,
+        "falta_clave": clave_necesaria[0] if clave_necesaria and not clave_necesaria[1] else None,
+    })
 
 
 @router.get("/sugerencia")
@@ -719,9 +728,10 @@ def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = De
     # Colección por década (según el año del ítem). Lo agrega SQLite con un
     # GROUP BY, igual que las sumas de tiempo de más arriba: antes se traía una
     # fila por ítem del catálogo entero solo para contarlas en Python.
-    # La división entera de SQLite sobre enteros ya trunca, así que year/10*10
-    # da la década sin más.
-    decada = (MediaItem.year / 10 * 10).label("decada")
+    # `//` y no `/`: en SQLAlchemy 2, `/` entre enteros es división real (le
+    # añade un CAST a NUMERIC), así que 1999 salía como la "década" de 1999 y
+    # cada año formaba la suya. Los tests solo usaban 2020, que no lo delata.
+    decada = (MediaItem.year // 10 * 10).label("decada")
     por_decada = sorted(
         (int(d), n) for d, n in
         de_esta_cuenta(decada, func.count(MediaItem.id))

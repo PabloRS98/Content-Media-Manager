@@ -43,6 +43,9 @@ def _escapar_comodines(texto: str) -> str:
     return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+MAX_PALABRAS = 10
+
+
 def filtrar_por_busqueda(query, texto: str | None):
     """Filtra por palabras en AND: cada palabra tiene que aparecer en alguna de
     las columnas, pero no necesariamente en la misma.
@@ -54,7 +57,10 @@ def filtrar_por_busqueda(query, texto: str | None):
     """
     if not texto or not texto.strip():
         return query
-    for palabra in texto.lower().split():
+    # Diez palabras como mucho: cada una añade un OR de siete columnas, y con
+    # mil SQLite revienta por la profundidad del árbol de la expresión (500).
+    # Nadie busca con más de diez palabras algo de su propio catálogo. [R3-B3]
+    for palabra in texto.lower().split()[:MAX_PALABRAS]:
         patron = "%%%s%%" % _escapar_comodines(palabra)
         query = query.filter(
             or_(

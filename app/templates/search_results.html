@@ -29,6 +29,12 @@
         </div>
     </form>
 {% else %}
-    <p class="hint">Sin resultados{% if tipo == "libro" %} en {{ "español" if idioma == "es" else "inglés" }}. Prueba a cambiar el idioma de búsqueda{% else %}. Escribe al menos 2 caracteres{% if tipo in ("pelicula", "serie") %} (¿está configurada TMDB_API_KEY?){% elif tipo == "videojuego" %} (¿está configurada RAWG_API_KEY?){% endif %}{% endif %}.</p>
+    {% if demasiado_corta %}
+    <p class="hint">Escribe al menos 2 caracteres.</p>
+    {% elif falta_clave %}
+    <p class="hint">Para buscar aquí hace falta <code>{{ falta_clave }}</code> en el <code>.env</code> (es gratis). Mientras, puedes añadirlo a mano.</p>
+    {% else %}
+    <p class="hint">Sin resultados{% if tipo == "libro" %} en {{ "español" if idioma == "es" else "inglés" }}. Prueba a cambiar el idioma de búsqueda{% else %}. Prueba con otra forma del título{% endif %}.</p>
+    {% endif %}
 {% endfor %}
 </div>

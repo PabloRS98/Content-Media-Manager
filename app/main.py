@@ -270,16 +270,20 @@ async def cabeceras_de_seguridad(request: Request, call_next):
 # `request.session`: si se registrara antes, quedaría por dentro y
 # reventarían con "SessionMiddleware must be installed".
 # La sesión guarda qué cuenta está abierta, firmada con una clave que se genera
-# sola la primera vez (ver `cuentas.secreto_de_sesion`). `https_only=False`
-# porque esto se sirve casi siempre por HTTP en la red de casa; con un proxy
-# inverso con TLS delante, la cookie viaja igual dentro del túnel.
+# sola la primera vez (ver `cuentas.secreto_de_sesion`). `https_only` va por
+# SECURE_COOKIES: apagado por defecto, porque esto se sirve casi siempre por
+# HTTP en la red de casa.
+#
+# 90 días y no un año: lo justo para no pedir la cuenta cada semana en la tele
+# de casa. Lo que de verdad corta una sesión robada es `sesion_version`
+# (cambiar la contraseña o "cerrar en todos los dispositivos"). [R3-M4]
 app.add_middleware(
     SessionMiddleware,
     secret_key=secreto_de_sesion(),
     session_cookie="media_catalog_sesion",
     same_site="lax",
-    https_only=False,
-    max_age=60 * 60 * 24 * 365,  # un año: es la tele de casa, no un banco
+    https_only=settings.secure_cookies,
+    max_age=60 * 60 * 24 * 90,
 )
 
 

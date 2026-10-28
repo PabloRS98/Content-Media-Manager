@@ -16,7 +16,7 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models import Episode, MediaItem, Usuario
@@ -106,8 +106,10 @@ def diario(db: Session, usuario: Usuario, desde: date, hasta: date) -> list[Dia]
         MediaItem.started_at >= desde,
         MediaItem.started_at <= hasta,
         # Lo que se empezó y se terminó el mismo día sale como terminado y ya:
-        # dos líneas para el mismo hecho leen peor que una.
-        MediaItem.completed_at.is_(None),
+        # dos líneas para el mismo hecho leen peor que una. Solo ese caso:
+        # antes se excluía todo lo terminado, así que un libro empezado en
+        # marzo y acabado en abril no salía en marzo. [R3-M10]
+        or_(MediaItem.completed_at.is_(None), MediaItem.completed_at != MediaItem.started_at),
     ).all()
     for fecha, id_item, titulo, tipo, portada in empezados:
         añadir(fecha, Entrada("empezado", id_item, titulo, tipo.value, portada))

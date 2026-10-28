@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     # solo hace falta si algun dia hay varios procesos sirviendo la misma base.
     secret_key: str = ""
 
+    # Cookie de sesión solo por HTTPS. Desactivada por defecto porque la app se
+    # sirve casi siempre por HTTP en la red de casa, y con ella activa la
+    # cookie no viajaría y no se podría abrir ninguna cuenta. Actívala si
+    # entras siempre por un proxy inverso con TLS. [R3-M4]
+    secure_cookies: bool = False
+
     # Hosts extra admitidos como origen de las peticiones que escriben (ver
     # csrf.py). Solo hace falta si se accede por un nombre distinto al del
     # proxy inverso; separados por comas.

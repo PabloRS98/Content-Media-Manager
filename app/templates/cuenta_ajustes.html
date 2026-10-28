@@ -56,6 +56,14 @@
         </section>
 
         <section class="card">
+            <h3>{{ icon("log-out") }} Sesiones</h3>
+            <p class="subtle">Si abriste la cuenta en un ordenador que no es tuyo, ciérrala allí desde aquí. Cambiar la contraseña también las cierra.</p>
+            <form method="post" action="/cuentas/ajustes/cerrar-sesiones">
+                <button type="submit" class="ghost">{{ icon("log-out", 14) }} Cerrar en los demás dispositivos</button>
+            </form>
+        </section>
+
+        <section class="card">
             <h3>{{ icon("download") }} Tus datos</h3>
             <p class="subtle">Todo lo de tu cuenta, para guardarlo o llevártelo: el JSON lo incluye todo (episodios, géneros, etiquetas, listas); el CSV se abre en una hoja de cálculo.</p>
             <div class="toolbar">
