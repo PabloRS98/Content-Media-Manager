@@ -12,10 +12,15 @@ cp .env.example .env
 uvicorn app.main:app --reload --port 8000
 ```
 
-Run the test suite with `pytest` and the linter with `ruff check .`.
+Run the test suite with `pytest` and the linter with `ruff check app tests migrations`.
+CI also requires 80 % coverage (`pytest --cov=app --cov-fail-under=80`).
 
 ## Guidelines
 
+- Dependencies live in `requirements.in` / `requirements-dev.in`. After
+  changing one, regenerate the hashed lock files with the `pip-compile`
+  command written at the top of that `.in` file and commit both; CI and the
+  Docker image install with `--require-hashes`.
 - Keep it dependency-light: no frontend build step, no paid APIs, no services
   beyond SQLite + the container itself.
 - New metadata sources must have a free tier and must be optional — the app
@@ -88,7 +93,7 @@ can choose when to take new migrations.
 
 - Keep PRs focused on one change.
 - Describe what changed and why in the PR description.
-- `pytest` and `ruff check .` must pass. CI runs them on every PR, along with
+- `pytest` and `ruff check app tests migrations` must pass. CI runs them on every PR, along with
   `pip-audit`, a smoke test of the hardened image and a migration from a 1.0.0
   database; the Docker image is only published when all of them pass.
 - Add a test with your change. If you are fixing something listed in

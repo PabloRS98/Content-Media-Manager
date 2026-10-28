@@ -12,13 +12,13 @@ justo lo que uno acaba enseñando en una captura para pedir ayuda.
 """
 import os
 import tempfile
-from datetime import date
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 
+from .. import fechas
 from ..auth import verify_auth
 from ..config import settings
 from ..cuentas import items_de, usuario_actual
@@ -161,6 +161,6 @@ def descargar_backup(db: Session = Depends(get_db), usuario: Usuario = Depends(u
     backup_database(ruta)
     return FileResponse(
         ruta, media_type="application/vnd.sqlite3",
-        filename="media-%s.db" % date.today().strftime("%Y%m%d"),
+        filename="media-%s.db" % fechas.hoy().strftime("%Y%m%d"),
         background=BackgroundTask(os.remove, ruta),
     )

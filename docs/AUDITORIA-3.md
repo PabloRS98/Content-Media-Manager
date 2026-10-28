@@ -18,12 +18,13 @@ Cada hallazgo indica cómo se comprobó:
 Los de severidad alta se volvieron a comprobar a mano antes de escribir este
 documento.
 
-> **Estado:** cerrados R3-A1, R3-A2, R3-A3, R3-A5, R3-A6, R3-M1, R3-M2,
-> R3-M3, R3-M5, R3-M7, R3-M8, R3-M12, R3-M13, R3-M22, R3-M23, R3-M24, R3-B4,
-> R3-B8 y R3-B11 (bloques 1 a 4 del orden recomendado, con tests en
-> `tests/test_auditoria_3.py`, `tests/test_seguimiento.py` y
-> `tests/test_ci.py`). De R3-M22 queda cortar la primera versión con tag,
-> que es decisión del mantenedor. El resto sigue abierto.
+> **Estado:** cerrados todos los hallazgos (R3-A1 a R3-A6, R3-M1 a R3-M30 y
+> R3-B1 a R3-B34), en siete tandas descritas en el [CHANGELOG](../CHANGELOG.md).
+> Los tests están en `tests/test_auditoria_3.py`, `test_seguimiento.py`,
+> `test_ci.py`, `test_importadores_auditoria_3.py`, `test_bloque_6.py`,
+> `test_logica_auditoria_3.py`, `test_frontend_auditoria.py`,
+> `test_itunes_xml.py` y `test_migraciones_downgrade.py`. De R3-M22 queda
+> cortar la primera versión con tag, que es decisión del mantenedor.
 
 | Severidad | Nº |
 |---|---|

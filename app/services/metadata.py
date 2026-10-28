@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
+from .. import fechas
 from ..models import Episode, MediaItem, MediaStatus, MediaType
 from . import generos, hltb, itunes, tmdb
 
@@ -115,7 +116,7 @@ def _ya_avisado(air: date | None, primera_carga: bool) -> bool:
     """
     if air is None:
         return False
-    hoy = date.today()
+    hoy = fechas.hoy()
     if primera_carga:
         return air <= hoy
     return air < hoy - VENTANA_AVISO_TARDIO
@@ -148,7 +149,7 @@ def load_episodes(db: Session, item: MediaItem, seasons: list[int]) -> int:
     """
     if not item.external_id:
         return 0
-    today = date.today()
+    today = fechas.hoy()
     existing = {(e.season_number, e.episode_number): e for e in item.episodes}
     primera_carga = not existing
     added = 0
@@ -196,7 +197,7 @@ def reabrir_si_hay_novedades(item: MediaItem) -> bool:
     """
     if not item.is_episodic or item.status != MediaStatus.COMPLETADO or item.completed_at is None:
         return False
-    hoy = date.today()
+    hoy = fechas.hoy()
     hay_nuevo = any(
         not e.watched and e.season_number != 0 and e.air_date
         and item.completed_at < e.air_date <= hoy
@@ -216,7 +217,7 @@ def marcar_comienzo(item: MediaItem) -> None:
     una nota. [N5]
     """
     if item.started_at is None:
-        item.started_at = date.today()
+        item.started_at = fechas.hoy()
 
 
 def cambiar_estado(item: MediaItem, nuevo: MediaStatus) -> None:
@@ -227,7 +228,7 @@ def cambiar_estado(item: MediaItem, nuevo: MediaStatus) -> None:
     de por dónde se hubiera marcado algo como terminado.
     """
     if item.status != MediaStatus.COMPLETADO and nuevo == MediaStatus.COMPLETADO and item.completed_at is None:
-        item.completed_at = date.today()  # primera vez que se marca completado
+        item.completed_at = fechas.hoy()  # primera vez que se marca completado
     if nuevo != MediaStatus.COMPLETADO:
         # Salir de "completado" deshace la fecha: si no, un "Visto" pulsado por
         # error seguía contando en estadísticas, "mejores del año", portada y
@@ -249,7 +250,7 @@ def _marcar_emitidos_como_vistos(item: MediaItem) -> None:
     propósito: se sabe que los viste, no cuándo, y poner hoy llenaría el diario
     con todos los episodios de golpe en un día que no fue. [R3-M8]
     """
-    hoy = date.today()
+    hoy = fechas.hoy()
     for e in item.episodes:
         if not e.watched and (e.air_date is None or e.air_date <= hoy):
             e.watched = True
@@ -269,7 +270,7 @@ def recompute_status(item: MediaItem) -> None:
     elif stats["watched"] >= stats["total"]:
         item.status = MediaStatus.COMPLETADO
         if item.completed_at is None:
-            item.completed_at = date.today()
+            item.completed_at = fechas.hoy()
         # También aquí: una serie de un solo episodio se empieza y se termina
         # en el mismo gesto, y no haberla empezado nunca sería falso. En el
         # diario sale una sola línea igualmente, la de terminada.
@@ -284,14 +285,14 @@ def recompute_status(item: MediaItem) -> None:
 
 def toggle_episode(item: MediaItem, episode: Episode) -> None:
     episode.watched = not episode.watched
-    episode.watched_at = date.today() if episode.watched else None
+    episode.watched_at = fechas.hoy() if episode.watched else None
     recompute_status(item)
 
 
 def mark_through(item: MediaItem, episode: Episode) -> None:
     """Marca como vistos todos los episodios hasta 'episode' (incluido)."""
     target = (episode.season_number, episode.episode_number)
-    today = date.today()
+    today = fechas.hoy()
     for e in item.episodes:
         if (e.season_number, e.episode_number) <= target and not e.watched:
             e.watched = True

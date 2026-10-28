@@ -9,7 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from .. import numeros
+from .. import fechas, numeros
 from ..auth import verify_auth
 from ..catalogo_config import etiqueta_estado, etiquetas_de, etiquetas_de_duracion
 from ..config import settings
@@ -26,6 +26,7 @@ from ..models import (
     Priority,
     Tag,
     Usuario,
+    list_items,
     media_item_generos,
     media_item_tags,
 )
@@ -423,7 +424,10 @@ def item_detail(
         episodios.precalcular(db, related)
 
     all_lists = listas_de(db, usuario).filter(Lista.filtro_estado.is_(None)).order_by(Lista.name).all()
-    item_lists = [lista for lista in all_lists if item in lista.items]
+    # Una consulta sobre la tabla de pertenencia, no `item in lista.items`,
+    # que cargaba cada lista entera: una SELECT por lista. [R3-M19]
+    en_listas = set(db.scalars(select(list_items.c.list_id).where(list_items.c.media_item_id == item.id)))
+    item_lists = [lista for lista in all_lists if lista.id in en_listas]
 
     return templates.TemplateResponse(request, "detail.html", {
         "item": item,
@@ -641,7 +645,7 @@ def mark_through_episode(
 
 @router.get("/estadisticas")
 def stats(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
-    year_now = date.today().year
+    year_now = fechas.hoy().year
 
     # TODAS las consultas de esta página acotan por cuenta. Los agregados son la
     # parte fácil de olvidar --no enseñan ningún título, así que un vistazo no

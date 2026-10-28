@@ -119,11 +119,12 @@ source; everything else keeps working.
 | `STEAM_API_KEY` / `STEAM_ID` | Import your Steam library with playtime | Free key at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey); the id is the 17-digit one, and the profile must be public |
 | `ALLOWED_HOSTS` | Host names the app may be reached by. IPs, single-word names, `.local`/`.lan`/`.home.arpa` and Tailscale's `*.ts.net` work on their own; a public domain of your own (e.g. a reverse proxy's) must be listed here. Blocks DNS rebinding. `*` turns the check off | — |
 | `TRUSTED_ORIGINS` | Extra hosts accepted as the origin of form submissions, when the app is reached by a name other than the proxy's | — |
+| `SECURE_COOKIES` | Marks the session cookie `Secure`, so the browser only sends it over HTTPS. Turn it on when the app is served behind an HTTPS reverse proxy; leave it off for plain `http://` on a LAN or Tailscale, or you will not stay signed in | `false` |
 | `SECRET_KEY` | Signs the session cookie that remembers which account is open. Optional: generated once and stored in the database if unset | — |
 | `APP_NAME` | Display name setting. Currently read into the settings but not shown anywhere in the UI (the templates have the title fixed) | `Catalogo de Medios` |
 | `ENABLE_SCHEDULER` | Runs the daily backup and the release/episode notifications inside the app process. Set it to `false` on all but one worker if you ever run uvicorn with `--workers N`, or the backup runs N times and Telegram notices are duplicated | `true` |
 | `MEDIA_BIND` / `MEDIA_PORT` | Docker Compose only: host address and port the container is published on. Defaults to `127.0.0.1` and `8002`, so the catalogue is reachable from the same machine only. Use `0.0.0.0` (or an interface IP) to serve it to other machines, ideally behind a reverse proxy or VPN | `127.0.0.1` / `8002` |
-| `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling | — |
+| `DB_PATH`, `BACKUP_KEEP`, `TIMEZONE` | Storage & scheduling. `TIMEZONE` also decides what "today" is: the date stored when you mark an episode watched or finish something, the diary and the calendar | — |
 
 Books via **Open Library** and podcasts via **iTunes Search** need no key at
 all — they're on by default.
@@ -134,6 +135,11 @@ all — they're on by default.
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000
 ```
+
+Dependencies are pinned with hashes. To add or bump one, edit
+`requirements.in` (or `requirements-dev.in` for tooling) and regenerate the
+lock files with the command at the top of each `.in` file
+(`pip-compile --generate-hashes …`); never edit the `.txt` files by hand.
 
 The app expects a writable `/data` directory (or set `DB_PATH` to a local
 path when running outside Docker).

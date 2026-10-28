@@ -39,6 +39,36 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, seventh batch — sessions, network, dates, frontend and
+  supply chain (closes the audit):**
+  - **[R3-M4]** "Sign out everywhere else" in account settings; changing the
+    password does it too (`sesion_version` in the cookie). The session cookie
+    expires after 90 days and can be marked `Secure` with `SECURE_COOKIES`.
+  - **[R3-M6]** Podcast feeds: only globally routable addresses (Tailscale's
+    `100.64/10` and IPv4-mapped IPv6 were let through), and redirects are
+    followed by hand, re-checking every hop. **[R3-B26]** Feeds that declare
+    a `DOCTYPE`/`ENTITY` or exceed 5 MB are rejected.
+  - **[R3-M11]** "Today" is computed in `TIMEZONE` everywhere (`fechas.hoy()`):
+    an episode watched at 00:30 in Madrid was stored with yesterday's date.
+  - **[R3-M10]** The diary shows a book started in March and finished in
+    April under March too. **[R3-M18]** Things you finished and rated 4 or
+    less no longer drive "because you liked…" recommendations.
+  - **[R3-M19]** The item page and `/calendario` no longer run one query per
+    list / per series. **[R3-B3]** A search with a thousand words no longer
+    crashes SQLite. **[R3-B17]** External search says whether the query is
+    too short or the API key is missing. Stats by decade grouped 1999 apart
+    from 1990 (`/` instead of `//`).
+  - **Frontend [R3-M26..M30, R3-B6, B7, B27..B34]:** CSP without inline
+    scripts, `no-store` on HTML and a `Permissions-Policy`; PNG app icons;
+    visible focus on carousel arrows, 44 px touch targets, `aria-live` on
+    HTMX regions, one live region for toasts, contrast fixes for form
+    borders and avatars, a print stylesheet, data tables behind every chart
+    and a consistent heading hierarchy.
+  - **Supply chain [R3-M25, R3-B18..B25]:** dependencies locked with hashes
+    from `requirements*.in` and installed with `--require-hashes` in CI and
+    the image; base image pinned by digest; Dependabot also for Docker; one
+    healthcheck; CI enforces 80 % coverage; every migration is tested
+    downgrading as well as upgrading.
 - **Third audit, sixth batch — your data, integrity and covers:**
   - **[R3-M21]** Export your account from its settings: JSON with everything
     (episodes, genres, tags, lists) or CSV for a spreadsheet. **Delete an

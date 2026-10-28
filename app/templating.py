@@ -12,7 +12,6 @@ from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlencode
-from zoneinfo import ZoneInfo
 
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -123,12 +122,9 @@ templates.env.globals["static_url"] = static_url
 
 def _ahora() -> datetime:
     """La hora de la casa, no la del contenedor (que va en UTC)."""
-    from .config import settings
+    from .fechas import ahora
 
-    try:
-        return datetime.now(ZoneInfo(settings.timezone))
-    except Exception:
-        return datetime.now()
+    return ahora()
 
 
 def saludo() -> str:

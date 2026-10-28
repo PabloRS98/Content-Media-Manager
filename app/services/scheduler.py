@@ -11,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
+from .. import fechas
 from ..config import settings
 from ..database import SessionLocal
 from ..models import TIPOS_EPISODICOS, Episode, MediaItem, MediaStatus, MediaType, Usuario
@@ -78,7 +79,7 @@ def temporadas_que_pueden_cambiar(item: MediaItem, temporadas_remotas: list[int]
     """
     if not temporadas_remotas:
         return []
-    hoy = hoy or date.today()
+    hoy = hoy or fechas.hoy()
     limite = hoy - VENTANA_TEMPORADA_VIVA
 
     ultima_fecha: dict[int, date | None] = {}
@@ -185,7 +186,7 @@ def reabrir_completadas(db: Session) -> int:
                 Episode.watched.is_(False),
                 Episode.season_number != 0,
                 Episode.air_date > MediaItem.completed_at,
-                Episode.air_date <= date.today(),
+                Episode.air_date <= fechas.hoy(),
             )),
         )
         .all()
@@ -210,7 +211,7 @@ def check_new_episodes(db: Session) -> int:
     ya vistos no se avisan, pero se marcan: quien ve el episodio el día del
     estreno antes de que corra el job no necesita que se lo cuenten. [R3-B11]
     """
-    today = date.today()
+    today = fechas.hoy()
     sent = 0
     eps = (
         db.query(Episode).join(MediaItem)
@@ -274,7 +275,7 @@ def check_new_episodes(db: Session) -> int:
 
 def check_releases(db: Session) -> int:
     """Avisa de estrenos de la wishlist ya disponibles. Devuelve cuántos."""
-    today = date.today()
+    today = fechas.hoy()
     sent = 0
     items = (
         db.query(MediaItem)
@@ -335,7 +336,7 @@ def backup_database(dest_path: str | None = None) -> str:
     if dest_path is None:
         backups_dir = os.path.join(os.path.dirname(settings.db_path), "backups")
         os.makedirs(backups_dir, exist_ok=True)
-        dest_path = os.path.join(backups_dir, "media-%s.db" % date.today().strftime("%Y%m%d"))
+        dest_path = os.path.join(backups_dir, "media-%s.db" % fechas.hoy().strftime("%Y%m%d"))
 
     # Se escribe aparte y se cambia por el bueno al final: antes se escribía
     # encima del backup del día, y si la copia fallaba a mitad (disco lleno,

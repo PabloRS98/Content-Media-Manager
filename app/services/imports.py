@@ -26,7 +26,7 @@ from datetime import date, datetime, time
 
 from sqlalchemy.orm import Session
 
-from .. import numeros
+from .. import fechas, numeros
 from ..models import MediaItem, MediaStatus, MediaType
 from . import generos, metadata
 
@@ -561,7 +561,7 @@ def import_imdb_csv(db: Session, text: str, usuario_id: int) -> dict:
         fecha = _parse_date(_get(row, "Date Rated", "Fecha de calificación",
                                  "Fecha de calificacion", "Date"))
         status = MediaStatus.COMPLETADO if rating is not None else MediaStatus.PENDIENTE
-        completado = (fecha or date.today()) if status == MediaStatus.COMPLETADO else None
+        completado = (fecha or fechas.hoy()) if status == MediaStatus.COMPLETADO else None
 
         existente = indice.buscar(title, year, external_id=external_id, fuente="imdb")
         if existente:

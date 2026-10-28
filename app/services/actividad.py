@@ -19,6 +19,7 @@ from datetime import date, timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from .. import fechas
 from ..models import Episode, MediaItem, Usuario
 
 # Cuántos meses hacia atrás ofrece la navegación antes de dejar de tener
@@ -50,7 +51,7 @@ def rango_del_mes(mes: str | None) -> tuple[date, date]:
     El parámetro va en la URL y se puede escribir a mano, así que cualquier
     basura cae al mes en curso en vez de reventar la página.
     """
-    hoy = date.today()
+    hoy = fechas.hoy()
     primero = hoy.replace(day=1)
     if mes:
         try:

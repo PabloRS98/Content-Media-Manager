@@ -6,12 +6,11 @@ Lo que sí hace es no filtrar nada: solo muestra los nombres y si cada una lleva
 candado. Nunca cuántos ítems tiene ni nada de su contenido.
 """
 import json
-from datetime import date
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from sqlalchemy.orm import Session
 
-from .. import intentos
+from .. import fechas, intentos
 from ..auth import verify_auth
 from ..cuentas import (
     abrir_sesion,
@@ -169,7 +168,7 @@ def exportar(formato: str, usuario: Usuario = Depends(usuario_actual),
         return redirect_flash("/cuentas/ajustes", "Formato desconocido", "error")
     nombre = "catalogo-%s-%s.%s" % (
         "".join(c for c in usuario.nombre if c.isalnum()) or "cuenta",
-        date.today().isoformat(), formato)
+        fechas.hoy().isoformat(), formato)
     if formato == "json":
         cuerpo = json.dumps(datos.exportar_json(db, usuario), ensure_ascii=False, indent=1)
         tipo = "application/json"
