@@ -22,16 +22,16 @@ for _clave in ("TMDB_API_KEY", "RAWG_API_KEY", "GOOGLE_BOOKS_API_KEY",
                "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
     os.environ[_clave] = ""
 
-import httpx  # noqa: E402
-import pytest  # noqa: E402
-from alembic import command  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine, event  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+import httpx
+import pytest
+from alembic import command
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, _config_alembic, get_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType, Usuario  # noqa: E402
+from app.database import Base, _config_alembic, get_db
+from app.main import app
+from app.models import Episode, Lista, MediaItem, MediaStatus, MediaType, Usuario
 
 
 class RedProhibida(RuntimeError):

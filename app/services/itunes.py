@@ -14,6 +14,31 @@ logger = logging.getLogger(__name__)
 SEARCH_URL = "https://itunes.apple.com/search"
 ITUNES_NS = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
 
+# Tope del RSS que se acepta parsear. Un feed de podcast real, con cientos de
+# episodios y sus notas, ronda 1-3 MB; 5 MB deja margen y corta lo absurdo.
+MAX_BYTES_FEED = 5 * 1024 * 1024
+
+
+def _parsear_feed(contenido: bytes) -> ET.Element:
+    """Parsea un RSS externo con xml.etree sin exponerse a XML malicioso. [R3-B26]
+
+    El feed lo sirve un tercero cualquiera (la URL la escribe quien da de alta
+    el podcast). xml.etree no resuelve entidades externas, pero sí expande las
+    internas: un documento con entidades anidadas ("billion laughs") ocupa
+    unos pocos KB en disco y gigas en memoria. Un RSS legítimo no declara ni
+    DOCTYPE ni ENTITY, así que se rechaza cualquier documento que los lleve en
+    vez de añadir defusedxml como dependencia. El tope de tamaño evita además
+    cargar en memoria un cuerpo desmesurado.
+    """
+    if len(contenido) > MAX_BYTES_FEED:
+        raise ValueError("el feed supera %d bytes" % MAX_BYTES_FEED)
+    # En minúsculas y sin bytes nulos: un documento en UTF-16 intercala un \x00
+    # entre letras y esquivaría la búsqueda de bytes.
+    cabecera = contenido.replace(b"\x00", b"").lower()
+    if b"<!doctype" in cabecera or b"<!entity" in cabecera:
+        raise ValueError("el feed declara DOCTYPE/ENTITY")
+    return ET.fromstring(contenido)
+
 
 def _es_url_publica(url: str) -> bool:
     """Rechaza esquemas que no sean http/https y hosts que resuelvan a rangos
@@ -125,7 +150,7 @@ def fetch_podcast_episodes(feed_url: str, limit: int = 50) -> list[dict]:
     try:
         resp = _get_publico(feed_url)
         resp.raise_for_status()
-        root = ET.fromstring(resp.content)
+        root = _parsear_feed(resp.content)
         items = root.findall(".//channel/item")[:limit]
         episodes = []
         for it in reversed(items):  # del más antiguo al más nuevo

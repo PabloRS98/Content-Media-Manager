@@ -51,14 +51,9 @@ services:
       - CHOWN
       - SETUID
       - SETGID
-    healthcheck:
-      # La suite definía el healthcheck por fuera; al independizarse hay que
-      # declararlo aquí o el contenedor pasaría a no tener ninguno.
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/salud', timeout=3)"]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+    # Sin `healthcheck:` a propósito [R3-B20]: lo declara el HEALTHCHECK del
+    # Dockerfile y Compose lo hereda de la imagen. Tenerlo en los dos sitios era
+    # duplicar una definición que podía divergir.
     logging:
       driver: json-file
       options:

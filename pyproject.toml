@@ -13,7 +13,7 @@ pythonpath = ["."]
 # `--strict-markers` evita que una marca mal escrita se ignore en silencio.
 addopts = "-q --strict-markers"
 markers = [
-    "fallo_conocido: fallo ya diagnosticado y aún sin arreglar (ver docs/AUDITORIA.md)",
+    "fallo_conocido: regresión de un fallo ya diagnosticado y arreglado (ver docs/AUDITORIA.md)",
 ]
 
 [tool.ruff]
@@ -28,6 +28,7 @@ select = [
     "B",    # bugbear: fallos sutiles reales
     "UP",   # pyupgrade
     "C4",   # comprehensions
+    "RUF100",  # noqa que ya no tapan nada
 ]
 ignore = [
     # E501 estuvo aquí ignorada con el motivo "no queremos ruido en las

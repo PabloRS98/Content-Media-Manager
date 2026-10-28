@@ -1,10 +1,12 @@
-"""Fallos ya diagnosticados y todavía sin arreglar.
+"""Regresiones de fallos que estuvieron diagnosticados y ya están arreglados.
 
-Cada test describe el comportamiento CORRECTO y va marcado con `xfail(strict=True)`.
-Es decir: hoy fallan a propósito y el CI sigue en verde, pero en cuanto se
-arregle el fallo el test pasará y `strict` hará fallar la construcción, obligando
-a quitar la marca. Así la lista no se queda mintiendo: no se puede arreglar algo
-y olvidarse de este fichero.
+Cada test describe el comportamiento CORRECTO y pasa: antes iban marcados con
+`xfail(strict=True)`, y al arreglarse cada fallo se quitó la marca (así lo
+obligaba `strict`). Ya no queda ningún xfail en la suite. Se conservan aquí, y
+con la marca `fallo_conocido` para poder lanzarlos juntos
+(`pytest -m fallo_conocido`), porque cada uno protege un fallo que ya se
+produjo una vez. Si aparece un fallo nuevo aún sin arreglar, se añade aquí
+con `@pytest.mark.xfail(strict=True)`.
 
 Las referencias (A1, M2...) son las de `docs/AUDITORIA.md`.
 """

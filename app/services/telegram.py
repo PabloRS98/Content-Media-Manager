@@ -80,7 +80,7 @@ def send_message(text: str) -> bool:
 def _retry_after(resp) -> int | None:
     try:
         return int(resp.json()["parameters"]["retry_after"])
-    except Exception:  # noqa: BLE001  cualquier cuerpo raro = no sabemos cuánto
+    except Exception:
         try:
             return int(resp.headers.get("retry-after", ""))
         except ValueError:

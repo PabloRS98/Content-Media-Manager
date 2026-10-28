@@ -306,7 +306,7 @@ def run_alerts() -> None:
         if n or r:
             logger.info("Avisos enviados: %d episodios, %d estrenos", n, r)
         _registrar("media_alerts", True, "%d episodios, %d estrenos" % (n, r))
-    except Exception as exc:  # noqa: BLE001  el scheduler debe sobrevivir a cualquier job
+    except Exception as exc:
         logger.exception("Fallo en el job de estrenos")
         _registrar("media_alerts", False, str(exc)[:200])
     finally:
@@ -323,7 +323,7 @@ def run_backup() -> None:
     try:
         ruta = backup_database()
         _registrar("daily_backup", True, ruta)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Fallo en el job de backup")
         _registrar("daily_backup", False, str(exc)[:200])
 

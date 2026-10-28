@@ -1,0 +1,20 @@
+# Dependencias DIRECTAS de la app: es el fichero que se edita a mano. [R3-M25]
+#
+# requirements.txt se GENERA a partir de este (no se toca a mano):
+#   pip-compile --generate-hashes --allow-unsafe --strip-extras -o requirements.txt requirements.in
+# y fija TAMBIÉN las transitivas, cada una con su hash. Por qué: con solo las
+# directas pinneadas, starlette, pydantic, anyio, h11... se resolvían en cada
+# build a la última versión (build no reproducible), y `pip-audit -r` solo
+# auditaba lo que figuraba en el fichero. El Dockerfile instala con
+# --require-hashes: un paquete que cambie en PyPI sin que cambie el lock no entra.
+# Dependabot entiende este layout (.in + .txt) y sube las dos cosas juntas.
+fastapi==0.141.1
+uvicorn[standard]==0.52.0
+sqlalchemy==2.0.51
+alembic==1.18.5
+pydantic-settings==2.14.2
+jinja2==3.1.6
+python-multipart==0.0.32
+apscheduler==3.11.3
+httpx==0.28.1
+itsdangerous==2.2.0
