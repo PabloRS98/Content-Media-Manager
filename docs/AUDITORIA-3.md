@@ -18,10 +18,12 @@ Cada hallazgo indica cómo se comprobó:
 Los de severidad alta se volvieron a comprobar a mano antes de escribir este
 documento.
 
-> **Estado:** cerrados R3-A1, R3-A2, R3-A3, R3-A6, R3-M1, R3-M2, R3-M3,
-> R3-M5, R3-M7, R3-M8, R3-M12, R3-M13, R3-B4, R3-B8 y R3-B11 (bloques 1 a 3
-> del orden recomendado, con tests en `tests/test_auditoria_3.py` y
-> `tests/test_seguimiento.py`). El resto sigue abierto.
+> **Estado:** cerrados R3-A1, R3-A2, R3-A3, R3-A5, R3-A6, R3-M1, R3-M2,
+> R3-M3, R3-M5, R3-M7, R3-M8, R3-M12, R3-M13, R3-M22, R3-M23, R3-M24, R3-B4,
+> R3-B8 y R3-B11 (bloques 1 a 4 del orden recomendado, con tests en
+> `tests/test_auditoria_3.py`, `tests/test_seguimiento.py` y
+> `tests/test_ci.py`). De R3-M22 queda cortar la primera versión con tag,
+> que es decisión del mantenedor. El resto sigue abierto.
 
 | Severidad | Nº |
 |---|---|
@@ -168,7 +170,7 @@ documento.
 ### Datos
 
 - **R3-B8** [V] `/actividad?mes=0001-01` y `?mes=9999-12` dan 500 (`mes_anterior` y `mes_siguiente` desbordan).
-- **R3-B9** [V] `PRAGMA foreign_keys` está desactivado y las FK de `usuario_id` no tienen `ondelete`. Además, la base migrada no tiene esas FK y la creada desde los modelos sí.
+- **R3-B9** [V] `PRAGMA foreign_keys` está desactivado y las FK de `usuario_id` no tienen `ondelete`. Además, la base migrada no tiene esas FK y la creada desde los modelos sí (`alembic check` lo detecta: propone dos `add_fk`).
 - **R3-B10** [V] Las tablas puente hacen `SCAN` al filtrar por género o etiqueta. Arreglo: índice sobre la segunda columna de cada clave compuesta.
 - **R3-B11** [L] Telegram avisa de episodios ya vistos y, al reactivarlo, envía de golpe todo lo acumulado, sin agrupar y sin control de 429. Además, un único chat recibe los avisos de todas las cuentas.
 - **R3-B12** [L] Letterboxd `diary.csv` toma `Date` (la fecha del registro) antes que `Watched Date`.

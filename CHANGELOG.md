@@ -39,6 +39,21 @@ each entry below names the id it closes.
 
 ### Changed
 
+- **Third audit, fourth batch — CI and releases:**
+  - **[R3-A5]** The Docker image is published only after the **whole** CI
+    passes. Publishing lived in its own workflow, gated by a copy of the
+    tests alone, so a push to `main` published `latest` with `pip-audit`, the
+    hardened-image smoke test or the 1.0.0 migration in red. It is now the
+    last job of `ci.yml` (`docker-publish.yml` is gone).
+  - **[R3-M22]** Release process in `CONTRIBUTING.md`. Pushing a `vX.Y.Z` tag
+    runs the full CI and publishes `:X.Y.Z` and `:X.Y`, which never move;
+    `latest` still follows `main`.
+  - **[R3-M23]** Every action is pinned to a commit SHA (version in a
+    comment, kept up to date by Dependabot), and the workflow token is
+    `contents: read` except in the publish job.
+  - **[R3-M24]** `CONTRIBUTING.md` said to change the schema with
+    `ensure_columns()`; it is Alembic since MC-M4, and the guide now explains
+    how to write and check a migration.
 - **Third audit, third batch — following series and podcasts:**
   - **[R3-A3]** A series you are up to date with no longer goes silent.
     Watching the last aired episode marks it completed, and the daily job

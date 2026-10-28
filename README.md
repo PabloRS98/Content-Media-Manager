@@ -1,7 +1,7 @@
 # Media Catalog
 
 [![CI](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/ci.yml)
-[![Docker image](https://github.com/PabloRS98/Content-Media-Manager/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
+[![Docker image](https://img.shields.io/badge/image-ghcr.io-blue)](https://github.com/PabloRS98/Content-Media-Manager/pkgs/container/content-media-manager)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/PabloRS98/Content-Media-Manager)](https://github.com/PabloRS98/Content-Media-Manager/releases/latest)
 
@@ -83,7 +83,10 @@ cp .env.example .env   # optional: add free API keys, see below
 docker compose up -d --build
 ```
 
-Or, without cloning, using the prebuilt image published on every push to `main`:
+Or, without cloning, using the prebuilt image. It is published only after the
+whole CI passes: `latest` follows `main`, and every release also gets fixed
+tags (`1.2.3` and `1.2`) that never move. Pin one of those if you'd rather
+choose when database migrations run:
 
 ```bash
 docker run -d --name media-catalog -p 8002:8000 \
