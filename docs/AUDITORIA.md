@@ -15,6 +15,8 @@ código, señaladas como tales.
 > arregló cada cosa, ver el [CHANGELOG](../CHANGELOG.md) y el historial de pull
 > requests cerradas del repositorio.
 
+> **Hay una tercera auditoría** (octubre de 2026, tras el rediseño): ver [AUDITORIA-3.md](AUDITORIA-3.md).
+
 > **Hay una segunda auditoría.** En agosto de 2026 se revisó de nuevo el proyecto
 > entero, junto a las otras dos aplicaciones self-hosted, y salieron 44 hallazgos
 > nuevos con el prefijo `MC-*`. Esa segunda ronda **no repite ninguno de los de
