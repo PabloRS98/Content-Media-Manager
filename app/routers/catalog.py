@@ -2,7 +2,7 @@
 ficha de detalle con episodios, orden + paginación y estadísticas."""
 import logging
 from datetime import UTC, date, datetime
-from math import ceil
+from math import ceil, isfinite
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
@@ -10,7 +10,7 @@ from sqlalchemy import extract, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..auth import verify_auth
-from ..catalogo_config import etiquetas_de, etiquetas_de_duracion
+from ..catalogo_config import etiqueta_estado, etiquetas_de, etiquetas_de_duracion
 from ..cuentas import item_de, items_de, listas_de, usuario_actual
 from ..database import SessionLocal, get_db
 from ..flash import redirect_flash
@@ -455,11 +455,7 @@ def update_item(
     item.runtime_minutes = _parse_optional(runtime_minutes, int)
     item.page_count = _parse_optional(page_count, int)
     item.hltb_hours = _parse_optional(hltb_hours, float)
-    if item.status != MediaStatus.COMPLETADO and status == MediaStatus.COMPLETADO and item.completed_at is None:
-        item.completed_at = date.today()  # primera vez que se marca completado
-    if status == MediaStatus.EN_PROGRESO:
-        metadata.marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
-    item.status = status
+    metadata.cambiar_estado(item, status)
     item.rating = _parse_rating(rating)
     item.notes = notes
     item.progress_current = _parse_optional(progress_current, float)
@@ -487,6 +483,95 @@ def update_item(
     return redirect_flash("/item/%d" % item.id, '"%s" actualizado' % item.title)
 
 
+@router.post("/item/{item_id}/estado")
+def quick_status(
+    item_id: int,
+    status: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Cambiar solo el estado, de un clic desde la ficha.
+
+    Hasta ahora había que abrir el diálogo de edición entero -- veinte campos
+    -- para pasar algo de "por ver" a "visto", que es justo lo que más se hace.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    nuevo = _enum_or_none(MediaStatus, status)
+    if nuevo is None:
+        return redirect_flash("/item/%d" % item.id, "Estado no válido", "error")
+    if nuevo != item.status:
+        metadata.cambiar_estado(item, nuevo)
+        item.updated_at = _utcnow()
+        db.commit()
+    return redirect_flash("/item/%d" % item.id, "%s: %s" % (item.title, etiqueta_estado(item)))
+
+
+@router.post("/item/{item_id}/nota")
+def quick_rating(
+    item_id: int,
+    rating: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Poner (o quitar, con vacío) la nota desde las estrellas de la ficha.
+
+    Mismo saneado que el formulario completo: fuera de 1-10 queda sin nota.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    item.rating = _parse_rating(rating)
+    item.updated_at = _utcnow()
+    db.commit()
+    if item.rating:
+        mensaje = "Nota guardada: %s/5" % ("%g" % (item.rating / 2)).replace(".", ",")
+    else:
+        mensaje = "Nota quitada"
+    return redirect_flash("/item/%d" % item.id, mensaje)
+
+
+@router.post("/item/{item_id}/progreso")
+def quick_progress(
+    item_id: int,
+    valor: str = Form(""),
+    incremento: str = Form(""),
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Apuntar por dónde vas (página, %, horas) sin abrir el formulario.
+
+    `incremento` suma al valor actual (el botón "+1"); `valor` lo fija. Nunca
+    pasa del total, y no marca nada como terminado por llegar a él: acabar un
+    libro es una decisión, no una cuenta.
+    """
+    item = item_de(db, usuario, item_id)
+    if not item:
+        return redirect_flash("/catalogo", "El ítem ya no existe", "error")
+    paso = _parse_optional(incremento, float)
+    fijo = _parse_optional(valor, float)
+    if paso is not None:
+        nuevo = (item.progress_current or 0) + paso
+    elif fijo is not None:
+        nuevo = fijo
+    else:
+        return redirect_flash("/item/%d" % item.id, "Indica por dónde vas", "error")
+    # float() acepta "nan" e "inf", y un progreso infinito rompe la barra.
+    if not isfinite(nuevo):
+        return redirect_flash("/item/%d" % item.id, "Ese número no vale", "error")
+    nuevo = max(0.0, nuevo)
+    if item.progress_total:
+        nuevo = min(nuevo, item.progress_total)
+    item.progress_current = nuevo
+    # Avanzar en algo que estaba en la cola es empezarlo.
+    if nuevo > 0 and item.status in (MediaStatus.PENDIENTE, MediaStatus.WISHLIST):
+        metadata.cambiar_estado(item, MediaStatus.EN_PROGRESO)
+    item.updated_at = _utcnow()
+    db.commit()
+    return redirect_flash("/item/%d" % item.id, "Progreso guardado")
+
+
 @router.post("/item/{item_id}/eliminar")
 def delete_item(item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     item = item_de(db, usuario, item_id)
@@ -504,6 +589,10 @@ def toggle_episode(item_id: int, ep_id: int, db: Session = Depends(get_db), usua
         metadata.toggle_episode(item, ep)
         item.updated_at = _utcnow()
         db.commit()
+        # Con el ancla, el navegador vuelve al episodio que se acaba de marcar
+        # en vez de al principio de la ficha: con cinco temporadas abiertas,
+        # cada clic obligaba a bajar otra vez hasta donde ibas.
+        return redirect_flash("/item/%d#ep-%d" % (item_id, ep.id), "Episodio actualizado", "info")
     return redirect_flash("/item/%d" % item_id, "Episodio actualizado", "info")
 
 
@@ -520,7 +609,7 @@ def mark_through_episode(
         metadata.mark_through(item, ep)
         item.updated_at = _utcnow()
         db.commit()
-        return redirect_flash("/item/%d" % item_id, "Marcado hasta %s" % ep.code)
+        return redirect_flash("/item/%d#ep-%d" % (item_id, ep.id), "Marcado hasta %s" % ep.code)
     return redirect_flash("/item/%d" % item_id, "No se pudo marcar", "error")
 
 

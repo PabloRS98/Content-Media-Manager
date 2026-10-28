@@ -51,6 +51,21 @@ def seed_smart_lists(db: Session, usuario_id: int) -> None:
         db.commit()
 
 
+def _portadas(db: Session, usuario: Usuario, estado: MediaStatus, cuantas: int = 4) -> list[str]:
+    """Las portadas más recientes de una vista automática, para el mosaico de
+    su ficha en /listas. Solo la columna, no los ítems enteros: son cuatro
+    URLs por lista, y traer los objetos sería cargar `overview` para nada."""
+    filas = (
+        items_de(db, usuario)
+        .filter(MediaItem.status == estado, MediaItem.cover_url.isnot(None), MediaItem.cover_url != "")
+        .order_by(MediaItem.updated_at.desc())
+        .with_entities(MediaItem.cover_url)
+        .limit(cuantas)
+        .all()
+    )
+    return [url for (url,) in filas]
+
+
 @router.get("/listas")
 def list_lists(request: Request, db: Session = Depends(get_db), usuario: Usuario = Depends(usuario_actual)):
     # Un COUNT agrupado, no uno por lista. Y el resultado va en un diccionario
@@ -65,7 +80,11 @@ def list_lists(request: Request, db: Session = Depends(get_db), usuario: Usuario
         .group_by(MediaItem.status).all()
     )
     dinamicas = [
-        {"lista": lista, "total": conteos.get(MediaStatus(lista.filtro_estado), 0)}
+        {
+            "lista": lista,
+            "total": conteos.get(MediaStatus(lista.filtro_estado), 0),
+            "portadas": _portadas(db, usuario, MediaStatus(lista.filtro_estado)),
+        }
         for lista in listas_de(db, usuario).filter(Lista.filtro_estado.isnot(None))
         .order_by(Lista.id).all()
     ]

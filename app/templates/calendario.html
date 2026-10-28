@@ -4,18 +4,23 @@
 {% block title %}Calendario · Catálogo{% endblock %}
 {% block content %}
 
-<a href="/" class="back-link">{{ icon("chevron-left", 15) }} Inicio</a>
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("calendar", 13) }} Organizar</span>
+        <h1>Próximos estrenos</h1>
+        <p class="lead">Episodios de lo que sigues y lanzamientos de tu wishlist.</p>
+    </div>
+</header>
 
 <section class="card">
-    <h3>{{ icon("calendar") }} Próximos estrenos</h3>
     {% if grupos %}
     {% for g in grupos %}
     <div class="cal-group">
         <div class="cal-date">{{ fecha_larga(g.fecha)|capitalize }}</div>
         <ul class="upcoming-list">
             {% for e in g.entradas %}
-            <li>
-                <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 14) }} {{ e.item.title }}</a>
+            <li data-tipo="{{ e.item.media_type.value }}">
+                <a href="/item/{{ e.item.id }}">{{ media_icon(e.item.media_type.value, 15) }} {{ e.item.title }}</a>
                 <span class="subtle">
                 {%- if e.tipo == "episodio" %}{{ e.episodio.code }}{% if e.episodio.name %} · {{ e.episodio.name }}{% endif %}
                 {%- else %}estreno{% endif %}</span>
@@ -25,7 +30,7 @@
     </div>
     {% endfor %}
     {% else %}
-    <div class="empty">{{ icon("calendar", 30) }} Nada en el horizonte. Los estrenos aparecen aquí cuando sigues series (con TMDB) o pones cosas con fecha en tu wishlist.</div>
+    <div class="empty">{{ icon("calendar", 28) }} Nada en el horizonte. Los estrenos aparecen aquí cuando sigues series (con TMDB) o pones cosas con fecha en tu wishlist.</div>
     {% endif %}
 </section>
 

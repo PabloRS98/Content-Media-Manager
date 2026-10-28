@@ -1,7 +1,8 @@
 {% from "_icons.html" import icon %}
+{% from "_media_icon.html" import media_icon %}
 <div class="grid-cards">
 {% for r in results %}
-    <form method="post" action="/agregar" class="card media-card">
+    <form method="post" action="/agregar" class="card media-card result" data-tipo="{{ tipo }}">
         <input type="hidden" name="media_type" value="{{ tipo }}">
         <input type="hidden" name="external_id" value="{{ r.external_id or '' }}">
         <input type="hidden" name="external_source" value="{{ source or '' }}">
@@ -13,16 +14,18 @@
         <input type="hidden" name="genres" value="{{ r.genres or '' }}">
         <input type="hidden" name="release_date" value="{{ r.release_date or '' }}">
         <input type="hidden" name="page_count" value="{{ r.page_count or '' }}">
-        <div class="cover">
-            {% if r.cover_url %}<img src="{{ r.cover_url }}" alt="" loading="lazy">
-            {% else %}<span class="no-cover">{{ icon("image-off", 26) }}</span>{% endif %}
+        <div class="cover{% if tipo == 'podcast' %} podcast{% endif %}">
+            {% if r.cover_url %}<img src="{{ r.cover_url }}" alt="" loading="lazy" decoding="async">
+            {% else %}<span class="no-cover">{{ media_icon(tipo, 28) }}<span class="no-cover-title">{{ r.title }}</span></span>{% endif %}
         </div>
-        <span class="title">{{ r.title }}</span>
-        <span class="meta">{{ r.year or "" }} {{ ("· " ~ r.creator) if r.creator else "" }}</span>
-        {% if r.genres %}<span class="meta">{{ r.genres }}</span>{% endif %}
-        <div class="toolbar" style="margin-top:auto; gap:.4rem">
-            <button type="submit" name="status" value="pendiente" class="grow">{{ icon("plus", 14) }} Añadir</button>
-            <button type="submit" name="status" value="wishlist" class="ghost small" title="Añadir a wishlist">{{ icon("sparkles", 14) }}</button>
+        <div class="mc-body">
+            <span class="title">{{ r.title }}</span>
+            <span class="meta">{{ r.year or "" }} {{ ("· " ~ r.creator) if r.creator else "" }}</span>
+            {% if r.genres %}<span class="meta genres">{{ r.genres }}</span>{% endif %}
+            <div class="result-actions">
+                <button type="submit" name="status" value="pendiente" class="small">{{ icon("plus", 14) }} Añadir</button>
+                <button type="submit" name="status" value="wishlist" class="ghost small" title="Añadir a la wishlist" aria-label="Añadir a la wishlist">{{ icon("bookmark", 14) }}</button>
+            </div>
         </div>
     </form>
 {% else %}

@@ -3,7 +3,7 @@
 {% if encajan %}
 <ul class="timefit-list">
 {% for item, est in encajan %}
-    <li>
+    <li data-tipo="{{ item.media_type.value }}">
         <a href="/item/{{ item.id }}">{{ media_icon(item.media_type.value, 15) }} {{ item.title }}</a>
         <span class="subtle">
         {%- if item.media_type.value in ("serie", "podcast") %}

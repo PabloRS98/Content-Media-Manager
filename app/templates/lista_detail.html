@@ -6,34 +6,37 @@
 
 <a href="/listas" class="back-link">{{ icon("chevron-left", 15) }} Todas las listas</a>
 
-<section class="card">
-    <div class="rowline" style="margin-bottom:.6rem">
-        <h2 style="margin:0">{{ icon("refresh-cw" if es_dinamica else "list") }} {{ lista.name }} <span class="tag accent">{{ items|length }}</span></h2>
-        {% if not es_dinamica %}
-        <form method="post" action="/listas/{{ lista.id }}/eliminar" data-confirm="¿Eliminar la lista &quot;{{ lista.name }}&quot;? (los ítems no se borran)">
-            <button type="submit" class="danger small">{{ icon("trash-2", 13) }} Eliminar lista</button>
-        </form>
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("refresh-cw" if es_dinamica else "list", 13) }} {{ "Vista automática" if es_dinamica else "Lista" }}</span>
+        <h1>{{ lista.name }} <span class="tag accent">{{ items|length }}</span></h1>
+        {% if es_dinamica %}
+        <p class="lead">Se actualiza sola según el estado de cada ítem.</p>
         {% endif %}
     </div>
-    {% if es_dinamica %}
-    <p class="subtle" style="margin:-.3rem 0 .8rem">{{ icon("refresh-cw", 12) }} Vista automática: se actualiza sola según el estado de cada ítem.</p>
+    {% if not es_dinamica %}
+    <form method="post" action="/listas/{{ lista.id }}/eliminar" data-confirm="¿Eliminar la lista &quot;{{ lista.name }}&quot;? (los ítems no se borran)">
+        <button type="submit" class="danger small">{{ icon("trash-2", 13) }} Eliminar lista</button>
+    </form>
     {% endif %}
+</header>
 
+<section class="card">
     {% if items %}
     <div class="grid-cards">
         {% for item in items %}
+        {% if es_dinamica %}{{ media_card(item) }}{% else %}
         <div class="list-entry">
             {{ media_card(item) }}
-            {% if not es_dinamica %}
             <form method="post" action="/listas/{{ lista.id }}/quitar/{{ item.id }}">
-                <button type="submit" class="ghost small">{{ icon("x", 13) }} Quitar</button>
+                <button type="submit" class="quiet small">{{ icon("x", 13) }} Quitar</button>
             </form>
-            {% endif %}
         </div>
+        {% endif %}
         {% endfor %}
     </div>
     {% else %}
-    <div class="empty">{{ icon("inbox", 30) }} {{ "Nada con este estado todavía." if es_dinamica else "Lista vacía. Añádele ítems desde la ficha de cada uno." }}</div>
+    <div class="empty">{{ icon("inbox", 28) }} {{ "Nada con este estado todavía." if es_dinamica else "Lista vacía. Añádele ítems desde la ficha de cada uno." }}</div>
     {% endif %}
 </section>
 

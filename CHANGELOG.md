@@ -10,6 +10,47 @@ each entry below names the id it closes.
 
 ### Added
 
+- **Redesign: a refined "vintage archive".** Same identity — ebony and aged
+  paper, brass accent, editorial serif for titles — but the cover is now the
+  star. Navigation moves to a **sidebar** grouped into Library / Organise /
+  Tools, with a search box (`/` focuses it); on phones it becomes a **bottom
+  tab bar** with four destinations and a "More" sheet. The old top bar had
+  eleven links that no longer fit at 1280 px (the theme button was cut off)
+  and scrolled sideways on a phone. Catalog cards are **posters**: no frame,
+  status stamp and rating over the cover, title and progress below. Each media
+  type gets a muted **colour of its own** (ochre, garnet, petrol, olive, plum)
+  used in icons, charts and accents. The item page has a **cinematic header**
+  with the cover blurred behind it. Ratings are shown as **stars** (half
+  stars; still stored 1-10, so imports and stats are unchanged). The home page
+  greets you by name and leads with a "Continue" block with big progress bars.
+  Lists show a fan of their covers. Import is a grid of sources with
+  **drag-and-drop** for the CSV. Subtle entry animations and page transitions,
+  all disabled under `prefers-reduced-motion`.
+- **One-click actions on the item page.** Change status (Por ver / Viendo /
+  Visto…) with one click, rate by clicking the stars, and log progress
+  (`+1`, `+10`, or a value) — before, all three meant opening a twenty-field
+  dialog. They share the date rules of the full form (`metadata.cambiar_estado`),
+  so the diary sees the same thing whichever way you go. Advancing something
+  pending starts it; reaching the total does not finish it — that is your call.
+- **Keyboard shortcuts.** `/` search, `n` add, `e` edit, `t` theme, `g` then a
+  letter to jump (`g i` home, `g l` books, `g e` stats…), `?` for the list.
+- Marking an episode now returns you **to that episode** (`#ep-N`) instead of
+  the top of a page with five seasons open.
+
+### Changed
+
+- Static files are served with a **content hash** in their URL
+  (`style.css?v=…`) and cached for a year as `immutable`; unversioned requests
+  are revalidated. Before, every page revalidated every asset, and after an
+  update some browsers kept the old CSS with the new HTML.
+- The podcast icon in the navigation was missing from the icon set and showed
+  the generic alert icon instead.
+- Searching inside the catalog kept every active filter except "Dónde": it now
+  keeps that one too.
+- About 150 lines of CSS and 16 icons inherited from the sister apps
+  (budgets, voice input, CI dots, git icons) and never used here are gone;
+  nine classes used by templates but never styled now are.
+
 - **Accounts.** More than one person lives in the house, and until now they all
   shared one catalog: your partner's half-finished series sat in your "in
   progress", their ratings skewed your stats, and marking an episode watched was

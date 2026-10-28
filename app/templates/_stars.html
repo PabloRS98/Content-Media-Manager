@@ -1,7 +1,28 @@
-{# Macro: nota 1-10 mostrada como un sello circular (estilo estampilla de
-   archivo), no estrellas -- coherente con la identidad "Archivo vintage". #}
-{% macro stars(rating, size=15, show_number=true) %}
+{# Nota 1-10 mostrada como cinco estrellas con medias (cada punto es media
+   estrella: un 7 son tres y media). Se guarda en 1-10 igual que siempre: las
+   importaciones de IMDb y Letterboxd y las estadísticas siguen hablando en esa
+   escala, esto es solo cómo se pinta.
+
+   Las estrellas son una máscara CSS rellenada hasta `--r` décimas (ver
+   `.stars` en style.css): un solo elemento, sin cinco SVG por tarjeta. #}
+{% macro stars(rating, size=15, show_number=true, cls="") %}
 {%- if rating %}
-<span class="rating-seal" style="--seal-size: {{ (size * 2.5)|round|int }}px" title="Nota: {{ rating }}/10">{% if show_number %}{{ rating }}{% endif %}</span>
+<span class="stars-wrap {{ cls }}" title="Nota: {{ ('%g' % (rating / 2))|replace('.', ',') }} de 5">
+    <span class="stars" style="--r: {{ rating }}; --s: {{ size }}px" role="img" aria-label="{{ ('%g' % (rating / 2))|replace('.', ',') }} de 5 estrellas"></span>
+    {%- if show_number %}<span class="stars-num">{{ ('%g' % (rating / 2))|replace('.', ',') }}</span>{% endif %}
+</span>
 {%- endif %}
+{% endmacro %}
+
+{# Selector de nota con estrellas: diez radios (medias estrellas) pintados
+   de derecha a izquierda para que `:checked ~ label` y `:hover ~ label`
+   iluminen todas las de menor valor con CSS puro, sin JavaScript. Funciona
+   con teclado (flechas) porque siguen siendo radios de verdad. #}
+{% macro star_input(name, actual, id_prefix="nota") %}
+<div class="star-input" role="radiogroup" aria-label="Nota">
+    {%- for v in range(10, 0, -1) %}
+    <input type="radio" name="{{ name }}" value="{{ v }}" id="{{ id_prefix }}-{{ v }}"{% if actual == v %} checked{% endif %}>
+    <label for="{{ id_prefix }}-{{ v }}" class="{{ 'half-r' if v % 2 == 0 else 'half-l' }}" title="{{ ('%g' % (v / 2))|replace('.', ',') }}"><span class="sr-only">{{ ('%g' % (v / 2))|replace('.', ',') }} estrellas</span></label>
+    {%- endfor %}
+</div>
 {% endmacro %}

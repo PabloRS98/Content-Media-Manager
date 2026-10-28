@@ -31,3 +31,8 @@ def fecha_larga(fecha: date) -> str:
 
 def mes_y_año(fecha: date) -> str:
     return "%s de %d" % (nombre_del_mes(fecha), fecha.year)
+
+
+def mes_corto(fecha: date) -> str:
+    """'ago', 'sep'... Para las fechas apiladas de la portada; `%b` daría "Aug"."""
+    return nombre_del_mes(fecha)[:3]

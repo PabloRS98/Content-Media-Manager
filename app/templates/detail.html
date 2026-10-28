@@ -1,209 +1,305 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% from "_media_icon.html" import media_icon %}
-{% from "_stars.html" import stars %}
+{% from "_stars.html" import stars, star_input %}
 {% from "_card.html" import media_card %}
+{% set tipo = item.media_type.value %}
+{% set etiquetas = etiquetas_de(item.media_type) %}
+{% set nombre_tipo = {"libro": "Libro", "pelicula": "Película", "serie": "Serie", "videojuego": "Videojuego", "podcast": "Podcast"}[tipo] %}
+{% set label_creador = "Autor" if tipo == "libro" else ("Estudio" if tipo == "videojuego" else ("Presenta" if tipo == "podcast" else "Dirección")) %}
 {% block title %}{{ item.title }} · Catálogo{% endblock %}
 {% block content %}
 
-<a href="/catalogo" class="back-link">{{ icon("chevron-left", 15) }} Volver al catálogo</a>
+<a href="/catalogo?tipo={{ tipo }}" class="back-link">{{ icon("chevron-left", 15) }} {{ {"libro": "Libros", "pelicula": "Películas", "serie": "Series", "videojuego": "Juegos", "podcast": "Podcasts"}[tipo] }}</a>
 
-<section class="card detail-head">
-    <div class="detail-cover{% if item.media_type.value == 'podcast' %} podcast{% endif %}">
-        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="">
-        {% else %}<span class="no-cover">{{ media_icon(item.media_type.value, 40) }}</span>{% endif %}
-    </div>
-    <div class="detail-info">
-        <div class="rowline">
-            <h2 style="margin:0">{{ item.title }}</h2>
-            <span class="status-badge {{ item.status.value }}">{{ item.status.value|replace("_", " ") }}</span>
+<section class="detail-hero{% if not item.cover_url %} sin-portada{% endif %}" data-tipo="{{ tipo }}">
+    {# La portada desenfocada de fondo es un <img>, no un background-image en
+       línea: la URL viene de seis APIs y de un campo editable, y en un
+       atributo style acabaría dentro de un contexto CSS. #}
+    {% if item.cover_url %}<img class="hero-backdrop" src="{{ item.cover_url }}" alt="" aria-hidden="true">{% endif %}
+    <div class="detail-hero-inner">
+        <div class="detail-cover{% if tipo == 'podcast' %} podcast{% endif %}">
+            {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="Portada de {{ item.title }}">
+            {% else %}<span class="no-cover">{{ media_icon(tipo, 48) }}</span>{% endif %}
         </div>
-        <p class="meta">
-            {{ media_icon(item.media_type.value, 14) }} {{ item.media_type.value|capitalize }} · {{ item.year or "?" }}
-            {% if item.creator %} · {{ item.creator }}{% endif %}
-            {% if item.runtime_minutes %} · {{ item.runtime_minutes }} min{% endif %}
-        </p>
-        {% if item.rating %}<div style="margin:.3rem 0">{{ stars(item.rating, 17) }}</div>{% endif %}
-        {% if item.generos %}<div class="badges" style="margin:.4rem 0">{% for g in item.generos %}<a href="/catalogo?tipo={{ item.media_type.value }}&amp;genero={{ g.nombre|urlencode }}" class="tag">{{ g.nombre }}</a>{% endfor %}</div>{% endif %}
-        {% if item.plataforma %}
-        <p class="subtle plataforma-badge">{{ icon("tv", 13) }} En {{ item.plataforma }}
-            <a href="/catalogo{{ '?tipo=' ~ item.media_type.value }}&amp;plataforma={{ item.plataforma|urlencode }}" class="head-link">ver todo lo de aquí</a></p>
-        {% endif %}
-        {% if item.priority %}<p class="subtle">Prioridad: {{ item.priority.value|capitalize }}</p>{% endif %}
-        {% if item.media_type.value == "libro" and item.page_count %}
-        {# El factor lo pone `metadata.MINUTES_PER_PAGE`, no un 1.5 escrito aquí:
-           estaba duplicado y cambiar uno dejaba el otro desincronizado. #}
-        <p class="subtle">{{ icon("clock", 13) }} {{ item.page_count }} págs · ~{{ minutos_estimados(item) }} min de lectura</p>
-        {% elif item.media_type.value == "videojuego" and item.hltb_hours %}
-        <p class="subtle">{{ icon("clock", 13) }} ~{{ item.hltb_hours|round(1) }} h para completar (HowLongToBeat)</p>
-        {% endif %}
-        {% if item.overview %}<p class="overview">{{ item.overview }}</p>{% endif %}
-        {% if item.cast %}<p class="subtle"><strong>Reparto:</strong> {{ item.cast }}</p>{% endif %}
-        {% if item.tags %}<div class="badges" style="margin:.4rem 0">{% for t in item.tags %}<span class="tag accent">{{ t.name }}</span>{% endfor %}</div>{% endif %}
-        {% if item.notes %}<p class="notes">{{ item.notes }}</p>{% endif %}
 
-        {% if not item.is_episodic and item.progress_total %}
-        <div class="progress" style="margin:.5rem 0 .2rem" title="{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or '' }}">
-            <div style="width: {{ (100 * (item.progress_current or 0) / item.progress_total)|round|int }}%"></div>
-        </div>
-        <span class="subtle">{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or "" }}</span>
-        {% endif %}
+        <div class="detail-info">
+            <span class="eyebrow">{{ media_icon(tipo, 13) }} {{ nombre_tipo }}{% if item.saga %} · {{ item.saga }}{% endif %}</span>
+            <h1>{{ item.title }}</h1>
+            <div class="detail-meta">
+                {% if item.year %}<span>{{ icon("calendar", 14) }} {{ item.year }}</span>{% endif %}
+                {% if item.creator %}<span>{{ icon("user", 14) }} {{ item.creator }}</span>{% endif %}
+                {% if item.runtime_minutes %}<span>{{ icon("clock", 14) }} {{ item.runtime_minutes }} min{% if item.is_episodic %} / ep{% endif %}</span>{% endif %}
+                {% if tipo == "libro" and item.page_count %}
+                {# El factor lo pone `metadata.MINUTES_PER_PAGE`, no un número
+                   escrito aquí: estaba duplicado y cambiar uno dejaba el otro
+                   desincronizado. #}
+                <span>{{ icon("book-open", 14) }} {{ item.page_count }} págs · ~{{ minutos_estimados(item) }} min de lectura</span>
+                {% elif tipo == "videojuego" and item.hltb_hours %}
+                <span>{{ icon("clock", 14) }} ~{{ item.hltb_hours|round(1) }} h para completar</span>
+                {% endif %}
+            </div>
 
-        <div class="toolbar" style="margin-top:.8rem">
-            <button type="button" data-open-dialog="#dlg-edit">{{ icon("pencil", 14) }} Editar</button>
-            <form method="post" action="/item/{{ item.id }}/eliminar" data-confirm="¿Eliminar &quot;{{ item.title }}&quot;?">
-                <button type="submit" class="danger">{{ icon("trash-2", 14) }} Eliminar</button>
+            <div class="detail-rating-row">
+                <form method="post" action="/item/{{ item.id }}/nota" data-autosubmit>
+                    {{ star_input("rating", item.rating, "hero-nota") }}
+                    {% if item.rating %}<span class="stars-num">{{ ('%g' % (item.rating / 2))|replace('.', ',') }}</span>{% endif %}
+                    <noscript><button type="submit" class="ghost small">Guardar nota</button></noscript>
+                </form>
+                {% if item.rating %}
+                <form method="post" action="/item/{{ item.id }}/nota">
+                    <input type="hidden" name="rating" value="">
+                    <button type="submit" class="quiet small" title="Quitar la nota">{{ icon("x", 13) }}</button>
+                </form>
+                {% endif %}
+            </div>
+
+            {# Estado de un clic: lo que más se cambia, sin abrir el formulario. #}
+            <form method="post" action="/item/{{ item.id }}/estado" class="status-switch" aria-label="Estado">
+                {% for s in statuses %}
+                <button type="submit" name="status" value="{{ s.value }}" class="st-{{ s.value }}" aria-pressed="{{ 'true' if item.status == s else 'false' }}">
+                    {%- if item.status == s %}{{ icon("check", 14) }}{% endif %} {{ etiquetas[s] }}
+                </button>
+                {% endfor %}
             </form>
-        </div>
 
-        <div class="add-list">
+            {% if item.is_episodic and stats and stats.total %}
+            <div class="detail-progress">
+                <div class="rowline">
+                    <span><b>{{ stats.watched }}</b> de {{ stats.total }} episodios</span>
+                    {% if stats.next %}<a href="#ep-{{ stats.next.id }}">Siguiente: {{ stats.next.code }} {{ icon("arrow-right", 13) }}</a>{% else %}<span>{{ icon("circle-check", 13) }} Al día</span>{% endif %}
+                </div>
+                <div class="progress lg"><div style="width: {{ (100 * stats.watched / stats.total)|round|int }}%"></div></div>
+            </div>
+            {% elif not item.is_episodic and item.progress_total %}
+            {%- set pct = (100 * (item.progress_current or 0) / item.progress_total)|round|int %}
+            <div class="detail-progress">
+                <div class="rowline">
+                    <span><b>{{ "%g"|format(item.progress_current or 0) }}</b> / {{ "%g"|format(item.progress_total) }} {{ item.progress_unit or "" }}</span>
+                    <b>{{ pct }}%</b>
+                </div>
+                <div class="progress lg" title="{{ item.progress_current or 0 }} / {{ item.progress_total }} {{ item.progress_unit or '' }}"><div style="width: {{ pct }}%"></div></div>
+                <form method="post" action="/item/{{ item.id }}/progreso" class="progress-form" data-noload>
+                    <input type="number" step="any" min="0" name="valor" value="{{ '%g'|format(item.progress_current or 0) }}" aria-label="Por dónde vas">
+                    <button type="submit" class="ghost small">{{ icon("check", 13) }} Guardar</button>
+                    <button type="submit" name="incremento" value="1" class="ghost small" title="Sumar uno">{{ icon("plus", 13) }} 1</button>
+                    {% if item.progress_total >= 100 %}<button type="submit" name="incremento" value="10" class="ghost small" title="Sumar diez">{{ icon("plus", 13) }} 10</button>{% endif %}
+                </form>
+            </div>
+            {% endif %}
+
+            <div class="detail-actions">
+                <button type="button" class="ghost" data-open-dialog="#dlg-edit" data-hotkey-edit title="Editar (e)">{{ icon("pencil", 14) }} Editar</button>
+                <form method="post" action="/item/{{ item.id }}/eliminar" data-confirm="¿Eliminar &quot;{{ item.title }}&quot;?">
+                    <button type="submit" class="quiet">{{ icon("trash-2", 14) }} Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="detail-body">
+    <div style="display:flex; flex-direction:column; gap:1.5rem">
+        {% if item.overview or item.cast or item.notes %}
+        <section class="card">
+            <h3>{{ icon("book-open") }} {{ "Sinopsis" if item.overview else "Notas" }}</h3>
+            {% if item.overview %}<p class="overview">{{ item.overview }}</p>{% endif %}
+            {% if item.cast %}<p class="hint" style="margin:1rem 0 0"><strong>Reparto:</strong> {{ item.cast }}</p>{% endif %}
+            {% if item.notes %}<p class="notes" style="margin-top:{{ '1rem' if item.overview else '0' }}">{{ icon("pencil", 14) }}{{ item.notes }}</p>{% endif %}
+        </section>
+        {% endif %}
+
+        {% if item.is_episodic %}
+        <section class="card">
+            <h3>{{ icon("tv") }} Episodios {% if stats and stats.total %}<span class="tag h3-extra">{{ stats.watched }}/{{ stats.total }} vistos{% if stats.next %} · próximo {{ stats.next.code }}{% endif %}</span>{% endif %}</h3>
+
+            {% if seasons %}
+            {% for season in seasons %}
+            <details class="season" {% if season.watched < season.total %}open{% endif %}>
+                <summary>
+                    {% if season.number == 0 %}Especiales{% else %}Temporada {{ season.number }}{% endif %}
+                    <span class="season-progress">
+                        <span class="progress"><span style="display:block;height:100%;width:{{ (100 * season.watched / season.total)|round|int }}%;background:var(--c-tipo, var(--accent));border-radius:inherit"></span></span>
+                        <span class="subtle">{{ season.watched }}/{{ season.total }}</span>
+                    </span>
+                </summary>
+                <ul class="episode-list">
+                    {% for ep in season.episodes %}
+                    <li class="episode {{ 'watched' if ep.watched else '' }}" id="ep-{{ ep.id }}">
+                        <form method="post" action="/item/{{ item.id }}/episodio/{{ ep.id }}/toggle" data-noload>
+                            <button type="submit" class="ep-check {{ 'on' if ep.watched else '' }}" title="{{ 'Marcar como no visto' if ep.watched else 'Marcar como visto' }}" aria-label="{{ 'Marcar como no visto' if ep.watched else 'Marcar como visto' }}" aria-pressed="{{ 'true' if ep.watched else 'false' }}">
+                                {{ icon("check", 14) }}
+                            </button>
+                        </form>
+                        <span class="ep-code">{{ ep.code }}</span>
+                        <span class="ep-name">{{ ep.name or "Episodio %d"|format(ep.episode_number) }}</span>
+                        {% if ep.air_date %}<span class="subtle ep-date">{{ ep.air_date.strftime("%d/%m/%y") }}</span>{% endif %}
+                        {% if not ep.watched %}
+                        <form method="post" action="/item/{{ item.id }}/marcar-hasta/{{ ep.id }}" data-noload>
+                            <button type="submit" class="quiet small ep-thru" title="Marcar todos hasta aquí como vistos" aria-label="Marcar todos hasta aquí como vistos">{{ icon("check-check", 14) }}</button>
+                        </form>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </details>
+            {% endfor %}
+            {% else %}
+            <div class="empty">{{ icon("tv", 26) }} Sin episodios cargados. {% if item.external_source != "tmdb" %}Solo las series añadidas desde TMDB traen episodios.{% endif %}</div>
+            {% endif %}
+        </section>
+        {% endif %}
+    </div>
+
+    <aside style="display:flex; flex-direction:column; gap:1.5rem">
+        <section class="card">
+            <h3>{{ icon("info") }} Ficha</h3>
+            <dl class="facts">
+                <dt>Estado</dt><dd><span class="status-badge {{ item.status.value }}">{{ etiqueta_estado(item) }}</span></dd>
+                {% if item.creator %}<dt>{{ label_creador }}</dt><dd>{{ item.creator }}</dd>{% endif %}
+                {% if item.year %}<dt>Año</dt><dd>{{ item.year }}</dd>{% endif %}
+                {% if item.plataforma %}
+                <dt>Dónde</dt>
+                <dd class="plataforma-badge">{{ icon("map-pin", 13) }} {{ item.plataforma }}
+                    · <a href="/catalogo{{ '?tipo=' ~ tipo }}&amp;plataforma={{ item.plataforma|urlencode }}">ver todo lo de aquí</a></dd>
+                {% endif %}
+                {% if item.saga %}<dt>Saga</dt><dd>{{ icon("layers", 13) }} {{ item.saga }}</dd>{% endif %}
+                {% if item.priority %}<dt>Prioridad</dt><dd>{% if item.priority.value == "alta" %}{{ icon("flame", 13) }} {% endif %}{{ item.priority.value|capitalize }}</dd>{% endif %}
+                {% if item.generos %}
+                <dt>Géneros</dt>
+                <dd><div class="badges">{% for g in item.generos %}<a href="/catalogo?tipo={{ tipo }}&amp;genero={{ g.nombre|urlencode }}" class="tag">{{ g.nombre }}</a>{% endfor %}</div></dd>
+                {% endif %}
+                {% if item.tags %}
+                <dt>Etiquetas</dt>
+                <dd><div class="badges">{% for t in item.tags %}<span class="tag accent">{{ t.name }}</span>{% endfor %}</div></dd>
+                {% endif %}
+                {% if item.created_at %}<dt>Añadido</dt><dd>{{ fecha_larga(item.created_at.date()) }}</dd>{% endif %}
+                {% if item.started_at %}<dt>Empezado</dt><dd>{{ fecha_larga(item.started_at) }}</dd>{% endif %}
+                {% if item.completed_at %}<dt>Terminado</dt><dd>{{ fecha_larga(item.completed_at) }}</dd>{% endif %}
+                {% if item.release_date %}<dt>Estreno</dt><dd>{{ fecha_larga(item.release_date) }}</dd>{% endif %}
+            </dl>
+        </section>
+
+        <section class="card add-list">
+            <h3>{{ icon("list") }} Listas</h3>
             {% if item_lists %}
-            <div class="badges" style="margin:.6rem 0 .3rem">
+            <div class="badges">
                 {% for l in item_lists %}<a href="/listas/{{ l.id }}" class="tag accent">{{ icon("list", 12) }} {{ l.name }}</a>{% endfor %}
             </div>
             {% endif %}
-            <form method="post" action="/item/{{ item.id }}/anadir-lista" class="toolbar" style="margin-top:.3rem">
-                <select name="list_id" style="max-width:180px">
-                    <option value="">— lista existente —</option>
+            <form method="post" action="/item/{{ item.id }}/anadir-lista">
+                {% if all_lists %}
+                <select name="list_id" aria-label="Lista existente">
+                    <option value="">— elige una lista —</option>
                     {% for l in all_lists %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}
                 </select>
-                <input type="text" name="nueva" placeholder="o crear nueva..." style="max-width:170px">
-                <button type="submit" class="ghost small">{{ icon("plus", 13) }} Añadir a lista</button>
+                {% else %}
+                <input type="hidden" name="list_id" value="">
+                {% endif %}
+                <input type="text" name="nueva" placeholder="{{ 'o crea una nueva…' if all_lists else 'Nombre de una lista nueva…' }}" aria-label="Lista nueva">
+                <button type="submit" class="ghost small">{{ icon("plus", 13) }} Añadir a la lista</button>
             </form>
-        </div>
-    </div>
-</section>
-
-{% if item.is_episodic %}
-<section class="card">
-    <div class="rowline" style="margin-bottom:.7rem">
-        <h3 style="margin:0">{{ icon("tv") }} Episodios</h3>
-        {% if stats and stats.total %}
-        <span class="subtle">{{ stats.watched }}/{{ stats.total }} vistos{% if stats.next %} · próximo {{ stats.next.code }}{% endif %}</span>
-        {% endif %}
-    </div>
-
-    {% if seasons %}
-    {% for season in seasons %}
-    <details class="season" {% if season.watched < season.total %}open{% endif %}>
-        <summary>
-            {% if season.number == 0 %}Especiales{% else %}Temporada {{ season.number }}{% endif %}
-            <span class="subtle">{{ season.watched }}/{{ season.total }}</span>
-        </summary>
-        <ul class="episode-list">
-            {% for ep in season.episodes %}
-            <li class="episode {{ 'watched' if ep.watched else '' }}">
-                <form method="post" action="/item/{{ item.id }}/episodio/{{ ep.id }}/toggle" data-noload>
-                    <button type="submit" class="ep-check {{ 'on' if ep.watched else '' }}" title="{{ 'Marcar como no visto' if ep.watched else 'Marcar como visto' }}">
-                        {{ icon("check", 14) }}
-                    </button>
-                </form>
-                <span class="ep-code">{{ ep.code }}</span>
-                <span class="ep-name">{{ ep.name or "Episodio %d"|format(ep.episode_number) }}</span>
-                {% if ep.air_date %}<span class="subtle ep-date">{{ ep.air_date.strftime("%d/%m/%y") }}</span>{% endif %}
-                <form method="post" action="/item/{{ item.id }}/marcar-hasta/{{ ep.id }}" data-noload>
-                    <button type="submit" class="ghost small" title="Marcar todos hasta aquí como vistos">{{ icon("check-check", 13) }}</button>
-                </form>
-            </li>
-            {% endfor %}
-        </ul>
-    </details>
-    {% endfor %}
-    {% else %}
-    <div class="empty">{{ icon("tv", 26) }} Sin episodios cargados. {% if item.external_source != "tmdb" %}Solo las series añadidas desde TMDB traen episodios.{% endif %}</div>
-    {% endif %}
-</section>
-{% endif %}
+        </section>
+    </aside>
+</div>
 
 {% if related %}
 <section class="card">
-    <h3>{{ icon("sparkles") }} De la misma saga</h3>
-    <div class="rail">{% for r in related %}{{ media_card(r) }}{% endfor %}</div>
+    <h3>{{ icon("layers") }} De la misma saga</h3>
+    <div class="rail-wrap">
+        <button type="button" class="rail-nav prev" aria-label="Anteriores">{{ icon("chevron-left", 18) }}</button>
+        <div class="rail">{% for r in related %}{{ media_card(r) }}{% endfor %}</div>
+        <button type="button" class="rail-nav next" aria-label="Siguientes">{{ icon("chevron-right", 18) }}</button>
+    </div>
 </section>
 {% endif %}
 
-<dialog id="dlg-edit">
-    <h3>{{ icon("pencil") }} Editar «{{ item.title|truncate(34) }}»</h3>
+<dialog id="dlg-edit" aria-labelledby="dlg-edit-titulo">
+    <button type="button" class="quiet icon-btn dialog-close" data-close-dialog aria-label="Cerrar">{{ icon("x", 16) }}</button>
+    <h3 id="dlg-edit-titulo">{{ icon("pencil") }} Editar «{{ item.title|truncate(34) }}»</h3>
     <form method="post" action="/item/{{ item.id }}/actualizar" class="form-grid">
         <div class="field full">
-            <label>Título</label>
-            <input type="text" name="title" value="{{ item.title }}" required>
+            <label for="f-title">Título</label>
+            <input type="text" id="f-title" name="title" value="{{ item.title }}" required>
         </div>
         <div class="field">
-            <label>Estado</label>
-            <select name="status">
-                {% for s in statuses %}<option value="{{ s.value }}" {% if item.status == s %}selected{% endif %}>{{ s.value|replace("_", " ")|capitalize }}</option>{% endfor %}
+            <label for="f-status">Estado</label>
+            <select id="f-status" name="status">
+                {% for s in statuses %}<option value="{{ s.value }}" {% if item.status == s %}selected{% endif %}>{{ etiquetas[s] }}</option>{% endfor %}
             </select>
         </div>
         <div class="field">
-            <label>Prioridad</label>
-            <select name="priority">
+            <label for="f-priority">Prioridad</label>
+            <select id="f-priority" name="priority">
                 {% for p in priorities %}<option value="{{ p.value }}" {% if item.priority == p %}selected{% endif %}>{{ p.value|capitalize }}</option>{% endfor %}
             </select>
         </div>
-        <div class="field">
-            <label>Año</label>
-            <input type="number" name="year" value="{{ item.year or '' }}">
+        <div class="field full">
+            <span class="field-label">Nota</span>
+            <div style="display:flex; align-items:center; gap:.8rem">
+                {{ star_input("rating", item.rating, "dlg-nota") }}
+                <label class="inline-check"><input type="radio" name="rating" value=""{% if not item.rating %} checked{% endif %}> sin nota</label>
+            </div>
         </div>
         <div class="field">
-            <label>{{ "Autor" if item.media_type.value == "libro" else ("Estudio" if item.media_type.value == "videojuego" else "Director/Creador") }}</label>
-            <input type="text" name="creator" value="{{ item.creator or '' }}">
+            <label for="f-year">Año</label>
+            <input type="number" id="f-year" name="year" value="{{ item.year or '' }}">
         </div>
         <div class="field">
-            <label>Nota (1-10)</label>
-            <input type="number" name="rating" min="1" max="10" value="{{ item.rating or '' }}">
+            <label for="f-creator">{{ "Autor" if tipo == "libro" else ("Estudio" if tipo == "videojuego" else "Director/Creador") }}</label>
+            <input type="text" id="f-creator" name="creator" value="{{ item.creator or '' }}">
         </div>
         <div class="field full">
-            <label>URL de portada</label>
-            <input type="url" name="cover_url" value="{{ item.cover_url or '' }}" placeholder="https://...">
+            <label for="f-cover">URL de portada</label>
+            <input type="url" id="f-cover" name="cover_url" value="{{ item.cover_url or '' }}" placeholder="https://...">
         </div>
         <div class="field full">
-            <label>Géneros (separados por coma)</label>
-            <input type="text" name="genres" value="{{ item.generos | map(attribute='nombre') | join(', ') }}">
-        </div>
-        <div class="field full">
-            <label>Dónde lo tienes</label>
-            <input type="text" name="plataforma" value="{{ item.plataforma or '' }}" placeholder="Netflix, Kindle, Steam, estantería...">
-        </div>
-        <div class="field full">
-            <label>Saga / franquicia</label>
-            <input type="text" name="saga" value="{{ item.saga or '' }}" placeholder="Marvel, El Padrino, Zelda...">
+            <label for="f-genres">Géneros (separados por coma)</label>
+            <input type="text" id="f-genres" name="genres" value="{{ item.generos | map(attribute='nombre') | join(', ') }}">
         </div>
         <div class="field">
-            <label>Progreso actual</label>
-            <input type="number" step="any" name="progress_current" value="{{ item.progress_current or '' }}">
+            <label for="f-plataforma">Dónde lo tienes</label>
+            <input type="text" id="f-plataforma" name="plataforma" value="{{ item.plataforma or '' }}" placeholder="Netflix, Kindle, Steam…">
         </div>
         <div class="field">
-            <label>Progreso total</label>
-            <input type="number" step="any" name="progress_total" value="{{ item.progress_total or '' }}">
+            <label for="f-saga">Saga / franquicia</label>
+            <input type="text" id="f-saga" name="saga" value="{{ item.saga or '' }}" placeholder="Marvel, Zelda…">
         </div>
         <div class="field">
-            <label>Unidad</label>
-            <input type="text" name="progress_unit" value="{{ item.progress_unit or '' }}" placeholder="página, %, horas...">
+            <label for="f-pc">Progreso actual</label>
+            <input type="number" step="any" id="f-pc" name="progress_current" value="{{ item.progress_current or '' }}">
         </div>
-        {% if item.media_type.value in ("pelicula", "serie", "podcast") %}
         <div class="field">
-            <label>Duración (min){% if item.media_type.value != "pelicula" %} / episodio{% endif %}</label>
-            <input type="number" name="runtime_minutes" value="{{ item.runtime_minutes or '' }}">
+            <label for="f-pt">Progreso total</label>
+            <input type="number" step="any" id="f-pt" name="progress_total" value="{{ item.progress_total or '' }}">
         </div>
-        {% elif item.media_type.value == "libro" %}
         <div class="field">
-            <label>Nº de páginas</label>
-            <input type="number" name="page_count" value="{{ item.page_count or '' }}">
+            <label for="f-pu">Unidad</label>
+            <input type="text" id="f-pu" name="progress_unit" value="{{ item.progress_unit or '' }}" placeholder="página, %, horas…">
         </div>
-        {% elif item.media_type.value == "videojuego" %}
+        {% if tipo in ("pelicula", "serie", "podcast") %}
         <div class="field">
-            <label>Horas (HowLongToBeat)</label>
-            <input type="number" step="any" name="hltb_hours" value="{{ item.hltb_hours or '' }}">
+            <label for="f-runtime">Duración (min){% if tipo != "pelicula" %} / episodio{% endif %}</label>
+            <input type="number" id="f-runtime" name="runtime_minutes" value="{{ item.runtime_minutes or '' }}">
+        </div>
+        {% elif tipo == "libro" %}
+        <div class="field">
+            <label for="f-pages">Nº de páginas</label>
+            <input type="number" id="f-pages" name="page_count" value="{{ item.page_count or '' }}">
+        </div>
+        {% elif tipo == "videojuego" %}
+        <div class="field">
+            <label for="f-hltb">Horas (HowLongToBeat)</label>
+            <input type="number" step="any" id="f-hltb" name="hltb_hours" value="{{ item.hltb_hours or '' }}">
         </div>
         {% endif %}
-        <div class="field">
-            <label>Etiquetas (coma)</label>
-            <input type="text" name="tags" value="{{ item.tags|map(attribute='name')|join(', ') }}">
+        <div class="field full">
+            <label for="f-tags">Etiquetas (separadas por coma)</label>
+            <input type="text" id="f-tags" name="tags" value="{{ item.tags|map(attribute='name')|join(', ') }}">
         </div>
         <div class="field full">
-            <label>Notas propias</label>
-            <textarea name="notes">{{ item.notes }}</textarea>
+            <label for="f-notes">Notas propias</label>
+            <textarea id="f-notes" name="notes">{{ item.notes }}</textarea>
         </div>
         <div class="dialog-actions full">
             <button type="button" class="ghost" data-close-dialog>Cancelar</button>

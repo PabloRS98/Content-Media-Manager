@@ -138,6 +138,20 @@ def marcar_comienzo(item: MediaItem) -> None:
         item.started_at = date.today()
 
 
+def cambiar_estado(item: MediaItem, nuevo: MediaStatus) -> None:
+    """Pone el estado y las fechas que van con él, igual venga de donde venga.
+
+    Lo usan el formulario de edición y los botones de estado de la ficha: si
+    cada uno llevara su copia de las reglas de fechas, el diario dependería
+    de por dónde se hubiera marcado algo como terminado.
+    """
+    if item.status != MediaStatus.COMPLETADO and nuevo == MediaStatus.COMPLETADO and item.completed_at is None:
+        item.completed_at = date.today()  # primera vez que se marca completado
+    if nuevo == MediaStatus.EN_PROGRESO:
+        marcar_comienzo(item)  # solo si no había fecha ya (ver N5)
+    item.status = nuevo
+
+
 def recompute_status(item: MediaItem) -> None:
     """Ajusta el estado de una serie/podcast según sus episodios vistos.
     No toca wishlist (sigue siendo un deseo aunque no haya episodios)."""

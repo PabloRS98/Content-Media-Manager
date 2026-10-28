@@ -4,34 +4,37 @@
 {% block title %}Diario · Catálogo{% endblock %}
 {% block content %}
 
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("notebook-pen", 13) }} Diario</span>
+        <h1>{{ titulo_mes|capitalize }}</h1>
+        {% if dias %}
+        <p class="lead diario-resumen">
+            {%- if resumen.episodios %}<span class="tag">{{ icon("tv", 12) }} {{ resumen.episodios }} episodio{{ "s" if resumen.episodios != 1 }}</span>{% endif %}
+            {%- if resumen.terminados %}<span class="tag positive">{{ icon("circle-check", 12) }} {{ resumen.terminados }} terminado{{ "s" if resumen.terminados != 1 }}</span>{% endif %}
+            {%- if resumen.empezados %}<span class="tag accent">{{ icon("play", 12) }} {{ resumen.empezados }} empezado{{ "s" if resumen.empezados != 1 }}</span>{% endif %}
+        </p>
+        {% endif %}
+    </div>
+    <nav class="diario-nav" aria-label="Meses">
+        {% if hay_anterior %}<a href="/actividad?mes={{ mes_anterior }}" class="btn ghost small">{{ icon("chevron-left", 14) }} anterior</a>{% endif %}
+        {% if hay_siguiente %}<a href="/actividad?mes={{ mes_siguiente }}" class="btn ghost small">siguiente {{ icon("chevron-right", 14) }}</a>{% endif %}
+    </nav>
+</header>
+
 <section class="card">
-    <h3 class="rowline">{{ icon("calendar") }} {{ titulo_mes|capitalize }}
-        <span class="diario-nav">
-            {% if hay_anterior %}<a href="/actividad?mes={{ mes_anterior }}" class="head-link">{{ icon("chevron-left", 13) }} anterior</a>{% endif %}
-            {% if hay_siguiente %}<a href="/actividad?mes={{ mes_siguiente }}" class="head-link">siguiente {{ icon("chevron-right", 13) }}</a>{% endif %}
-        </span>
-    </h3>
-
     {% if dias %}
-    <p class="subtle diario-resumen">
-        {%- if resumen.episodios %}{{ resumen.episodios }} episodio{{ "s" if resumen.episodios != 1 }}{% endif %}
-        {%- if resumen.episodios and (resumen.terminados or resumen.empezados) %} · {% endif %}
-        {%- if resumen.terminados %}{{ resumen.terminados }} terminado{{ "s" if resumen.terminados != 1 }}{% endif %}
-        {%- if resumen.terminados and resumen.empezados %} · {% endif %}
-        {%- if resumen.empezados %}{{ resumen.empezados }} empezado{{ "s" if resumen.empezados != 1 }}{% endif %}
-    </p>
-
     {% for dia in dias %}
     <div class="cal-group">
         <div class="cal-date">{{ dia_y_mes(dia.fecha)|capitalize }}</div>
         <ul class="upcoming-list">
             {% for e in dia.entradas %}
-            <li>
-                <a href="/item/{{ e.item_id }}">{{ media_icon(e.media_type, 14) }} {{ e.titulo }}</a>
-                <span class="subtle">
-                {%- if e.tipo == "episodios" %}{{ e.episodios }} episodio{{ "s" if e.episodios != 1 }}
-                {%- elif e.tipo == "terminado" %}Terminaste
-                {%- else %}Empezaste{% endif %}</span>
+            <li data-tipo="{{ e.media_type }}">
+                <a href="/item/{{ e.item_id }}">{{ media_icon(e.media_type, 15) }} {{ e.titulo }}</a>
+                <span class="subtle entry-kind {{ e.tipo }}">
+                {%- if e.tipo == "episodios" %}{{ icon("tv", 12) }} {{ e.episodios }} episodio{{ "s" if e.episodios != 1 }}
+                {%- elif e.tipo == "terminado" %}{{ icon("circle-check", 12) }} Terminaste
+                {%- else %}{{ icon("play", 12) }} Empezaste{% endif %}</span>
             </li>
             {% endfor %}
         </ul>
@@ -40,7 +43,7 @@
     {% else %}
     {# Un mes sin nada es normal (vacaciones, o antes de empezar a usar la app):
        se dice y ya, no es un error. #}
-    <div class="empty">{{ icon("calendar", 30) }} Nada este mes. Aquí aparece lo que terminas, lo que empiezas y los episodios que marcas.</div>
+    <div class="empty">{{ icon("notebook-pen", 28) }} Nada este mes. Aquí aparece lo que terminas, lo que empiezas y los episodios que marcas.</div>
     {% endif %}
 </section>
 

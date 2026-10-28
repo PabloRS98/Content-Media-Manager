@@ -239,6 +239,14 @@ async def cabeceras_de_seguridad(request: Request, call_next):
         "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
         "frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
     )
+    # Los estáticos pedidos con huella (`static_url` en templating.py) no
+    # cambian nunca bajo esa URL: se cachean un año sin revalidar. Los que
+    # llegan sin ella (un enlace viejo, el manifest) se revalidan siempre.
+    if request.url.path.startswith("/static/") and response.status_code == 200:
+        if request.query_params.get("v"):
+            response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+        else:
+            response.headers.setdefault("Cache-Control", "no-cache")
     return response
 
 # SessionMiddleware va el ÚLTIMO a propósito. En Starlette el último

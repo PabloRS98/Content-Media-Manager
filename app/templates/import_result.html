@@ -3,19 +3,30 @@
 {% block title %}Importación completada · Catálogo{% endblock %}
 {% block content %}
 
-<section class="card">
-    <h3>{{ icon("circle-check") }} Importación completada</h3>
-    <div class="badges" style="margin-bottom:.8rem">
-        <span class="tag positive">{{ creados }} añadidos</span>
-        <span class="tag">{{ duplicados }} ya existían</span>
-        <span class="tag warning">{{ omitidos }} omitidos</span>
+<header class="page-head">
+    <div>
+        <span class="eyebrow">{{ icon("circle-check", 13) }} Importar</span>
+        <h1>Importación completada</h1>
     </div>
-    <p class="hint">Los "omitidos" suelen ser filas sin título reconocible o episodios sueltos (tvEpisode), que no se importan a propósito.</p>
+    <div class="page-head-actions">
+        <a href="/importar" class="btn ghost">{{ icon("upload", 15) }} Importar otro archivo</a>
+        <a href="/catalogo" class="btn">{{ icon("library-big", 15) }} Ver el catálogo</a>
+    </div>
+</header>
 
-    {% if sin_portada > 0 %}
-    <p class="hint" style="margin-top:.8rem">
-        {{ icon("image-off", 14) }} Hay <strong>{{ sin_portada }}</strong> ítems sin portada.
-    </p>
+<section class="card">
+    <div class="result-stats">
+        <div class="result-stat positive"><strong>{{ creados }}</strong><span>añadidos</span></div>
+        <div class="result-stat"><strong>{{ duplicados }}</strong><span>ya existían</span></div>
+        <div class="result-stat warning"><strong>{{ omitidos }}</strong><span>omitidos</span></div>
+    </div>
+    <p class="hint" style="margin:1rem 0 0">Los "omitidos" suelen ser filas sin título reconocible o episodios sueltos (tvEpisode), que no se importan a propósito.</p>
+</section>
+
+{% if sin_portada > 0 %}
+<section class="card">
+    <h3>{{ icon("image-off") }} Portadas</h3>
+    <p class="hint">Hay <strong>{{ sin_portada }}</strong> ítems sin portada.</p>
     <div class="toolbar">
         <button type="button"
                 hx-post="/importar/completar-portadas" hx-target="#enrich-result" hx-swap="innerHTML"
@@ -25,9 +36,7 @@
         <span id="enrich-spinner" class="htmx-indicator spinner"></span>
     </div>
     <div id="enrich-result" style="margin-top:.6rem"></div>
-    {% endif %}
-
-    <p style="margin-top:1rem"><a href="/">{{ icon("chevron-left", 13) }} Ver catálogo</a> · <a href="/importar">Importar otro archivo</a></p>
 </section>
+{% endif %}
 
 {% endblock %}

@@ -36,10 +36,14 @@ paid API required.
 - **Episode tracking** for series and podcasts (season/episode, watched state,
   automatic "next up").
 - **Progress tracking** for anything else (page N/300, 45%, etc).
-- **Ratings, notes, tags, and custom lists** ("watch with my partner", "top 2026"...),
+- **Ratings (stars, with halves), notes, tags, and custom lists** ("watch with my partner", "top 2026"...),
   plus four built-in automatic lists (in progress / pending / completed /
   wishlist) that update themselves as an item's status changes.
-- **Light and dark themes**, dark by default, toggled from the top bar.
+- **Light and dark themes**, dark by default, toggled from the sidebar (or `t`).
+- **One-click status, star ratings and progress** right from the item page.
+- **Keyboard shortcuts**: `/` to search, `n` to add, `g` + a letter to jump
+  anywhere, `?` for the full list.
+- **Works on a phone**: bottom tab bar, poster grid that reflows, no build step.
 - **Sagas/franchises**: grouped automatically via TMDB collections, editable manually.
 - **Stats page** and a "suggest me something" random pick.
 - **Calendar view** for upcoming episodes and release dates.

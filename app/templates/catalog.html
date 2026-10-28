@@ -2,12 +2,32 @@
 {% from "_icons.html" import icon %}
 {% from "_media_icon.html" import media_icon %}
 {% from "_card.html" import media_card %}
-{% block title %}Catálogo de Medios{% endblock %}
+{% set nombres_tipo = {"libro": "Libros", "pelicula": "Películas", "serie": "Series", "videojuego": "Juegos", "podcast": "Podcasts"} %}
+{% set label_tipo = 'película' if tipo_filtro == 'pelicula' else ('juego' if tipo_filtro == 'videojuego' else ('serie' if tipo_filtro == 'serie' else ('podcast' if tipo_filtro == 'podcast' else 'libro'))) %}
+{% block title %}{{ nombres_tipo.get(tipo_filtro, "Catálogo") }} · Catálogo de Medios{% endblock %}
 {% block content %}
 
-{% set label_tipo = 'película' if tipo_filtro == 'pelicula' else ('juego' if tipo_filtro == 'videojuego' else ('serie' if tipo_filtro == 'serie' else ('podcast' if tipo_filtro == 'podcast' else 'libro'))) %}
-<section class="card">
-    <h3>{{ icon("search") }} Añadir {{ label_tipo|capitalize }}</h3>
+<header class="page-head"{% if tipo_filtro %} data-tipo="{{ tipo_filtro }}"{% endif %}>
+    <div>
+        <span class="eyebrow">{% if tipo_filtro %}{{ media_icon(tipo_filtro, 13) }}{% else %}{{ icon("library-big", 13) }}{% endif %} Biblioteca</span>
+        <h1>{{ nombres_tipo.get(tipo_filtro, "Todo el catálogo") }}</h1>
+    </div>
+    <div class="page-head-actions">
+        {% if sin_portada > 0 %}
+        <form method="post" action="/catalogo/completar-portadas" data-noload>
+            <button type="submit" class="btn warning small" title="Busca portadas automáticamente para {{ sin_portada }} ítems en segundo plano">
+                {{ icon("sparkles", 13) }} Buscar portadas ({{ sin_portada }} pendientes)
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</header>
+
+{# Añadir: buscar en las APIs externas. Plegable para que el catálogo propio
+   sea lo primero que se ve; se abre solo si el catálogo está vacío, o con la
+   tecla "n", o llegando con #anadir desde la portada. #}
+<details class="card add-panel" id="anadir"{% if not items and not buscar and not estado_filtro %} open{% endif %}>
+    <summary>{{ icon("plus") }} Añadir {{ label_tipo }} <span class="subtle">busca y autocompleta desde {{ "TMDB" if tipo_filtro in ("pelicula", "serie") else ("RAWG" if tipo_filtro == "videojuego" else ("iTunes" if tipo_filtro == "podcast" else "Open Library y Google Books")) }}</span></summary>
     <div class="toolbar">
         <select id="tipo-select" name="tipo" style="max-width: 150px; display: none;">
             {% for t in media_types %}
@@ -15,69 +35,68 @@
             {% endfor %}
         </select>
         <input type="hidden" id="idioma-input" name="idioma" value="es">
-        <input type="text" id="q-input" name="q" placeholder="Buscar {{ label_tipo }} para autocompletar..." autocomplete="off" class="grow"
-               hx-get="/buscar" hx-trigger="keyup changed delay:400ms"
-               hx-target="#search-results" hx-include="#tipo-select, #idioma-input"
-               hx-indicator="#search-spinner">
+        <label class="search-field lg grow">
+            {{ icon("search", 17) }}
+            <input type="text" id="q-input" name="q" placeholder="Título de {{ 'la' if label_tipo in ('película', 'serie') else 'el' }} {{ label_tipo }} que quieres añadir…" autocomplete="off"
+                   data-hotkey-add
+                   hx-get="/buscar" hx-trigger="keyup changed delay:400ms"
+                   hx-target="#search-results" hx-include="#tipo-select, #idioma-input"
+                   hx-indicator="#search-spinner">
+            <span id="search-spinner" class="htmx-indicator spinner"></span>
+        </label>
         {% if tipo_filtro == 'libro' %}
         <div class="view-toggle" id="idioma-toggle" role="group" aria-label="Idioma de búsqueda">
             <button type="button" class="ghost small" data-idioma="es" title="Buscar portada y título en español">ES</button>
             <button type="button" class="ghost small" data-idioma="en" title="Search cover and title in English">EN</button>
         </div>
         {% endif %}
-        <span id="search-spinner" class="htmx-indicator spinner"></span>
     </div>
     <div id="search-results"></div>
-</section>
+</details>
 
 <section class="card">
-    <div class="rowline" style="margin-bottom:.8rem; flex-wrap: wrap;">
-        <div style="display: flex; gap: .55rem; align-items: center; flex-wrap: wrap;">
-            <h3 style="margin:0">{{ icon("library-big") }} Mi catálogo <span class="tag accent">{{ total }}</span></h3>
-            {# Buscar en lo que YA tienes, no en las APIs de arriba. Es un
-               <form> GET normal a propósito: sin JavaScript sigue funcionando,
-               y la búsqueda queda en la URL, así que se puede compartir o
-               guardar en marcadores. Los filtros activos viajan como campos
-               ocultos para no perderse al buscar. #}
-            <form method="get" action="/catalogo" class="buscador-catalogo">
-                {% if tipo_filtro %}<input type="hidden" name="tipo" value="{{ tipo_filtro }}">{% endif %}
-                {% if estado_filtro %}<input type="hidden" name="estado" value="{{ estado_filtro }}">{% endif %}
-                {% if genero_filtro %}<input type="hidden" name="genero" value="{{ genero_filtro }}">{% endif %}
-                {% if tiempo_filtro %}<input type="hidden" name="tiempo" value="{{ tiempo_filtro }}">{% endif %}
-                <input type="hidden" name="orden" value="{{ orden }}">
-                <label class="buscador-catalogo-campo">
-                    {{ icon("search", 14) }}
-                    <input type="search" name="buscar" value="{{ buscar }}"
-                           placeholder="Buscar en mi catálogo: título, autor, género, saga…"
-                           autocomplete="off">
-                </label>
-                {% if buscar %}
-                <a class="btn ghost small" href="/catalogo{{ build_qs(request, buscar=None) }}"
-                   title="Quitar la búsqueda">{{ icon("x", 13) }}</a>
-                {% endif %}
-            </form>
-            {% if sin_portada > 0 %}
-            <form method="post" action="/catalogo/completar-portadas" style="display:inline" data-noload>
-                <button type="submit" class="btn small ghost warning" style="color: var(--warning); border-color: color-mix(in srgb, var(--warning) 40%, transparent); background: color-mix(in srgb, var(--warning) 10%, transparent);" title="Busca portadas automáticamente para {{ sin_portada }} ítems en segundo plano">
-                    {{ icon("sparkles", 13) }} Buscar portadas ({{ sin_portada }} pendientes)
-                </button>
-            </form>
-            {% endif %}
-        </div>
-        <div class="view-toggle" role="group" aria-label="Vista">
-            <button type="button" class="ghost small" data-view="grid" title="Cuadrícula">{{ icon("layout-grid", 15) }}</button>
-            <button type="button" class="ghost small" data-view="list" title="Lista">{{ icon("list", 15) }}</button>
-        </div>
-    </div>
-
-    <div class="chips mobile-only" style="margin-bottom:.7rem">
+    <nav class="type-tabs" aria-label="Tipo de medio" style="margin-bottom:1rem">
+        <a href="/catalogo{{ build_qs(request, tipo=None, genero=None, tiempo=None, plataforma=None) }}" class="{{ 'active' if not tipo_filtro else '' }}">{{ icon("library-big", 15) }} Todo</a>
         {% for t in media_types %}
-        <a href="/catalogo?tipo={{ t.value }}" class="{{ 'active' if tipo_filtro == t.value else '' }}">{{ media_icon(t.value, 13) }} {{ t.value|capitalize }}</a>
+        <a href="/catalogo?tipo={{ t.value }}" class="t-{{ t.value }} {{ 'active' if tipo_filtro == t.value else '' }}">{{ media_icon(t.value, 15) }} {{ nombres_tipo[t.value] }}</a>
         {% endfor %}
+    </nav>
+
+    <div class="catalog-toolbar">
+        {# Buscar en lo que YA tienes, no en las APIs de arriba. Es un
+           <form> GET normal a propósito: sin JavaScript sigue funcionando,
+           y la búsqueda queda en la URL, así que se puede compartir o
+           guardar en marcadores. Los filtros activos viajan como campos
+           ocultos para no perderse al buscar. #}
+        <form method="get" action="/catalogo" class="buscador-catalogo" role="search">
+            {% if tipo_filtro %}<input type="hidden" name="tipo" value="{{ tipo_filtro }}">{% endif %}
+            {% if estado_filtro %}<input type="hidden" name="estado" value="{{ estado_filtro }}">{% endif %}
+            {% if genero_filtro %}<input type="hidden" name="genero" value="{{ genero_filtro }}">{% endif %}
+            {% if plataforma_filtro %}<input type="hidden" name="plataforma" value="{{ plataforma_filtro }}">{% endif %}
+            {% if tiempo_filtro %}<input type="hidden" name="tiempo" value="{{ tiempo_filtro }}">{% endif %}
+            <input type="hidden" name="orden" value="{{ orden }}">
+            <label class="search-field">
+                {{ icon("search", 15) }}
+                <input type="search" name="buscar" value="{{ buscar }}"
+                       placeholder="Buscar en mi catálogo: título, autor, género, saga…"
+                       autocomplete="off" data-hotkey-search>
+                {% if buscar %}
+                <a class="btn quiet small icon-btn" href="/catalogo{{ build_qs(request, buscar=None) }}"
+                   title="Quitar la búsqueda" aria-label="Quitar la búsqueda">{{ icon("x", 14) }}</a>
+                {% endif %}
+            </label>
+        </form>
+
+        <span class="catalog-count"><span class="tag accent">{{ total }}</span> {{ "resultado" if total == 1 else "resultados" }}</span>
+
+        <div class="view-toggle" role="group" aria-label="Vista">
+            <button type="button" class="ghost small" data-view="grid" title="Cuadrícula" aria-label="Cuadrícula">{{ icon("layout-grid", 15) }}</button>
+            <button type="button" class="ghost small" data-view="list" title="Lista" aria-label="Lista">{{ icon("list", 15) }}</button>
+        </div>
     </div>
 
-    <div class="filter-groups">
-        <details class="filter-dd">
+    <div class="filter-groups" style="margin-bottom:1.4rem">
+        <details class="filter-dd{{ ' has-value' if estado_filtro else '' }}">
             <summary>Estado {% if estado_filtro %}<span class="filter-dd-current">{{ status_labels.get(estado_filtro) }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
             <div class="filter-dd-panel">
                 <div class="chips">
@@ -90,7 +109,7 @@
         </details>
 
         {% if generos_disponibles %}
-        <details class="filter-dd">
+        <details class="filter-dd{{ ' has-value' if genero_filtro else '' }}">
             <summary>Género {% if genero_filtro %}<span class="filter-dd-current">{{ genero_filtro }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
             <div class="filter-dd-panel">
                 <div class="chips">
@@ -110,7 +129,7 @@
         {# Solo aparece si has escrito alguna: hasta entonces sería un
            desplegable vacío ocupando sitio. #}
         {% if plataformas_disponibles %}
-        <details class="filter-dd">
+        <details class="filter-dd{{ ' has-value' if plataforma_filtro else '' }}">
             <summary>Dónde {% if plataforma_filtro %}<span class="filter-dd-current">{{ plataforma_filtro }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
             <div class="filter-dd-panel">
                 <div class="chips">
@@ -124,7 +143,7 @@
         {% endif %}
 
         {% if tiempos_disponibles %}
-        <details class="filter-dd">
+        <details class="filter-dd{{ ' has-value' if tiempo_filtro else '' }}">
             <summary>Duración {% if tiempo_label %}<span class="filter-dd-current">{{ tiempo_label }}</span>{% endif %} {{ icon("chevron-down", 13) }}</summary>
             <div class="filter-dd-panel">
                 <div class="chips">
@@ -147,6 +166,10 @@
                 </div>
             </div>
         </details>
+
+        {% if estado_filtro or genero_filtro or plataforma_filtro or tiempo_filtro or buscar %}
+        <a href="/catalogo{{ build_qs(request, estado=None, genero=None, plataforma=None, tiempo=None, buscar=None) }}" class="filter-reset">{{ icon("x", 13) }} Quitar filtros</a>
+        {% endif %}
     </div>
 
     {% if items %}
@@ -167,7 +190,7 @@
     {% endif %}
 
     {% else %}
-    <div class="empty">{{ icon("inbox", 30) }} Nada por aquí todavía. Busca un título arriba para añadirlo{% if tipo_filtro or estado_filtro %} o quita los filtros{% endif %}.</div>
+    <div class="empty">{{ icon("inbox", 28) }} Nada por aquí todavía. {% if tipo_filtro or estado_filtro or buscar %}Prueba a quitar los filtros, o busca{% else %}Busca{% endif %} un título en «Añadir» para empezar.</div>
     {% endif %}
 </section>
 
@@ -175,24 +198,35 @@
 {% block scripts %}
 <script>
 (function () {
+    var store = window.appStore;
     var grid = document.getElementById("catalog-grid");
     var buttons = document.querySelectorAll(".view-toggle [data-view]");
     function apply(view) {
         if (grid) grid.classList.toggle("as-list", view === "list");
-        buttons.forEach(function (b) { b.classList.toggle("active", b.dataset.view === view); });
+        buttons.forEach(function (b) {
+            b.classList.toggle("active", b.dataset.view === view);
+            b.setAttribute("aria-pressed", b.dataset.view === view ? "true" : "false");
+        });
     }
-    var saved = localStorage.getItem("catalogView") || "grid";
-    apply(saved);
+    apply(store.get("catalogView") || "grid");
     buttons.forEach(function (b) {
         b.addEventListener("click", function () {
-            localStorage.setItem("catalogView", b.dataset.view);
+            store.set("catalogView", b.dataset.view);
             apply(b.dataset.view);
         });
     });
 
+    // Llegando desde "Añadir" de la portada: el panel abierto y el cursor dentro.
+    var panel = document.getElementById("anadir");
+    if (panel && location.hash === "#anadir") {
+        panel.open = true;
+        var q = document.getElementById("q-input");
+        if (q) setTimeout(function () { q.focus(); }, 50);
+    }
+
     // Desplegables de filtro (estado/género/duración/orden): al abrir uno se
-    // cierran los demás, y un clic fuera cierra el que esté abierto -- los
-    // <details> nativos por sí solos se quedan abiertos indefinidamente.
+    // cierran los demás, y un clic fuera o Escape cierra el que esté abierto
+    // -- los <details> nativos por sí solos se quedan abiertos indefinidamente.
     var filterDetails = document.querySelectorAll(".filter-dd");
     filterDetails.forEach(function (d) {
         d.addEventListener("toggle", function () {
@@ -203,6 +237,9 @@
         filterDetails.forEach(function (d) {
             if (d.open && !d.contains(e.target)) d.open = false;
         });
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") filterDetails.forEach(function (d) { d.open = false; });
     });
 
     // Idioma de búsqueda de libros: recuerda la preferencia (como la vista de
@@ -216,10 +253,10 @@
             idiomaInput.value = idioma;
             idiomaBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.idioma === idioma); });
         }
-        aplicaIdioma(localStorage.getItem("bookSearchLang") || "es");
+        aplicaIdioma(store.get("bookSearchLang") || "es");
         idiomaBtns.forEach(function (b) {
             b.addEventListener("click", function () {
-                localStorage.setItem("bookSearchLang", b.dataset.idioma);
+                store.set("bookSearchLang", b.dataset.idioma);
                 aplicaIdioma(b.dataset.idioma);
                 if (qInput && qInput.value.trim().length >= 2) {
                     htmx.ajax("GET", "/buscar?tipo=libro&idioma=" + b.dataset.idioma +

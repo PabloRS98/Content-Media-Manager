@@ -1,25 +1,29 @@
 {% from "_icons.html" import icon %}
 {% from "_media_icon.html" import media_icon %}
 {% if item %}
-<div class="toolbar" style="align-items: flex-start; gap: 1rem;">
-    <div class="cover" style="width: 84px; flex-shrink: 0; aspect-ratio: 2/3; border-radius: 8px; overflow: hidden; background: var(--bg-soft); border: 1px solid var(--border);">
-        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" style="width:100%; height:100%; object-fit:cover;">
-        {% else %}<span style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-3);">{{ media_icon(item.media_type.value, 24) }}</span>{% endif %}
-    </div>
-    <div style="flex:1; min-width: 180px;">
+<div class="suggestion" data-tipo="{{ item.media_type.value }}">
+    <a href="/item/{{ item.id }}" class="suggestion-cover" aria-hidden="true" tabindex="-1">
+        {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="">
+        {% else %}{{ media_icon(item.media_type.value, 26) }}{% endif %}
+    </a>
+    <div class="suggestion-body">
+        <span class="eyebrow">{{ icon("dices", 12) }} ¿Qué tal esto?</span>
         <a href="/item/{{ item.id }}"><strong>{{ item.title }}</strong></a>
-        <p class="meta" style="margin:.2rem 0 .5rem">
+        <span class="meta subtle">
             {{ media_icon(item.media_type.value, 13) }} {{ item.media_type.value }} · {{ item.year or "?" }}
             {% if item.creator %} · {{ item.creator }}{% endif %}
-        </p>
-        {% if item.generos %}<p class="subtle" style="margin:0 0 .5rem">{{ item.generos | map(attribute='nombre') | join(', ') }}</p>{% endif %}
-        <button type="button" class="ghost small"
-                hx-get="/sugerencia{{ ('?tipo=' ~ tipo) if tipo else '' }}"
-                hx-target="#suggestion-box" hx-swap="innerHTML">
-            {{ icon("dices", 14) }} Otra sugerencia
-        </button>
+        </span>
+        {% if item.generos %}<div class="badges">{% for g in item.generos[:4] %}<span class="tag">{{ g.nombre }}</span>{% endfor %}</div>{% endif %}
+        <div class="toolbar" style="margin-top:.3rem">
+            <a href="/item/{{ item.id }}" class="btn small">{{ icon("arrow-right", 14) }} Ver ficha</a>
+            <button type="button" class="ghost small"
+                    hx-get="/sugerencia{{ ('?tipo=' ~ tipo) if tipo else '' }}"
+                    hx-target="#suggestion-box" hx-swap="innerHTML">
+                {{ icon("dices", 14) }} Otra sugerencia
+            </button>
+        </div>
     </div>
 </div>
 {% else %}
-<div class="empty">{{ icon("dices", 26) }} No hay nada pendiente{{ (" de tipo " ~ tipo) if tipo else "" }}. ¡Todo al día!</div>
+<div class="empty">{{ icon("dices", 24) }} No hay nada pendiente{{ (" de tipo " ~ tipo) if tipo else "" }}. ¡Todo al día!</div>
 {% endif %}
