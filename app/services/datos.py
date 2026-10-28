@@ -40,7 +40,7 @@ COLUMNAS_DE_EPISODIO = [c.name for c in Episode.__table__.columns
 def _valor(v):
     if isinstance(v, enum.Enum):
         return v.value
-    if isinstance(v, (date, datetime)):
+    if isinstance(v, date | datetime):
         return v.isoformat()
     return v
 

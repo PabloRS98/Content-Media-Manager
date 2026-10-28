@@ -43,7 +43,7 @@ class TestSesiones:
 
     def test_la_cookie_caduca_y_va_segura_si_se_pide(self):
         from app.main import app
-        (mw,) = [m for m in app.user_middleware if m.cls.__name__ == "SessionMiddleware"]
+        (mw,) = (m for m in app.user_middleware if m.cls.__name__ == "SessionMiddleware")
         assert mw.kwargs["max_age"] == 90 * 24 * 3600
         assert mw.kwargs["https_only"] == settings.secure_cookies
 
