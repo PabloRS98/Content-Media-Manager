@@ -22,7 +22,7 @@
 
     <div class="settings-stack">
         <section class="card">
-            <h3>{{ icon("pencil") }} Nombre</h3>
+            <h2>{{ icon("pencil") }} Nombre</h2>
             <form method="post" action="/cuentas/ajustes/nombre" class="toolbar">
                 <input type="text" name="nombre" value="{{ usuario.nombre }}" class="grow" required maxlength="60" aria-label="Nombre">
                 <button type="submit">{{ icon("check", 14) }} Guardar nombre</button>
@@ -30,7 +30,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("lock") }} Contraseña</h3>
+            <h2>{{ icon("lock") }} Contraseña</h2>
             {% if usuario.tiene_password %}
             <p class="subtle">Tu cuenta está protegida: nadie entra sin la contraseña.</p>
             {% else %}
@@ -56,7 +56,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("log-out") }} Sesiones</h3>
+            <h2>{{ icon("log-out") }} Sesiones</h2>
             <p class="subtle">Si abriste la cuenta en un ordenador que no es tuyo, ciérrala allí desde aquí. Cambiar la contraseña también las cierra.</p>
             <form method="post" action="/cuentas/ajustes/cerrar-sesiones">
                 <button type="submit" class="ghost">{{ icon("log-out", 14) }} Cerrar en los demás dispositivos</button>
@@ -64,7 +64,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("download") }} Tus datos</h3>
+            <h2>{{ icon("download") }} Tus datos</h2>
             <p class="subtle">Todo lo de tu cuenta, para guardarlo o llevártelo: el JSON lo incluye todo (episodios, géneros, etiquetas, listas); el CSV se abre en una hoja de cálculo.</p>
             <div class="toolbar">
                 <a class="btn ghost" href="/cuentas/ajustes/exportar.json" download>{{ icon("download", 14) }} Descargar JSON</a>
@@ -73,7 +73,7 @@
         </section>
 
         <section class="card danger-zone">
-            <h3>{{ icon("trash-2") }} Borrar la cuenta</h3>
+            <h2>{{ icon("trash-2") }} Borrar la cuenta</h2>
             <p class="subtle">Se borran la cuenta y todo su catálogo, sus listas y su historial. <strong>No se puede deshacer</strong>: descarga antes tus datos si los quieres.</p>
             <form method="post" action="/cuentas/ajustes/borrar" class="form-grid"
                   data-confirm="¿Borrar la cuenta «{{ usuario.nombre }}» y todo su catálogo? No se puede deshacer.">
@@ -94,7 +94,7 @@
         </section>
 
         <section class="card">
-            <h3>{{ icon("keyboard") }} Atajos de teclado</h3>
+            <h2>{{ icon("keyboard") }} Atajos de teclado</h2>
             <p class="subtle" style="margin:0">Pulsa <kbd>?</kbd> en cualquier página para verlos. Los más útiles: <kbd>/</kbd> para buscar, <kbd>n</kbd> para añadir y <kbd>g</kbd> <kbd>i</kbd> para volver al inicio.</p>
         </section>
     </div>

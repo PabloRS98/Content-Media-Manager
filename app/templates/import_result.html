@@ -26,7 +26,7 @@
 
 {% if sin_portada > 0 %}
 <section class="card">
-    <h3>{{ icon("image-off") }} Portadas</h3>
+    <h2>{{ icon("image-off") }} Portadas</h2>
     <p class="hint">Hay <strong>{{ sin_portada }}</strong> ítems sin portada.</p>
     <div class="toolbar">
         <button type="button"
@@ -36,7 +36,7 @@
         </button>
         <span id="enrich-spinner" class="htmx-indicator spinner"></span>
     </div>
-    <div id="enrich-result" style="margin-top:.6rem"></div>
+    <div id="enrich-result" aria-live="polite" style="margin-top:.6rem"></div>
 </section>
 {% endif %}
 

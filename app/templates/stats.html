@@ -46,7 +46,7 @@
 <div class="grid-2">
     {% if mejores %}
     <section class="card">
-        <h3>{{ icon("star") }} Tus mejores de {{ año }}</h3>
+        <h2>{{ icon("star") }} Tus mejores de {{ año }}</h2>
         <ol class="best-list">
             {% for m in mejores %}
             <li data-tipo="{{ m.media_type.value }}">
@@ -57,36 +57,62 @@
         </ol>
     </section>
     {% endif %}
+{# Cada gráfica se pinta en un <canvas>, que un lector de pantalla no puede
+   explorar: lleva role="img" con un aria-label que resume los datos, y debajo
+   un desplegable con la misma información en una tabla. [R3-B28] #}
+{% macro tabla(titulo, col1, col2, etiquetas, valores) %}
+<details class="chart-data">
+    <summary>Ver los datos en una tabla</summary>
+    <table>
+        <caption class="sr-only">{{ titulo }}</caption>
+        <thead><tr><th scope="col">{{ col1 }}</th><th scope="col">{{ col2 }}</th></tr></thead>
+        <tbody>
+            {%- for etiqueta in etiquetas %}
+            <tr><th scope="row">{{ etiqueta }}</th><td>{{ valores[loop.index0] }}</td></tr>
+            {%- endfor %}
+        </tbody>
+    </table>
+</details>
+{% endmacro %}
+{% set tipos_nombres = ["Libros", "Películas", "Series", "Videojuegos", "Podcasts"] %}
+{% set tipos_n = [por_tipo["libro"], por_tipo["pelicula"], por_tipo["serie"], por_tipo["videojuego"], por_tipo["podcast"]] %}
+{% set meses_nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"] %}
+{% set notas_nombres = ["½ estrella", "1 estrella", "1½ estrellas", "2 estrellas", "2½ estrellas", "3 estrellas", "3½ estrellas", "4 estrellas", "4½ estrellas", "5 estrellas"] %}
     <section class="card">
-        <h3>{{ icon("chart-pie") }} Por tipo</h3>
-        <div class="chart-box"><canvas id="chart-tipos" role="img" aria-label="Ítems por tipo de medio"></canvas></div>
+        <h2>{{ icon("chart-pie") }} Por tipo</h2>
+        <div class="chart-box"><canvas id="chart-tipos" role="img" aria-label="Ítems por tipo de medio: {% for n in tipos_nombres %}{{ n }} {{ tipos_n[loop.index0] }}{{ '; ' if not loop.last }}{% endfor %}"></canvas></div>
+        {{ tabla("Ítems por tipo de medio", "Tipo", "Ítems", tipos_nombres, tipos_n) }}
     </section>
 </div>
 
 <section class="grid-charts">
     <div class="card">
-        <h3>{{ icon("calendar") }} Completados por mes ({{ año }})</h3>
-        <div class="chart-box"><canvas id="chart-meses" role="img" aria-label="Completados por mes"></canvas></div>
+        <h2>{{ icon("calendar") }} Completados por mes ({{ año }})</h2>
+        <div class="chart-box"><canvas id="chart-meses" role="img" aria-label="Completados por mes en {{ año }}, de enero a diciembre: {{ por_mes|join(', ') }}"></canvas></div>
+        {{ tabla("Completados por mes", "Mes", "Completados", meses_nombres, por_mes) }}
     </div>
     <div class="card">
-        <h3>{{ icon("tags") }} Géneros más frecuentes</h3>
+        <h2>{{ icon("tags") }} Géneros más frecuentes</h2>
         {% if top_generos %}
-        <div class="chart-box"><canvas id="chart-generos" role="img" aria-label="Géneros más frecuentes"></canvas></div>
+        <div class="chart-box"><canvas id="chart-generos" role="img" aria-label="Géneros más frecuentes: {% for g in top_generos %}{{ g[0] }} {{ g[1] }}{{ '; ' if not loop.last }}{% endfor %}"></canvas></div>
+        {{ tabla("Géneros más frecuentes", "Género", "Ítems", top_generos|map(attribute=0)|list, top_generos|map(attribute=1)|list) }}
         {% else %}
         <div class="empty">{{ icon("tags", 24) }} Sin géneros todavía. Se rellenan al añadir desde TMDB/RAWG o importar.</div>
         {% endif %}
     </div>
     <div class="card">
-        <h3>{{ icon("calendar") }} Por década</h3>
+        <h2>{{ icon("calendar") }} Por década</h2>
         {% if por_decada %}
-        <div class="chart-box"><canvas id="chart-decada" role="img" aria-label="Ítems por década"></canvas></div>
+        <div class="chart-box"><canvas id="chart-decada" role="img" aria-label="Ítems por década: {% for d in por_decada %}{{ d[0] }}s {{ d[1] }}{{ '; ' if not loop.last }}{% endfor %}"></canvas></div>
+        {{ tabla("Ítems por década", "Década", "Ítems", por_decada|map(attribute=0)|map("string")|list, por_decada|map(attribute=1)|list) }}
         {% else %}
         <div class="empty">{{ icon("calendar", 24) }} Sin años registrados todavía.</div>
         {% endif %}
     </div>
     <div class="card">
-        <h3>{{ icon("star") }} Distribución de tus notas</h3>
-        <div class="chart-box"><canvas id="chart-notas" role="img" aria-label="Distribución de notas"></canvas></div>
+        <h2>{{ icon("star") }} Distribución de tus notas</h2>
+        <div class="chart-box"><canvas id="chart-notas" role="img" aria-label="Distribución de tus notas, de media estrella a cinco: {{ ratings|join(', ') }}"></canvas></div>
+        {{ tabla("Distribución de tus notas", "Nota", "Ítems", notas_nombres, ratings) }}
     </div>
 </section>
 
@@ -97,104 +123,22 @@
     y el tiempo estimado de lectura de los libros completados.
 </p>
 
+{# Los datos de las gráficas viajan en un bloque JSON: el navegador no lo
+   ejecuta, así que la CSP no necesita 'unsafe-inline' en script-src, y el
+   código que las pinta vive en js/stats.js. `top_generos` llega como filas de
+   SQLAlchemy (Row), que `tojson` no sabe serializar: se pasan a listas. [R3-B6] #}
+<script type="application/json" id="stats-data">{{ {
+    "tipos": tipos_n,
+    "meses": por_mes,
+    "generos": top_generos|map(attribute=0)|list,
+    "generos_n": top_generos|map(attribute=1)|list,
+    "decada": por_decada|map(attribute=0)|list,
+    "decada_n": por_decada|map(attribute=1)|list,
+    "notas": ratings,
+} | tojson }}</script>
+
 {% endblock %}
 {% block scripts %}
 <script src="{{ static_url('js/chart.umd.js') }}"></script>
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-    // Lee los tokens de tema en vivo en vez de hexadecimales fijos: Chart.js
-    // pinta en <canvas> y no puede seguir var(--...) por su cuenta. Al cambiar
-    // de tema (evento "themechange" de app.js) se vuelven a pintar todas.
-    const charts = [];
-
-    function draw() {
-        charts.splice(0).forEach((c) => c.destroy());
-        const tokens = getComputedStyle(document.documentElement);
-        const tok = (name) => tokens.getPropertyValue(name).trim();
-        // Hex → rgba: el canvas no entiende color-mix() en todos los navegadores.
-        const alpha = (hex, pct) => {
-            const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-            if (!m) return hex;
-            return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${pct / 100})`;
-        };
-
-        Chart.defaults.color = tok("--text-2");
-        Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-        Chart.defaults.borderColor = alpha(tok("--border-2"), 45);
-        Chart.defaults.maintainAspectRatio = false;
-        Chart.defaults.plugins.legend.labels.boxWidth = 10;
-        Chart.defaults.plugins.legend.labels.usePointStyle = true;
-        Chart.defaults.plugins.tooltip.backgroundColor = tok("--card-2");
-        Chart.defaults.plugins.tooltip.titleColor = tok("--text");
-        Chart.defaults.plugins.tooltip.bodyColor = tok("--text-2");
-        Chart.defaults.plugins.tooltip.borderColor = tok("--border-2");
-        Chart.defaults.plugins.tooltip.borderWidth = 1;
-        Chart.defaults.plugins.tooltip.padding = 10;
-        Chart.defaults.plugins.tooltip.cornerRadius = 8;
-        const PALETTE = [
-            tok("--accent"), tok("--stamp"), tok("--c-serie"), tok("--c-videojuego"),
-            tok("--c-podcast"), tok("--warning"), tok("--accent-soft"), tok("--text-3"),
-        ];
-        const gridless = { grid: { display: false } };
-        const ints = { ticks: { precision: 0 }, grid: { color: alpha(tok("--border-2"), 35) }, border: { display: false } };
-
-        charts.push(new Chart(document.getElementById("chart-tipos"), {
-            type: "doughnut",
-            data: {
-                labels: ["Libros", "Películas", "Series", "Videojuegos", "Podcasts"],
-                datasets: [{
-                    data: [{{ por_tipo["libro"] }}, {{ por_tipo["pelicula"] }}, {{ por_tipo["serie"] }}, {{ por_tipo["videojuego"] }}, {{ por_tipo["podcast"] }}],
-                    backgroundColor: [tok("--c-libro"), tok("--c-pelicula"), tok("--c-serie"), tok("--c-videojuego"), tok("--c-podcast")],
-                    borderColor: tok("--card"), borderWidth: 3, hoverOffset: 6,
-                }]
-            },
-            options: { cutout: "66%", plugins: { legend: { position: "right" } } }
-        }));
-
-        charts.push(new Chart(document.getElementById("chart-meses"), {
-            type: "bar",
-            data: {
-                labels: ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"],
-                datasets: [{ label: "Completados", data: {{ por_mes | tojson | safe }}, backgroundColor: tok("--accent"), borderRadius: 6, maxBarThickness: 28 }]
-            },
-            options: { plugins: { legend: { display: false } }, scales: { x: gridless, y: ints } }
-        }));
-
-        {% if top_generos %}
-        charts.push(new Chart(document.getElementById("chart-generos"), {
-            type: "bar",
-            data: {
-                labels: {{ top_generos | map(attribute=0) | list | tojson | safe }},
-                datasets: [{ data: {{ top_generos | map(attribute=1) | list | tojson | safe }}, backgroundColor: PALETTE, borderRadius: 6, maxBarThickness: 22 }]
-            },
-            options: { indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: ints, y: gridless } }
-        }));
-        {% endif %}
-
-        {% if por_decada %}
-        charts.push(new Chart(document.getElementById("chart-decada"), {
-            type: "bar",
-            data: {
-                labels: {{ por_decada | map(attribute=0) | map("string") | list | tojson | safe }}.map(d => d + "s"),
-                datasets: [{ data: {{ por_decada | map(attribute=1) | list | tojson | safe }}, backgroundColor: tok("--c-serie"), borderRadius: 6, maxBarThickness: 28 }]
-            },
-            options: { plugins: { legend: { display: false } }, scales: { x: gridless, y: ints } }
-        }));
-        {% endif %}
-
-        // La nota se guarda 1-10 y se enseña en estrellas: cada punto, media.
-        charts.push(new Chart(document.getElementById("chart-notas"), {
-            type: "bar",
-            data: {
-                labels: ["½","1","1½","2","2½","3","3½","4","4½","5"].map(s => s + "★"),
-                datasets: [{ label: "Ítems", data: {{ ratings | tojson | safe }}, backgroundColor: tok("--star"), borderRadius: 6, maxBarThickness: 28 }]
-            },
-            options: { plugins: { legend: { display: false } }, scales: { x: gridless, y: ints } }
-        }));
-    }
-
-    draw();
-    document.addEventListener("themechange", draw);
-});
-</script>
+<script src="{{ static_url('js/stats.js') }}" defer></script>
 {% endblock %}

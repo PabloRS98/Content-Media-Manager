@@ -16,7 +16,7 @@
    página es justo la que uno acaba enseñando en una captura para pedir ayuda. #}
 
 <section class="card wide">
-    <h3>{{ icon("activity") }} Tareas de fondo</h3>
+    <h2>{{ icon("activity") }} Tareas de fondo</h2>
     {% if not scheduler_activo %}
     <p class="subtle">{{ icon("circle-alert", 14) }} El planificador está desactivado
         (<code>ENABLE_SCHEDULER=false</code>): no habrá avisos ni backups automáticos.</p>
@@ -48,7 +48,7 @@
 </section>
 
 <section class="card">
-    <h3>{{ icon("plug") }} Fuentes de metadatos</h3>
+    <h2>{{ icon("plug") }} Fuentes de metadatos</h2>
     <div class="table-wrap"><table>
         <thead><tr><th>Fuente</th><th>Para</th><th>Estado</th></tr></thead>
         <tbody>
@@ -83,7 +83,7 @@
 </section>
 
 <section class="card">
-    <h3>{{ icon("database") }} Base de datos</h3>
+    <h2>{{ icon("database") }} Base de datos</h2>
     <div class="table-wrap"><table>
         <tbody>
         <tr>
@@ -128,7 +128,7 @@
 </section>
 
 <section class="card wide">
-    <h3>{{ icon("search") }} Huecos en los datos</h3>
+    <h2>{{ icon("search") }} Huecos en los datos</h2>
     <div class="table-wrap"><table>
         <thead><tr><th>Qué</th><th>Cuántos</th><th>Qué hacer</th></tr></thead>
         <tbody>

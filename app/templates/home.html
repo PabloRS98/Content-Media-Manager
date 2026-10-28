@@ -63,7 +63,7 @@
 
 {% if en_progreso %}
 <section class="card">
-    <h3>{{ icon("play") }} Continuar <span class="tag h3-extra">{{ en_progreso|length }}</span></h3>
+    <h2>{{ icon("play") }} Continuar <span class="tag h3-extra">{{ en_progreso|length }}</span></h2>
     <div class="continue-grid">
         {% for item in en_progreso %}
         {%- set st = item.episode_stats() if item.is_episodic else None %}
@@ -98,7 +98,7 @@
 
 {% if proximos %}
 <section class="card">
-    <h3>{{ icon("list-todo") }} Próximos <a href="/catalogo?estado=pendiente" class="head-link">VER TODOS {{ icon("chevron-right", 13) }}</a></h3>
+    <h2>{{ icon("list-todo") }} Próximos <a href="/catalogo?estado=pendiente" class="head-link">VER TODOS {{ icon("chevron-right", 13) }}</a></h2>
     {{ rail(proximos) }}
 </section>
 {% endif %}
@@ -109,8 +109,8 @@
    ponderados. Si no hay nada completado de donde deducir, el router devuelve
    lista vacía y esta sección no aparece, en vez de inventarse afinidades. #}
 <section class="card">
-    <h3>{{ icon("wand-sparkles") }} Porque te gustó lo que ya has visto
-        <a href="/catalogo?estado=pendiente" class="head-link">PENDIENTES {{ icon("chevron-right", 13) }}</a></h3>
+    <h2>{{ icon("wand-sparkles") }} Porque te gustó lo que ya has visto
+        <a href="/catalogo?estado=pendiente" class="head-link">PENDIENTES {{ icon("chevron-right", 13) }}</a></h2>
     <div class="recomendaciones">
         {% for r in recomendaciones %}
         <a href="/item/{{ r.item.id }}" class="recomendacion" data-tipo="{{ r.item.media_type.value }}">
@@ -131,7 +131,7 @@
 <div class="grid-2">
     {% if proximamente %}
     <section class="card">
-        <h3>{{ icon("calendar") }} Próximamente <a href="/calendario" class="head-link">CALENDARIO {{ icon("chevron-right", 13) }}</a></h3>
+        <h2>{{ icon("calendar") }} Próximamente <a href="/calendario" class="head-link">CALENDARIO {{ icon("chevron-right", 13) }}</a></h2>
         <ul class="upcoming-list">
             {% for e in proximamente %}
             <li data-tipo="{{ e.item.media_type.value }}">
@@ -145,7 +145,7 @@
     {% endif %}
 
     <section class="card" id="sugerencia">
-        <h3>{{ icon("dices") }} ¿Qué hago ahora?</h3>
+        <h2>{{ icon("dices") }} ¿Qué hago ahora?</h2>
         <div class="toolbar" style="margin-bottom:.8rem">
             <div class="segmented" role="group" aria-label="Tiempo disponible">
                 <button type="button" hx-get="/tengo-tiempo?minutos=30" hx-target="#timefit-box" hx-swap="innerHTML">30 min</button>
@@ -160,22 +160,22 @@
             </button>
             <span id="suggest-spinner" class="htmx-indicator spinner"></span>
         </div>
-        <div id="timefit-box"></div>
-        <div id="suggestion-box"></div>
+        <div id="timefit-box" aria-live="polite"></div>
+        <div id="suggestion-box" aria-live="polite"></div>
         <p class="subtle" style="margin:.4rem 0 0">Elige cuánto tiempo tienes y te digo qué de lo pendiente cabe, o deja que el azar decida.</p>
     </section>
 </div>
 
 {% if wishlist %}
 <section class="card">
-    <h3>{{ icon("bookmark") }} Wishlist <a href="/catalogo?estado=wishlist" class="head-link">VER TODO {{ icon("chevron-right", 13) }}</a></h3>
+    <h2>{{ icon("bookmark") }} Wishlist <a href="/catalogo?estado=wishlist" class="head-link">VER TODO {{ icon("chevron-right", 13) }}</a></h2>
     {{ rail(wishlist) }}
 </section>
 {% endif %}
 
 {% if recientes %}
 <section class="card">
-    <h3>{{ icon("circle-check") }} Completado hace poco <a href="/actividad" class="head-link">DIARIO {{ icon("chevron-right", 13) }}</a></h3>
+    <h2>{{ icon("circle-check") }} Completado hace poco <a href="/actividad" class="head-link">DIARIO {{ icon("chevron-right", 13) }}</a></h2>
     {{ rail(recientes) }}
 </section>
 {% endif %}

@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#170d06">
+    {# Mismo valor que --bg del tema oscuro (el de por defecto) y que el
+       manifest; app.js lo sincroniza con el tema vigente. [R3-M26] #}
+    <meta name="theme-color" content="#140b05">
     <meta name="color-scheme" content="dark light">
     <title>{% block title %}Catálogo de Medios{% endblock %}</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
@@ -11,17 +13,10 @@
     <link rel="manifest" href="/static/manifest.webmanifest">
     <link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
-    <script>
-        // Antes de pintar nada: si no ha elegido nunca, oscuro por defecto.
-        // Bloqueante a propósito, para no mostrar un parpadeo del tema claro
-        // en cada carga antes de que corra app.js. El try es por el modo
-        // privado de algunos navegadores, donde localStorage lanza.
-        (function () {
-            var t = "dark";
-            try { t = localStorage.getItem("theme") || "dark"; } catch (e) {}
-            document.documentElement.setAttribute("data-theme", t);
-        })();
-    </script>
+    {# Bloqueante a propósito (sin defer): fija el tema antes de pintar, para
+       no ver un parpadeo del claro. Es un archivo y no un <script> en línea
+       porque la CSP ya no admite 'unsafe-inline' en scripts. [R3-B6] #}
+    <script src="{{ static_url('js/tema.js') }}"></script>
     <script src="{{ static_url('js/htmx.min.js') }}" defer></script>
 </head>
 <body>
@@ -144,7 +139,9 @@
 </nav>
 
 <dialog id="nav-mas" class="sheet" aria-label="Más secciones">
-    <div class="sheet-handle" data-close-dialog></div>
+    {# Botón de verdad (antes un div con clic): se alcanza con Tab y cierra la
+       hoja con Intro o Espacio. [R3-B30] #}
+    <button type="button" class="sheet-handle" data-close-dialog aria-label="Cerrar"></button>
     <p class="nav-group">Biblioteca</p>
     <div class="sheet-grid">{{ enlaces_biblioteca() }}</div>
     <p class="nav-group">Organizar</p>
@@ -155,7 +152,7 @@
 
 <dialog id="atajos" aria-labelledby="atajos-titulo">
     <button type="button" class="quiet icon-btn dialog-close" data-close-dialog aria-label="Cerrar">{{ icon("x", 16) }}</button>
-    <h3 id="atajos-titulo">{{ icon("keyboard") }} Atajos de teclado</h3>
+    <h2 id="atajos-titulo">{{ icon("keyboard") }} Atajos de teclado</h2>
     <dl class="shortcut-list">
         <dt><kbd>/</kbd></dt><dd>Buscar en tu catálogo</dd>
         <dt><kbd>n</kbd></dt><dd>Añadir algo nuevo (en el catálogo)</dd>
@@ -173,7 +170,9 @@
 </dialog>
 {% endif %}
 
-<div id="toasts" class="toasts" aria-live="polite"></div>
+{# Única región viva de los avisos: los toasts de dentro no llevan role, o el
+   lector los anunciaría dos veces. [R3-B31] #}
+<div id="toasts" class="toasts" role="region" aria-label="Avisos" aria-live="polite"></div>
 <script src="{{ static_url('js/app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

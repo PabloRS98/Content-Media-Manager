@@ -21,18 +21,34 @@
         if (!box || !message) return;
         const el = document.createElement("div");
         el.className = "toast " + category;
-        el.setAttribute("role", category === "error" ? "alert" : "status");
+        // Sin role="status"/"alert": #toasts ya es la región viva (aria-live), y
+        // con role propio cada aviso se anunciaba dos veces. [R3-B31]
+        el.tabIndex = 0;
         el.innerHTML =
             '<svg class="icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[category] + "</svg>" +
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[category] + "</svg>" +
             "<span></span>";
         el.querySelector("span").textContent = message;
+        const duracion = category === "error" ? 6000 : 4000;
+        let timer = null;
         const close = () => {
+            clearTimeout(timer);
             el.classList.add("leaving");
             setTimeout(() => el.remove(), 200);
         };
+        // Se cierra solo, pero no mientras se lee: el ratón encima o el foco
+        // dentro lo detienen, y al soltarlos la cuenta vuelve a empezar. [R3-B31]
+        const pausa = () => clearTimeout(timer);
+        const reanuda = () => { clearTimeout(timer); timer = setTimeout(close, duracion); };
+        el.addEventListener("mouseenter", pausa);
+        el.addEventListener("mouseleave", reanuda);
+        el.addEventListener("focusin", pausa);
+        el.addEventListener("focusout", reanuda);
         el.addEventListener("click", close);
-        setTimeout(close, category === "error" ? 6000 : 4000);
+        el.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" || e.key === "Enter") close();
+        });
+        reanuda();
         box.appendChild(el);
     }
 
