@@ -5,8 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-Second technical audit (August 2026). Findings are tracked by id (`MC-*`);
-each entry below names the id it closes.
+## [1.1.0] — 2026-10-28
+
+The redesign plus the second and third technical audits. Findings are
+tracked by id (`MC-*` for the second audit, `R3-*` for the third, see
+[docs/AUDITORIA-3.md](docs/AUDITORIA-3.md)); each entry below names the id
+it closes.
+
+### Upgrade notes
+
+- **Back up `/data` before upgrading.** Several migrations run on the first
+  start and reshape existing data: genres move to their own table, IMDb ids
+  become `imdb:tt…`, and `usuario_id` becomes a real foreign key. They run
+  unattended (container entrypoint or `init_db()`); pin `:1.0.0` if you are
+  not ready.
+- SQLite foreign keys are now enforced (`PRAGMA foreign_keys=ON`).
+- Open sessions stay valid. The cookie now expires after 90 days; behind an
+  HTTPS reverse proxy you can set `SECURE_COOKIES=true`.
+- Dates ("watched on", "finished on", the diary, the calendar) now follow
+  `TIMEZONE`. Set it to your zone (e.g. `Europe/Madrid`) if it is still `UTC`.
+- Running outside Docker: install with
+  `pip install --require-hashes -r requirements.txt` (dependencies are now
+  locked with hashes).
 
 ### Added
 
