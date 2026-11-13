@@ -2,7 +2,7 @@
 # dos builds del mismo commit podían salir con bases distintas. El tag se deja
 # para que se lea qué versión es; Dependabot (ecosistema docker) sube las dos
 # cosas juntas.
-FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # Sin .pyc en la imagen (el sistema de ficheros va en solo lectura en el compose,
 # no se pueden escribir de todos modos) y sin buffer en stdout/stderr: sin esto,
