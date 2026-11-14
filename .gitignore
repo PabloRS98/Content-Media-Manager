@@ -44,6 +44,7 @@ docker-compose.override.yml
 migrations/__pycache__/
 migrations/versions/__pycache__/
 
-# Worktrees de Claude Code (subagentes en paralelo)
-.claude/worktrees/
+# AI agent local config and worktrees
+.claude/
+.freebuff/
 .coverage
